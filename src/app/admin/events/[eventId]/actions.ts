@@ -7,7 +7,7 @@ import {
   applyChecklistTemplateToEvent,
   updateEventChecklistItem,
 } from "@/lib/admin/checklist-templates";
-import { markEventVendorReviewed } from "@/lib/admin/events";
+import { markEventUploadReviewed, markEventVendorReviewed } from "@/lib/admin/events";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -149,4 +149,38 @@ export async function reviewVendorSubmissionAction(formData: FormData) {
   revalidatePath(`/admin/events/${eventId}`);
 
   redirect(`/admin/events/${eventId}?vendor=reviewed`);
+}
+
+export async function reviewUploadAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "").trim();
+  const uploadId = String(formData.get("uploadId") || "").trim();
+
+  if (!eventId) {
+    throw new Error("Unable to review upload: missing event ID");
+  }
+
+  if (!uploadId) {
+    throw new Error("Unable to review upload: missing upload ID");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  await markEventUploadReviewed({
+    eventId,
+    reviewedBy: user.email ?? null,
+    uploadId,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/events");
+  revalidatePath(`/admin/events/${eventId}`);
+
+  redirect(`/admin/events/${eventId}?upload=reviewed`);
 }

@@ -2,6 +2,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { GhlEventSnapshot } from "@/types/portal";
 
 import { buildChecklistReviewCountsByEvent } from "./checklist-review-presenters";
+import { buildReviewedUploadMetadata } from "./upload-review-presenters";
 import {
   buildReviewedVendorMetadata,
   buildVendorReviewCountsByEvent,
@@ -11,6 +12,7 @@ import type { Database, Json } from "@/types/database";
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 type EventChecklistItemRow = Database["public"]["Tables"]["event_checklist_items"]["Row"];
 type VendorRow = Database["public"]["Tables"]["vendors"]["Row"];
+type UploadRow = Database["public"]["Tables"]["uploads"]["Row"];
 
 export type AdminEventListItem = {
   id: string;
@@ -61,6 +63,20 @@ export type AdminEventVendor = {
   notes: string | null;
   metadata: Json;
   createdAt: string;
+};
+
+export type AdminEventUpload = {
+  id: string;
+  fileName: string;
+  fileMimeType: string;
+  fileSizeBytes: number;
+  storageBucket: string;
+  storagePath: string;
+  status: UploadRow["status"];
+  uploadedBy: string;
+  uploadedAt: string;
+  metadata: Json;
+  signedUrl: string | null;
 };
 
 export async function listAdminEvents(): Promise<AdminEventListItem[]> {
@@ -178,6 +194,45 @@ export async function listEventVendors(
   >[]).map(mapVendorRowToAdminVendor);
 }
 
+export async function listEventUploads(
+  eventId: string,
+): Promise<AdminEventUpload[]> {
+  const supabase = createServiceRoleSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("uploads")
+    .select(
+      "id, file_name, file_mime_type, file_size_bytes, storage_bucket, storage_path, status, uploaded_by, uploaded_at, metadata",
+    )
+    .eq("event_id", eventId)
+    .order("uploaded_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Unable to load event uploads: ${error.message}`);
+  }
+
+  const uploads = ((data ?? []) as Pick<
+    UploadRow,
+    | "id"
+    | "file_name"
+    | "file_mime_type"
+    | "file_size_bytes"
+    | "storage_bucket"
+    | "storage_path"
+    | "status"
+    | "uploaded_by"
+    | "uploaded_at"
+    | "metadata"
+  >[]).map(mapUploadRowToAdminUpload);
+
+  return Promise.all(
+    uploads.map(async (upload) => ({
+      ...upload,
+      signedUrl: await createUploadSignedUrl(upload),
+    })),
+  );
+}
+
 export async function markEventVendorReviewed({
   eventId,
   reviewedBy,
@@ -227,6 +282,58 @@ export async function markEventVendorReviewed({
 
   if (updateError) {
     throw new Error(`Unable to review vendor submission: ${updateError.message}`);
+  }
+}
+
+export async function markEventUploadReviewed({
+  eventId,
+  reviewedBy,
+  uploadId,
+}: {
+  eventId: string;
+  reviewedBy: string | null;
+  uploadId: string;
+}): Promise<void> {
+  const trimmedEventId = eventId.trim();
+  const trimmedUploadId = uploadId.trim();
+
+  if (!trimmedEventId) {
+    throw new Error("Unable to review upload: missing event ID");
+  }
+
+  if (!trimmedUploadId) {
+    throw new Error("Unable to review upload: missing upload ID");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data: upload, error: loadError } = await supabase
+    .from("uploads")
+    .select("id, metadata")
+    .eq("id", trimmedUploadId)
+    .eq("event_id", trimmedEventId)
+    .maybeSingle();
+
+  if (loadError) {
+    throw new Error(`Unable to load upload: ${loadError.message}`);
+  }
+
+  if (!upload) {
+    throw new Error("Unable to review upload: upload not found for event");
+  }
+
+  const metadata = buildReviewedUploadMetadata({
+    existingMetadata: (upload as Pick<UploadRow, "metadata">).metadata,
+    reviewedBy,
+  });
+
+  const { error: updateError } = await supabase
+    .from("uploads")
+    .update({ metadata, status: "uploaded" } as never)
+    .eq("id", trimmedUploadId)
+    .eq("event_id", trimmedEventId);
+
+  if (updateError) {
+    throw new Error(`Unable to review upload: ${updateError.message}`);
   }
 }
 
@@ -322,6 +429,50 @@ function mapVendorRowToAdminVendor(
     metadata: row.metadata,
     createdAt: row.created_at,
   };
+}
+
+function mapUploadRowToAdminUpload(
+  row: Pick<
+    UploadRow,
+    | "id"
+    | "file_name"
+    | "file_mime_type"
+    | "file_size_bytes"
+    | "storage_bucket"
+    | "storage_path"
+    | "status"
+    | "uploaded_by"
+    | "uploaded_at"
+    | "metadata"
+  >,
+): AdminEventUpload {
+  return {
+    id: row.id,
+    fileName: row.file_name,
+    fileMimeType: row.file_mime_type,
+    fileSizeBytes: row.file_size_bytes,
+    storageBucket: row.storage_bucket,
+    storagePath: row.storage_path,
+    status: row.status,
+    uploadedBy: row.uploaded_by,
+    uploadedAt: row.uploaded_at,
+    metadata: row.metadata,
+    signedUrl: null,
+  };
+}
+
+async function createUploadSignedUrl(upload: AdminEventUpload): Promise<string | null> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.storage
+    .from(upload.storageBucket)
+    .createSignedUrl(upload.storagePath, 60 * 10);
+
+  if (error) {
+    console.error("Failed creating upload signed URL", error.message);
+    return null;
+  }
+
+  return data.signedUrl;
 }
 
 function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {

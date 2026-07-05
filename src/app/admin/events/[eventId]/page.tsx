@@ -7,6 +7,12 @@ import {
   getChecklistReviewClassName,
 } from "@/lib/admin/checklist-review-presenters";
 import {
+  buildUploadReviewSummary,
+  formatUploadFileSize,
+  getUploadReviewClassName,
+  isClientUploadNeedingReview,
+} from "@/lib/admin/upload-review-presenters";
+import {
   buildVendorReviewSummary,
   formatVendorReviewSourceLabel,
   getVendorReviewClassName,
@@ -20,7 +26,9 @@ import {
 } from "@/lib/admin/checklist-templates";
 import {
   getAdminEventById,
+  listEventUploads,
   listEventVendors,
+  type AdminEventUpload,
   type AdminEventVendor,
 } from "@/lib/admin/events";
 import { formatDisplayDate } from "@/lib/dates";
@@ -29,6 +37,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   applyChecklistTemplateAction,
   launchPortalAction,
+  reviewUploadAction,
   reviewVendorSubmissionAction,
   updateChecklistItemAction,
 } from "./actions";
@@ -48,7 +57,12 @@ const syncStatusLabels = {
 
 type AdminEventDetailPageProps = {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ checklist?: string; launched?: string; vendor?: string }>;
+  searchParams: Promise<{
+    checklist?: string;
+    launched?: string;
+    upload?: string;
+    vendor?: string;
+  }>;
 };
 
 export default async function AdminEventDetailPage({
@@ -65,12 +79,13 @@ export default async function AdminEventDetailPage({
   }
 
   const { eventId } = await params;
-  const { checklist, launched, vendor } = await searchParams;
-  const [event, checklistItems, checklistTemplates, vendors] = await Promise.all([
+  const { checklist, launched, upload, vendor } = await searchParams;
+  const [event, checklistItems, checklistTemplates, vendors, uploads] = await Promise.all([
     getAdminEventById(eventId),
     listEventChecklistItems(eventId),
     listActiveChecklistTemplates(),
     listEventVendors(eventId),
+    listEventUploads(eventId),
   ]);
 
   if (!event) {
@@ -119,6 +134,13 @@ export default async function AdminEventDetailPage({
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
           Vendor submission marked reviewed. This app did not sync the vendor
           back to GoHighLevel or notify the client.
+        </div>
+      ) : null}
+
+      {upload === "reviewed" ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+          Upload marked reviewed. The file remains private in Supabase Storage;
+          this app did not sync it to GoHighLevel or notify the client.
         </div>
       ) : null}
 
@@ -201,6 +223,8 @@ export default async function AdminEventDetailPage({
       />
 
       <VendorSubmissionsSection eventId={event.id} vendors={vendors} />
+
+      <UploadReviewSection eventId={event.id} uploads={uploads} />
 
       <section className="grid gap-6 xl:grid-cols-2">
         <DetailSection title="Event summary">
@@ -539,6 +563,115 @@ function VendorSubmissionsSection({
           <p className="text-sm text-slate-700">
             No vendor submissions are connected to this event yet. Client portal
             submissions will appear here automatically after launch.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function UploadReviewSection({
+  eventId,
+  uploads,
+}: {
+  eventId: string;
+  uploads: AdminEventUpload[];
+}) {
+  const reviewSummary = buildUploadReviewSummary(uploads);
+
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">Upload review</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Review files submitted through the client portal. Download links are
+            temporary signed URLs for planner review only.
+          </p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+          {uploads.length} upload{uploads.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {uploads.length > 0 ? (
+        <div
+          className={
+            reviewSummary.hasUploadsNeedingReview
+              ? "mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+              : "mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+          }
+        >
+          <p className="font-semibold">{reviewSummary.label}</p>
+          {reviewSummary.hasUploadsNeedingReview ? (
+            <p className="mt-1">
+              Client-submitted uploads are highlighted below. Review the file,
+              then mark it reviewed when planner approval is done.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {uploads.length > 0 ? (
+        <ul className="mt-5 grid gap-4 xl:grid-cols-2">
+          {uploads.map((upload) => (
+            <li className={getUploadReviewClassName(upload)} key={upload.id}>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="break-all text-base font-semibold text-slate-950">
+                  {upload.fileName}
+                </h3>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                  {isClientUploadNeedingReview(upload) ? "Needs review" : "Reviewed"}
+                </span>
+              </div>
+              <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                <ChecklistMeta label="Type" value={upload.fileMimeType} />
+                <ChecklistMeta
+                  label="Size"
+                  value={formatUploadFileSize(upload.fileSizeBytes)}
+                />
+                <ChecklistMeta label="Uploaded by" value={upload.uploadedBy} />
+                <ChecklistMeta
+                  label="Uploaded"
+                  value={formatNullableDateTime(upload.uploadedAt)}
+                />
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {upload.signedUrl ? (
+                  <a
+                    className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    href={upload.signedUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Open signed download
+                  </a>
+                ) : (
+                  <span className="rounded-full border border-amber-200 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900">
+                    Download unavailable
+                  </span>
+                )}
+                {isClientUploadNeedingReview(upload) ? (
+                  <form action={reviewUploadAction}>
+                    <input name="eventId" type="hidden" value={eventId} />
+                    <input name="uploadId" type="hidden" value={upload.id} />
+                    <button
+                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      type="submit"
+                    >
+                      Mark upload reviewed
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+          <p className="text-sm text-slate-700">
+            No files are connected to this event yet. Client portal uploads will
+            appear here automatically after launch.
           </p>
         </div>
       )}
