@@ -208,7 +208,6 @@ export default async function ClientPortalPlaceholderPage({
               <form
                 action={uploadFileAction}
                 className="grid gap-3 rounded-xl bg-slate-50 p-4"
-                encType="multipart/form-data"
               >
                 <input name="token" type="hidden" value={token} />
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
