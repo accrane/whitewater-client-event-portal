@@ -31,7 +31,7 @@ export const appConfig = {
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     storageBucket:
-      process.env.SUPABASE_STORAGE_BUCKET || "event-portal-uploads",
+      process.env.SUPABASE_STORAGE_BUCKET || "event-uploads",
   },
   ghl: {
     locationId: process.env.GHL_LOCATION_ID,
