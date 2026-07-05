@@ -110,3 +110,9 @@ Client Event Portal - MVP Architecture.md
 Client Event Portal - GHL Setup Checklist.md
 Client Event Portal - Implementation Plan.md
 ```
+
+Repo handoff docs:
+
+```text
+docs/client-event-portal-preview-handoff.md
+```
