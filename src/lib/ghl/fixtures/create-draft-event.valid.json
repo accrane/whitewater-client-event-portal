@@ -1,0 +1,26 @@
+{
+  "ghl_location_id": "loc_test_123",
+  "ghl_event_record_id": "event_test_2026_corp_retreat",
+  "ghl_contact_id": "contact_test_456",
+  "ghl_opportunity_id": "opp_test_789",
+  "event": {
+    "name": "Acme Corp — Corporate Event — 2026-08-15",
+    "type": "Corporate",
+    "date": "2026-08-15",
+    "arrival_time": "10:00 AM",
+    "meeting_location": "Room 1"
+  },
+  "planner": {
+    "id": "user_test_planner",
+    "name": "Planner Name",
+    "email": "planner@example.com",
+    "phone": null
+  },
+  "links": {
+    "proposal": "https://example.com/proposal",
+    "contract": "https://example.com/contract",
+    "invoice": "https://example.com/invoice",
+    "payment": "https://example.com/payment"
+  },
+  "payment_status": "Deposit Paid"
+}

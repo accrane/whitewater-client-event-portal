@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Client Event Portal
 
-## Getting Started
+A custom external client portal for booked events, integrated with GoHighLevel.
 
-First, run the development server:
+GoHighLevel remains the CRM/system of record. This app provides the client-facing portal and planner-facing admin workflow for event checklists, uploads, vendor submissions, portal launch, and readiness review.
+
+## Current build phase
+
+This repository is in the local app shell phase.
+
+Implemented so far:
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Placeholder home page
+- Supabase-backed admin login route: `/admin/login`
+- Protected admin dashboard placeholder route: `/admin`
+- Placeholder client portal route: `/e/demo-token`
+
+Not connected yet:
+
+- GoHighLevel
+- File uploads
+
+Local foundation completed:
+
+- Database migration draft
+- Temporary seed checklist template
+- Supabase client/server helper structure
+
+## Local development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Useful routes:
 
-## Learn More
+```text
+/                 App overview shell
+/admin            Admin dashboard placeholder
+/e/demo-token     Client portal placeholder
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Verification
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run linting:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run lint
+```
 
-## Deploy on Vercel
+Run a production build:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Environment variables
+
+Copy `.env.example` to `.env.local` when real services are ready:
+
+```bash
+cp .env.example .env.local
+```
+
+Do not commit real secrets.
+
+## Planned architecture
+
+Primary stack:
+
+```text
+Next.js + TypeScript
+Tailwind CSS
+Supabase Postgres/Auth/Storage
+GoHighLevel API/webhooks
+Vercel staging/production
+```
+
+Key principle:
+
+```text
+GHL owns official event/client/business fields.
+Portal owns client-facing checklist, uploads, vendors, page views, and readiness UI.
+```
+
+## Related planning notes
+
+Obsidian planning docs:
+
+```text
+Client Event Portal - Planning Handoff.md
+Client Event Portal - MVP Architecture.md
+Client Event Portal - GHL Setup Checklist.md
+Client Event Portal - Implementation Plan.md
+```
