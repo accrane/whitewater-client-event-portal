@@ -309,6 +309,53 @@ export async function markEventVendorReviewed({
   }
 }
 
+// Planner-editable event summary details. Stored in ghl_snapshot alongside
+// the GHL-synced fields; the auto-sync never touches these keys, so edits
+// survive page loads.
+export async function updateEventSummaryDetails(
+  eventId: string,
+  details: { arrivalTime: string | null; meetingLocation: string | null },
+): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("ghl_snapshot")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to load event for update: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error("Event not found");
+  }
+
+  const row = data as { ghl_snapshot: Json };
+  const existing =
+    row.ghl_snapshot &&
+    typeof row.ghl_snapshot === "object" &&
+    !Array.isArray(row.ghl_snapshot)
+      ? (row.ghl_snapshot as Record<string, Json>)
+      : {};
+
+  const snapshot: Record<string, Json> = {
+    ...existing,
+    arrivalTime: details.arrivalTime,
+    meetingLocation: details.meetingLocation,
+  };
+
+  const { error: updateError } = await supabase
+    .from("events")
+    .update({ ghl_snapshot: snapshot } as never)
+    .eq("id", eventId);
+
+  if (updateError) {
+    throw new Error(`Unable to update event details: ${updateError.message}`);
+  }
+}
+
 // Permanently deletes an event: linked calendar blocks are removed, database
 // rows cascade (checklist, vendors, uploads, schedule), and the GHL
 // opportunity's Event Planning App ID field is blanked so the inquiry flow

@@ -39,6 +39,7 @@ import {
 import { formatDisplayDate } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+import { listRooms } from "@/lib/admin/room-calendar";
 import { syncEventFromGhl } from "@/lib/ghl/event-sync";
 
 import {
@@ -48,7 +49,17 @@ import {
   reviewUploadAction,
   reviewVendorSubmissionAction,
   updateChecklistItemAction,
+  updateEventDetailsAction,
 } from "./actions";
+
+// 15-minute arrival-time choices, stored as the display label the client
+// portal shows (e.g. "9:15 AM").
+const ARRIVAL_TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const hours = Math.floor(i / 4);
+  const minutes = (i % 4) * 15;
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${hour12}:${String(minutes).padStart(2, "0")} ${hours < 12 ? "AM" : "PM"}`;
+});
 
 const statusLabels = {
   draft: "Draft",
@@ -67,6 +78,7 @@ type AdminEventDetailPageProps = {
   params: Promise<{ eventId: string }>;
   searchParams: Promise<{
     checklist?: string;
+    details?: string;
     launched?: string;
     upload?: string;
     vendor?: string;
@@ -87,18 +99,19 @@ export default async function AdminEventDetailPage({
   }
 
   const { eventId } = await params;
-  const { checklist, launched, upload, vendor } = await searchParams;
+  const { checklist, details, launched, upload, vendor } = await searchParams;
 
   // Pull current opportunity data (Date of Interest, assigned planner,
   // contact, event type) from GHL before rendering; degrades quietly.
   await syncEventFromGhl(eventId);
 
-  const [event, checklistItems, checklistTemplates, vendors, uploads] = await Promise.all([
+  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms] = await Promise.all([
     getAdminEventById(eventId),
     listEventChecklistItems(eventId),
     listActiveChecklistTemplates(),
     listEventVendors(eventId),
     listEventUploads(eventId),
+    listRooms(),
   ]);
 
   if (!event) {
@@ -139,6 +152,13 @@ export default async function AdminEventDetailPage({
           Portal launch prepared. The secure URL is stored below. Client
           notification is still separate and should be handled through
           GoHighLevel.
+        </div>
+      ) : null}
+
+      {details === "1" ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+          Event details saved. Arrival time and meeting location will show on
+          the client portal.
         </div>
       ) : null}
 
@@ -256,9 +276,64 @@ export default async function AdminEventDetailPage({
       <section className="grid gap-6 xl:grid-cols-2">
         <DetailSection title="Event summary">
           <DetailRow label="Event type" value={event.eventType} />
-          <DetailRow label="Arrival time" value={event.arrivalTime} />
-          <DetailRow label="Meeting location" value={event.meetingLocation} />
           <DetailRow label="Payment status" value={event.paymentStatus} />
+          <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
+            <dt className="font-semibold text-slate-500">
+              Arrival &amp; location
+            </dt>
+            <dd className="sm:col-span-2">
+              <form action={updateEventDetailsAction} className="space-y-3">
+                <input name="eventId" type="hidden" value={event.id} />
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500">
+                    Arrival time
+                  </span>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                    defaultValue={event.arrivalTime ?? ""}
+                    name="arrivalTime"
+                  >
+                    <option value="">Not set</option>
+                    {event.arrivalTime &&
+                    !ARRIVAL_TIME_OPTIONS.includes(event.arrivalTime) ? (
+                      <option value={event.arrivalTime}>
+                        {event.arrivalTime}
+                      </option>
+                    ) : null}
+                    {ARRIVAL_TIME_OPTIONS.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500">
+                    Meeting location
+                  </span>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                    defaultValue={event.meetingLocation ?? ""}
+                    list="meeting-location-options"
+                    name="meetingLocation"
+                    placeholder="e.g. Big Drop, Main Entrance"
+                    type="text"
+                  />
+                  <datalist id="meeting-location-options">
+                    {rooms.map((room) => (
+                      <option key={room.id} value={room.name} />
+                    ))}
+                  </datalist>
+                </label>
+                <button
+                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  type="submit"
+                >
+                  Save details
+                </button>
+              </form>
+            </dd>
+          </div>
         </DetailSection>
 
         <DetailSection title="Planner">

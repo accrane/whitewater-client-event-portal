@@ -11,6 +11,7 @@ import {
   deleteAdminEvent,
   markEventUploadReviewed,
   markEventVendorReviewed,
+  updateEventSummaryDetails,
 } from "@/lib/admin/events";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -45,6 +46,34 @@ export async function launchPortalAction(formData: FormData) {
   revalidatePath(`/admin/events/${eventId}`);
 
   redirect(`/admin/events/${eventId}?launched=1`);
+}
+
+export async function updateEventDetailsAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "").trim();
+
+  if (!eventId) {
+    throw new Error("Unable to update event details: missing event ID");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  const arrivalTime = String(formData.get("arrivalTime") || "").trim();
+  const meetingLocation = String(formData.get("meetingLocation") || "").trim();
+
+  await updateEventSummaryDetails(eventId, {
+    arrivalTime: arrivalTime || null,
+    meetingLocation: meetingLocation || null,
+  });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  redirect(`/admin/events/${eventId}?details=1`);
 }
 
 const deleteConfirmationValue = "delete-event-confirmed";
