@@ -40,6 +40,21 @@ export const BLOCK_COLOR_KEYS = Object.keys(
 ) as ScheduleBlockColor[];
 
 /** "13:05" (from <input type="time">) → minutes from midnight. */
+// WYSIWYG editors leave residue like "<br>" or "<p></p>" when notes were
+// opened but never written. A note only counts as content when visible text
+// or an image survives stripping the markup.
+export function noteHtmlHasContent(html: string): boolean {
+  if (!html) return false;
+  if (/<img\b/i.test(html)) return true;
+
+  return (
+    html
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .trim().length > 0
+  );
+}
+
 export function timeInputToMinutes(value: string): number | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
   if (!match) return null;

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { NoteWysiwyg } from "@/components/schedule/note-wysiwyg";
-import type { ScheduleTileFields } from "@/lib/schedule";
+import { noteHtmlHasContent, type ScheduleTileFields } from "@/lib/schedule";
 
 export type TileSaveInput = {
   id: string;
@@ -38,7 +38,7 @@ export function TileEditor({
   const [noteHtml, setNoteHtml] = useState(tile.note_html);
   const [notesOpen, setNotesOpen] = useState(false);
 
-  const hasNote = stripHtml(noteHtml).length > 0 || noteHtml.includes("<img");
+  const hasNote = noteHtmlHasContent(noteHtml);
   const dirty =
     title.trim() !== tile.title ||
     description !== tile.description ||
@@ -126,7 +126,9 @@ export function TileEditor({
                 id: tile.id,
                 title: title.trim(),
                 description,
-                noteHtml,
+                // Editor residue like "<br>" saves as an empty note so the
+                // client timeline never shows an empty callout.
+                noteHtml: hasNote ? noteHtml : "",
               })
             }
             type="button"
@@ -198,9 +200,3 @@ function MoveButton({
   );
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .trim();
-}

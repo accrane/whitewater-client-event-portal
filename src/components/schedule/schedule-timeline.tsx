@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { ScheduleTileFields } from "@/lib/schedule";
+import { noteHtmlHasContent, type ScheduleTileFields } from "@/lib/schedule";
 
 // Collapsed note height in px; keeps side notes from overlapping the next
 // tile's note until the reader expands them.
@@ -34,7 +34,7 @@ export function ScheduleTimeline({ items }: ScheduleTimelineProps) {
 
 function TimelineTile({ item }: { item: ScheduleTileFields }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const hasNote = item.note_html.trim().length > 0;
+  const hasNote = noteHtmlHasContent(item.note_html);
 
   return (
     <div className="relative grid gap-x-14 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
