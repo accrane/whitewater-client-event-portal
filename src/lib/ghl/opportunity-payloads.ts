@@ -3,6 +3,7 @@
 export type OpportunityUpdateBody = {
   pipelineId?: string;
   pipelineStageId?: string;
+  assignedTo?: string;
   customFields?: { id: string; field_value: string }[];
 };
 

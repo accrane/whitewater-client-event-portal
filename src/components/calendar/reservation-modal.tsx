@@ -3,11 +3,58 @@ import type {
   Room,
   Reservation,
   ReservationFormData,
-  Coordinator,
   PortalEventOption,
+  GhlUserOption,
 } from "@/lib/calendar/types";
 import { format } from "date-fns";
 import { StatusBadge } from "./status-badge";
+
+// 15-minute steps for the time pickers, "HH:mm" values with friendly labels.
+const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const hours = Math.floor(i / 4);
+  const minutes = (i % 4) * 15;
+  const value = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const label = `${hour12}:${String(minutes).padStart(2, "0")} ${hours < 12 ? "AM" : "PM"}`;
+  return { value, label };
+});
+
+// Round to the nearest 15 minutes so slot-click defaults land on an option.
+function roundToQuarter(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = Math.round((h * 60 + m) / 15) * 15;
+  const capped = Math.min(total, 23 * 60 + 45);
+  return `${String(Math.floor(capped / 60)).padStart(2, "0")}:${String(capped % 60).padStart(2, "0")}`;
+}
+
+function TimeSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className: string;
+}) {
+  return (
+    <select
+      required
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={className}
+    >
+      {/* Keep an existing off-step time selectable */}
+      {value && !TIME_OPTIONS.some((t) => t.value === value) && (
+        <option value={value}>{value}</option>
+      )}
+      {TIME_OPTIONS.map((t) => (
+        <option key={t.value} value={t.value}>
+          {t.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 // One room booking row in the form. Every block shares the linked event,
 // date, and coordinator; blocks only differ by room, status, and times.
@@ -26,14 +73,22 @@ export type BlockFailure = { index: number; message: string };
 // so initial form state comes from the useState initializer on each open.
 interface ReservationModalProps {
   onClose: () => void;
-  // Edit mode: update the single reservation being edited.
-  onSave: (data: ReservationFormData) => Promise<void>;
+  // Edit mode: update the single reservation being edited. A coordinator
+  // user id is passed when a GHL user was selected, so the caller can also
+  // assign them to the opportunity in GHL.
+  onSave: (
+    data: ReservationFormData,
+    coordinatorUserId?: string,
+  ) => Promise<void>;
   // Create mode: create one reservation per block; resolves with the blocks
   // that failed (e.g. room conflicts) so the modal can keep them open.
-  onCreateMany: (blocks: ReservationFormData[]) => Promise<BlockFailure[]>;
+  onCreateMany: (
+    blocks: ReservationFormData[],
+    coordinatorUserId?: string,
+  ) => Promise<BlockFailure[]>;
   onDelete?: () => Promise<void>;
   rooms: Room[];
-  coordinators: Coordinator[];
+  ghlUsers: GhlUserOption[];
   portalEvents: PortalEventOption[];
   reservation?: Reservation | null;
   defaultRoomId?: string;
@@ -48,7 +103,7 @@ export function ReservationModal({
   onCreateMany,
   onDelete,
   rooms,
-  coordinators,
+  ghlUsers,
   portalEvents,
   reservation,
   defaultRoomId,
@@ -57,9 +112,13 @@ export function ReservationModal({
   const isEditing = !!reservation;
 
   const [eventId, setEventId] = useState(reservation?.event_id ?? "");
-  const [coordinatorName, setCoordinatorName] = useState(
-    reservation?.coordinator_name ?? "",
-  );
+  // Coordinator select holds a GHL user id, or "__legacy__" when the
+  // reservation carries a name that no longer matches a GHL user.
+  const [coordinatorSel, setCoordinatorSel] = useState(() => {
+    const name = reservation?.coordinator_name;
+    if (!name) return "";
+    return ghlUsers.find((u) => u.name === name)?.id ?? "__legacy__";
+  });
   const [date, setDate] = useState(() => {
     if (reservation) return format(new Date(reservation.start_datetime), "yyyy-MM-dd");
     return format(defaultStart ?? new Date(), "yyyy-MM-dd");
@@ -89,8 +148,8 @@ export function ReservationModal({
         key: nextBlockKey++,
         room_id: defaultRoomId || rooms[0]?.id || "",
         status: "held",
-        start_time: format(start, "HH:mm"),
-        end_time: format(end, "HH:mm"),
+        start_time: roundToQuarter(format(start, "HH:mm")),
+        end_time: roundToQuarter(format(end, "HH:mm")),
         error: null,
       },
     ];
@@ -140,13 +199,22 @@ export function ReservationModal({
     );
   };
 
+  const coordinatorName =
+    coordinatorSel === "__legacy__"
+      ? (reservation?.coordinator_name ?? null)
+      : (ghlUsers.find((u) => u.id === coordinatorSel)?.name ?? null);
+  const coordinatorUserId =
+    coordinatorSel && coordinatorSel !== "__legacy__"
+      ? coordinatorSel
+      : undefined;
+
   const buildPayload = (block: RoomBlock): ReservationFormData => ({
     room_id: block.room_id,
     title: selectedEvent?.name ?? "Reservation",
     status: block.status,
     start_datetime: new Date(`${date}T${block.start_time}`).toISOString(),
     end_datetime: new Date(`${date}T${block.end_time}`).toISOString(),
-    coordinator_name: coordinatorName || undefined,
+    coordinator_name: coordinatorName,
     event_id: eventId,
   });
 
@@ -183,12 +251,15 @@ export function ReservationModal({
     setSaving(true);
     try {
       if (isEditing) {
-        await onSave(buildPayload(blocks[0]));
+        await onSave(buildPayload(blocks[0]), coordinatorUserId);
         onClose();
         return;
       }
 
-      const failures = await onCreateMany(blocks.map(buildPayload));
+      const failures = await onCreateMany(
+        blocks.map(buildPayload),
+        coordinatorUserId,
+      );
 
       if (failures.length === 0) {
         onClose();
@@ -220,7 +291,10 @@ export function ReservationModal({
     if (!validate()) return;
     setSaving(true);
     try {
-      await onSave({ ...buildPayload(blocks[0]), status: "booked" });
+      await onSave(
+        { ...buildPayload(blocks[0]), status: "booked" },
+        coordinatorUserId,
+      );
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -348,22 +422,26 @@ export function ReservationModal({
                 Event Coordinator
               </label>
               <select
-                value={coordinatorName}
-                onChange={(e) => setCoordinatorName(e.target.value)}
+                value={coordinatorSel}
+                onChange={(e) => setCoordinatorSel(e.target.value)}
                 className={inputClass}
               >
                 <option value="">None</option>
-                {/* Keep a coordinator assigned before they were removed from settings */}
-                {coordinatorName &&
-                  !coordinators.some((c) => c.name === coordinatorName) && (
-                    <option value={coordinatorName}>{coordinatorName}</option>
-                  )}
-                {coordinators.map((coordinator) => (
-                  <option key={coordinator.id} value={coordinator.name}>
-                    {coordinator.name}
+                {/* Keep a coordinator who no longer matches a GHL user */}
+                {coordinatorSel === "__legacy__" && (
+                  <option value="__legacy__">
+                    {reservation?.coordinator_name}
+                  </option>
+                )}
+                {ghlUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-slate-400">
+                Also assigned to the opportunity in GHL.
+              </p>
             </div>
           </div>
 
@@ -445,12 +523,10 @@ export function ReservationModal({
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Start Time *
                     </label>
-                    <input
-                      type="time"
-                      required
+                    <TimeSelect
                       value={block.start_time}
-                      onChange={(e) =>
-                        updateBlock(block.key, { start_time: e.target.value })
+                      onChange={(start_time) =>
+                        updateBlock(block.key, { start_time })
                       }
                       className={inputClass}
                     />
@@ -459,12 +535,10 @@ export function ReservationModal({
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       End Time *
                     </label>
-                    <input
-                      type="time"
-                      required
+                    <TimeSelect
                       value={block.end_time}
-                      onChange={(e) =>
-                        updateBlock(block.key, { end_time: e.target.value })
+                      onChange={(end_time) =>
+                        updateBlock(block.key, { end_time })
                       }
                       className={inputClass}
                     />

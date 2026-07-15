@@ -10,12 +10,20 @@ export type ReservationFormData = Omit<
 >;
 
 // Portal events a reservation can be linked to. `name` becomes the block
-// title, `eventDate` auto-fills the booking date (GHL "Date of Interest").
+// title, `eventDate` auto-fills the booking date (live GHL "Date of
+// Interest" when available).
 export type PortalEventOption = {
   id: string;
   name: string;
   eventDate: string | null;
   label: string;
+};
+
+// GHL location users — the staff who coordinate events. Selecting one on a
+// reservation also assigns them to the opportunity in GHL.
+export type GhlUserOption = {
+  id: string;
+  name: string;
 };
 
 export type ViewMode = "week" | "day";

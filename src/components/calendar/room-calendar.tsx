@@ -21,6 +21,7 @@ export function RoomCalendar() {
     reservations,
     coordinators,
     portalEvents,
+    ghlUsers,
     loading,
     error,
     calendarState,
@@ -92,19 +93,34 @@ export function RoomCalendar() {
     setModalOpen(true);
   }, []);
 
+  // Assigns the chosen coordinator to the event's GHL opportunity. Outcomes
+  // are logged server-side; a GHL failure must not fail the reservation save.
+  const assignCoordinator = useCallback(
+    async (eventId: string | null | undefined, ghlUserId?: string) => {
+      if (!eventId || !ghlUserId) return;
+      try {
+        await api.coordinatorAssignment.set(eventId, ghlUserId);
+      } catch (err) {
+        console.error("Coordinator assignment failed", err);
+      }
+    },
+    [],
+  );
+
   const handleSave = useCallback(
-    async (data: ReservationFormData) => {
+    async (data: ReservationFormData, coordinatorUserId?: string) => {
       if (!editingReservation) return;
       await api.reservations.update(editingReservation.id, data);
+      await assignCoordinator(data.event_id, coordinatorUserId);
       await refetch();
     },
-    [editingReservation, refetch],
+    [editingReservation, assignCoordinator, refetch],
   );
 
   // Creates one reservation per room block, returning the blocks that failed
   // (e.g. conflicts) so the modal can keep them open for correction.
   const handleCreateMany = useCallback(
-    async (blocks: ReservationFormData[]) => {
+    async (blocks: ReservationFormData[], coordinatorUserId?: string) => {
       const failures: { index: number; message: string }[] = [];
       for (const [index, block] of blocks.entries()) {
         try {
@@ -116,10 +132,13 @@ export function RoomCalendar() {
           });
         }
       }
+      if (failures.length < blocks.length) {
+        await assignCoordinator(blocks[0]?.event_id, coordinatorUserId);
+      }
       await refetch();
       return failures;
     },
-    [refetch],
+    [assignCoordinator, refetch],
   );
 
   const handleDelete = useCallback(async () => {
@@ -251,7 +270,7 @@ export function RoomCalendar() {
           onCreateMany={handleCreateMany}
           onDelete={editingReservation ? handleDelete : undefined}
           rooms={rooms}
-          coordinators={coordinators}
+          ghlUsers={ghlUsers}
           portalEvents={portalEvents}
           reservation={editingReservation}
           defaultRoomId={defaultRoomId}

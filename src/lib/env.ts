@@ -9,6 +9,7 @@ type EnvKey =
   | "GHL_WEBHOOK_SECRET"
   | "GHL_EVENT_OBJECT_ID_OR_KEY"
   | "GHL_OPPORTUNITY_EVENT_FIELD_ID"
+  | "GHL_DATE_OF_INTEREST_FIELD_ID"
   | "GHL_PIPELINE_ID"
   | "GHL_PLANNING_STAGE_ID"
   | "PORTAL_BASE_URL";
@@ -45,6 +46,8 @@ export const appConfig = {
     eventObjectIdOrKey: process.env.GHL_EVENT_OBJECT_ID_OR_KEY,
     // Opportunity custom field that stores the portal event id.
     opportunityEventFieldId: process.env.GHL_OPPORTUNITY_EVENT_FIELD_ID,
+    // Opportunity custom field holding the client's Date of Interest.
+    dateOfInterestFieldId: process.env.GHL_DATE_OF_INTEREST_FIELD_ID,
     pipelineId: process.env.GHL_PIPELINE_ID,
     planningStageId: process.env.GHL_PLANNING_STAGE_ID,
   },

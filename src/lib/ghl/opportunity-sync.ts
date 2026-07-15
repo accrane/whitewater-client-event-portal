@@ -160,6 +160,57 @@ export async function moveOpportunityToPlanning(
   return { ok: true };
 }
 
+// Called when a planner picks an Event Coordinator on a reservation: assigns
+// that GHL user to the event's opportunity so they own it in GHL too. Never
+// throws — the reservation save is the primary action.
+export async function assignOpportunityCoordinator(
+  eventId: string,
+  ghlUserId: string,
+): Promise<OpportunitySyncOutcome> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  const event = data as EventRow | null;
+
+  if (error || !event) {
+    const message = error?.message ?? "Event not found";
+    console.error("Failed loading event for coordinator assignment", message);
+    return { ok: false, skipped: true, error: message };
+  }
+
+  if (!event.ghl_opportunity_id) {
+    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, {
+    assignedTo: ghlUserId,
+  });
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_assign_coordinator",
+    ghlLocationId: event.ghl_location_id,
+    portalEventId: event.id,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? "Event coordinator assigned to the GHL opportunity."
+      : "Failed assigning the event coordinator to the GHL opportunity.",
+    details: {
+      ghl_opportunity_id: event.ghl_opportunity_id,
+      ghl_user_id: ghlUserId,
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  return result.ok
+    ? { ok: true }
+    : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
 async function recordWriteBackFailure(
   event: EventRow,
   failure: { skipped: boolean; error: string },

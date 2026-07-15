@@ -13,9 +13,16 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | Field | Field ID | Key | How the portal uses it |
 | --- | --- | --- | --- |
 | Event Planning App ID | `IDk5IeH17B5bpEqcHvkK` | `opportunity.event_planning_app_id` | App **writes** the portal event id here after the inquiry webhook creates the event (`GHL_OPPORTUNITY_EVENT_FIELD_ID`). |
-| Date of Interest | `EMDW0kB1fSuaq8Lixzpq` | `opportunity.date_of_interest` | Must be mapped into the inquiry webhook payload as `event.date`; the app stores it on the event and the reservation modal auto-fills the booking date from it. |
+| Date of Interest | `EMDW0kB1fSuaq8Lixzpq` | `opportunity.date_of_interest` | App **reads** this live from GHL (`GHL_DATE_OF_INTEREST_FIELD_ID`) when loading the calendar's event list; the reservation modal auto-fills the booking date from it. Mapping it into the webhook as `event.date` remains a useful fallback. |
 | Group/Event Name | `Yz2CcYRaCRvjHK3FlekO` | `opportunity.groupevent_name` | Map into the webhook as `event.name`; becomes the portal event name and the calendar block title. |
 | Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | Map into the webhook as `event.type`. |
+
+## Native GHL properties in use (no custom field needed)
+
+| Property | How the portal uses it |
+| --- | --- |
+| Opportunity `assignedTo` | App **writes** it when a planner picks an Event Coordinator on a reservation — the coordinator dropdown lists the location's GHL users, and the selected user is assigned to the opportunity. |
+| Location users | **Read** to populate the Event Coordinator dropdown (replaces the app's manual coordinator list). |
 
 ## Candidate fields (not created yet)
 
@@ -24,7 +31,6 @@ Create these in GHL when the corresponding push-back feature is built:
 | Field (suggested) | Type | Would be used for |
 | --- | --- | --- |
 | Reserved Rooms | TEXT | App writes the room name(s) after a planner books calendar blocks, so sales sees the venue from GHL. |
-| Event Coordinator | TEXT | App writes the assigned coordinator when set on the reservation. |
 | Client Portal Link | TEXT | App writes the client portal URL when the portal is launched, for GHL email templates. |
 
 ## Looking up field ids

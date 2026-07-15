@@ -7,6 +7,7 @@ import type {
   CalendarState,
   Coordinator,
   PortalEventOption,
+  GhlUserOption,
 } from "./types";
 import { api } from "./api";
 import { getWeekRange, getDayRange } from "./utils";
@@ -16,6 +17,7 @@ export function useCalendarData() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [portalEvents, setPortalEvents] = useState<PortalEventOption[]>([]);
+  const [ghlUsers, setGhlUsers] = useState<GhlUserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [calendarState, setCalendarState] = useState<CalendarState>({
@@ -35,27 +37,34 @@ export function useCalendarData() {
           ? getWeekRange(calendarState.currentDate)
           : getDayRange(calendarState.currentDate);
 
-      const [roomsData, reservationsData, coordinatorsData, portalEventsData] =
-        await Promise.all([
-          api.rooms.list(),
-          api.reservations.list({
-            start: range.start.toISOString(),
-            end: range.end.toISOString(),
-            ...(calendarState.selectedRoomId
-              ? { room_id: calendarState.selectedRoomId }
-              : {}),
-            ...(calendarState.statusFilter !== "all"
-              ? { status: calendarState.statusFilter }
-              : {}),
-          }),
-          api.coordinators.list(),
-          api.portalEvents.list(),
-        ]);
+      const [
+        roomsData,
+        reservationsData,
+        coordinatorsData,
+        portalEventsData,
+        ghlUsersData,
+      ] = await Promise.all([
+        api.rooms.list(),
+        api.reservations.list({
+          start: range.start.toISOString(),
+          end: range.end.toISOString(),
+          ...(calendarState.selectedRoomId
+            ? { room_id: calendarState.selectedRoomId }
+            : {}),
+          ...(calendarState.statusFilter !== "all"
+            ? { status: calendarState.statusFilter }
+            : {}),
+        }),
+        api.coordinators.list(),
+        api.portalEvents.list(),
+        api.ghlUsers.list(),
+      ]);
 
       setRooms(roomsData);
       setReservations(reservationsData);
       setCoordinators(coordinatorsData);
       setPortalEvents(portalEventsData);
+      setGhlUsers(ghlUsersData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -80,6 +89,7 @@ export function useCalendarData() {
     reservations,
     coordinators,
     portalEvents,
+    ghlUsers,
     loading,
     error,
     calendarState,

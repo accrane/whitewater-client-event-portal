@@ -1,3 +1,4 @@
+import { fetchDatesOfInterest } from "@/lib/ghl/location-data";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
@@ -94,21 +95,26 @@ export type LinkableEvent = {
 
 // Active portal events a planner can attach a reservation to. Linking one
 // pushes its GHL opportunity into the Planning stage (see
-// src/lib/ghl/planning-trigger.ts).
+// src/lib/ghl/planning-trigger.ts). `eventDate` is the live GHL "Date of
+// Interest" when available, falling back to the stored snapshot.
 export async function listLinkableEvents(): Promise<LinkableEvent[]> {
   const supabase = createServiceRoleSupabaseClient();
-  const { data, error } = await supabase
-    .from("events")
-    .select("id, status, ghl_snapshot")
-    .in("status", ["draft", "launched"])
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const [{ data, error }, liveDates] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, status, ghl_opportunity_id, ghl_snapshot")
+      .in("status", ["draft", "launched"])
+      .order("created_at", { ascending: false })
+      .limit(100),
+    fetchDatesOfInterest(),
+  ]);
 
   if (error) throw error;
 
   const rows = (data ?? []) as {
     id: string;
     status: string;
+    ghl_opportunity_id: string | null;
     ghl_snapshot: unknown;
   }[];
 
@@ -121,10 +127,14 @@ export async function listLinkableEvents(): Promise<LinkableEvent[]> {
       typeof snapshot.eventName === "string" && snapshot.eventName
         ? snapshot.eventName
         : "Untitled event";
-    const eventDate =
+    const snapshotDate =
       typeof snapshot.eventDate === "string" && snapshot.eventDate
         ? snapshot.eventDate
         : null;
+    const eventDate =
+      (row.ghl_opportunity_id
+        ? liveDates.get(row.ghl_opportunity_id)
+        : undefined) ?? snapshotDate;
 
     return {
       id: row.id,

@@ -4,6 +4,7 @@ import type {
   ReservationFormData,
   Coordinator,
   PortalEventOption,
+  GhlUserOption,
 } from "./types";
 
 const BASE = "/api/calendar";
@@ -29,6 +30,16 @@ export const api = {
   },
   portalEvents: {
     list: () => request<PortalEventOption[]>("/portal-events"),
+  },
+  ghlUsers: {
+    list: () => request<GhlUserOption[]>("/ghl-users"),
+  },
+  coordinatorAssignment: {
+    set: (event_id: string, ghl_user_id: string) =>
+      request<{ ok: boolean }>("/coordinator-assignment", {
+        method: "POST",
+        body: JSON.stringify({ event_id, ghl_user_id }),
+      }),
   },
   coordinators: {
     list: () => request<Coordinator[]>("/coordinators"),
