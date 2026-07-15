@@ -94,14 +94,32 @@ export function RoomCalendar() {
 
   const handleSave = useCallback(
     async (data: ReservationFormData) => {
-      if (editingReservation) {
-        await api.reservations.update(editingReservation.id, data);
-      } else {
-        await api.reservations.create(data);
-      }
+      if (!editingReservation) return;
+      await api.reservations.update(editingReservation.id, data);
       await refetch();
     },
     [editingReservation, refetch],
+  );
+
+  // Creates one reservation per room block, returning the blocks that failed
+  // (e.g. conflicts) so the modal can keep them open for correction.
+  const handleCreateMany = useCallback(
+    async (blocks: ReservationFormData[]) => {
+      const failures: { index: number; message: string }[] = [];
+      for (const [index, block] of blocks.entries()) {
+        try {
+          await api.reservations.create(block);
+        } catch (err) {
+          failures.push({
+            index,
+            message: err instanceof Error ? err.message : "Failed to save",
+          });
+        }
+      }
+      await refetch();
+      return failures;
+    },
+    [refetch],
   );
 
   const handleDelete = useCallback(async () => {
@@ -230,6 +248,7 @@ export function RoomCalendar() {
           }
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
+          onCreateMany={handleCreateMany}
           onDelete={editingReservation ? handleDelete : undefined}
           rooms={rooms}
           coordinators={coordinators}

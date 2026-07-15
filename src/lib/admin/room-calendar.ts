@@ -87,6 +87,8 @@ export async function deleteCoordinator(id: string) {
 
 export type LinkableEvent = {
   id: string;
+  name: string;
+  eventDate: string | null;
   label: string;
 };
 
@@ -119,12 +121,17 @@ export async function listLinkableEvents(): Promise<LinkableEvent[]> {
       typeof snapshot.eventName === "string" && snapshot.eventName
         ? snapshot.eventName
         : "Untitled event";
-    const date =
+    const eventDate =
       typeof snapshot.eventDate === "string" && snapshot.eventDate
-        ? ` — ${snapshot.eventDate}`
-        : "";
+        ? snapshot.eventDate
+        : null;
 
-    return { id: row.id, label: `${name}${date} (${row.status})` };
+    return {
+      id: row.id,
+      name,
+      eventDate,
+      label: `${name}${eventDate ? ` — ${eventDate}` : ""} (${row.status})`,
+    };
   });
 }
 

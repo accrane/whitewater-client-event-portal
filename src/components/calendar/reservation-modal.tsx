@@ -9,11 +9,28 @@ import type {
 import { format } from "date-fns";
 import { StatusBadge } from "./status-badge";
 
+// One room booking row in the form. Every block shares the linked event,
+// date, and coordinator; blocks only differ by room, status, and times.
+type RoomBlock = {
+  key: number;
+  room_id: string;
+  status: "held" | "booked";
+  start_time: string;
+  end_time: string;
+  error: string | null;
+};
+
+export type BlockFailure = { index: number; message: string };
+
 // Rendered only while open, with a key derived from the reservation/defaults,
 // so initial form state comes from the useState initializer on each open.
 interface ReservationModalProps {
   onClose: () => void;
+  // Edit mode: update the single reservation being edited.
   onSave: (data: ReservationFormData) => Promise<void>;
+  // Create mode: create one reservation per block; resolves with the blocks
+  // that failed (e.g. room conflicts) so the modal can keep them open.
+  onCreateMany: (blocks: ReservationFormData[]) => Promise<BlockFailure[]>;
   onDelete?: () => Promise<void>;
   rooms: Room[];
   coordinators: Coordinator[];
@@ -23,9 +40,12 @@ interface ReservationModalProps {
   defaultStart?: Date;
 }
 
+let nextBlockKey = 1;
+
 export function ReservationModal({
   onClose,
   onSave,
+  onCreateMany,
   onDelete,
   rooms,
   coordinators,
@@ -36,86 +56,158 @@ export function ReservationModal({
 }: ReservationModalProps) {
   const isEditing = !!reservation;
 
-  const getDefaultEnd = (start: Date) => {
+  const [eventId, setEventId] = useState(reservation?.event_id ?? "");
+  const [coordinatorName, setCoordinatorName] = useState(
+    reservation?.coordinator_name ?? "",
+  );
+  const [date, setDate] = useState(() => {
+    if (reservation) return format(new Date(reservation.start_datetime), "yyyy-MM-dd");
+    return format(defaultStart ?? new Date(), "yyyy-MM-dd");
+  });
+  // A slot click (defaultRoomId set) or an existing reservation carries a
+  // deliberate date; picking an event must not overwrite it.
+  const [dateEdited, setDateEdited] = useState(isEditing || !!defaultRoomId);
+
+  const [blocks, setBlocks] = useState<RoomBlock[]>(() => {
+    if (reservation) {
+      return [
+        {
+          key: nextBlockKey++,
+          room_id: reservation.room_id,
+          status: reservation.status,
+          start_time: format(new Date(reservation.start_datetime), "HH:mm"),
+          end_time: format(new Date(reservation.end_datetime), "HH:mm"),
+          error: null,
+        },
+      ];
+    }
+    const start = defaultStart ?? new Date();
     const end = new Date(start);
     end.setHours(end.getHours() + 1);
-    return end;
-  };
-
-  const [formData, setFormData] = useState(() => {
-    if (reservation) {
-      const start = new Date(reservation.start_datetime);
-      const end = new Date(reservation.end_datetime);
-      return {
-        room_id: reservation.room_id,
-        title: reservation.title,
-        status: reservation.status,
-        start_date: format(start, "yyyy-MM-dd"),
+    return [
+      {
+        key: nextBlockKey++,
+        room_id: defaultRoomId || rooms[0]?.id || "",
+        status: "held",
         start_time: format(start, "HH:mm"),
-        end_date: format(end, "yyyy-MM-dd"),
         end_time: format(end, "HH:mm"),
-        notes: reservation.notes || "",
-        client_name: reservation.client_name || "",
-        salesperson_name: reservation.salesperson_name || "",
-        coordinator_name: reservation.coordinator_name || "",
-        event_id: reservation.event_id || "",
-        created_by: reservation.created_by || "",
-      };
-    }
-    const start = defaultStart || new Date();
-    const end = getDefaultEnd(start);
-    return {
-      room_id: defaultRoomId || rooms[0]?.id || "",
-      title: "",
-      status: "held" as "held" | "booked",
-      start_date: format(start, "yyyy-MM-dd"),
-      start_time: format(start, "HH:mm"),
-      end_date: format(end, "yyyy-MM-dd"),
-      end_time: format(end, "HH:mm"),
-      notes: "",
-      client_name: "",
-      salesperson_name: "",
-      coordinator_name: "",
-      event_id: "",
-      created_by: "",
-    };
+        error: null,
+      },
+    ];
   });
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const buildPayload = (status: "held" | "booked"): ReservationFormData => ({
-    room_id: formData.room_id,
-    title: formData.title,
-    status,
-    start_datetime: new Date(
-      `${formData.start_date}T${formData.start_time}`,
-    ).toISOString(),
-    end_datetime: new Date(
-      `${formData.end_date}T${formData.end_time}`,
-    ).toISOString(),
-    notes: formData.notes || undefined,
-    client_name: formData.client_name || undefined,
-    salesperson_name: formData.salesperson_name || undefined,
-    coordinator_name: formData.coordinator_name || undefined,
-    event_id: formData.event_id || null,
-    created_by: formData.created_by || undefined,
+  const selectedEvent = portalEvents.find((ev) => ev.id === eventId);
+
+  const handleEventChange = (id: string) => {
+    setEventId(id);
+    const event = portalEvents.find((ev) => ev.id === id);
+    if (event?.eventDate && !dateEdited) {
+      setDate(event.eventDate);
+    }
+  };
+
+  const updateBlock = (key: number, patch: Partial<RoomBlock>) => {
+    setBlocks((prev) =>
+      prev.map((b) => (b.key === key ? { ...b, ...patch, error: null } : b)),
+    );
+  };
+
+  const addBlock = () => {
+    setBlocks((prev) => {
+      const last = prev[prev.length - 1];
+      const usedRooms = new Set(prev.map((b) => b.room_id));
+      const nextRoom = rooms.find((r) => !usedRooms.has(r.id)) ?? rooms[0];
+      return [
+        ...prev,
+        {
+          key: nextBlockKey++,
+          room_id: nextRoom?.id || "",
+          status: "held",
+          start_time: last?.start_time ?? "09:00",
+          end_time: last?.end_time ?? "17:00",
+          error: null,
+        },
+      ];
+    });
+  };
+
+  const removeBlock = (key: number) => {
+    setBlocks((prev) =>
+      prev.length > 1 ? prev.filter((b) => b.key !== key) : prev,
+    );
+  };
+
+  const buildPayload = (block: RoomBlock): ReservationFormData => ({
+    room_id: block.room_id,
+    title: selectedEvent?.name ?? "Reservation",
+    status: block.status,
+    start_datetime: new Date(`${date}T${block.start_time}`).toISOString(),
+    end_datetime: new Date(`${date}T${block.end_time}`).toISOString(),
+    coordinator_name: coordinatorName || undefined,
+    event_id: eventId,
   });
 
-  const submitWithStatus = async (status: "held" | "booked") => {
-    const payload = buildPayload(status);
-
-    if (
-      new Date(payload.start_datetime) >= new Date(payload.end_datetime)
-    ) {
-      setError("End time must be after start time");
-      return;
+  const validate = (): boolean => {
+    if (!eventId) {
+      setError("Choose the event this reservation is for.");
+      return false;
     }
+    if (!date) {
+      setError("Choose a date.");
+      return false;
+    }
+
+    let valid = true;
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.start_time >= b.end_time) {
+          valid = false;
+          return { ...b, error: "End time must be after start time" };
+        }
+        return { ...b, error: null };
+      }),
+    );
+
+    if (!valid) setError(null);
+    return valid;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!validate()) return;
 
     setSaving(true);
     try {
-      await onSave(payload);
-      onClose();
+      if (isEditing) {
+        await onSave(buildPayload(blocks[0]));
+        onClose();
+        return;
+      }
+
+      const failures = await onCreateMany(blocks.map(buildPayload));
+
+      if (failures.length === 0) {
+        onClose();
+        return;
+      }
+
+      // Keep only the blocks that failed, annotated with their errors, so
+      // the planner can adjust and resubmit without redoing the rest.
+      setBlocks((prev) =>
+        failures.map(({ index, message }) => ({
+          ...prev[index],
+          error: message,
+        })),
+      );
+      setError(
+        failures.length === blocks.length
+          ? "No rooms could be reserved."
+          : "Some rooms were reserved; the ones below failed.",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -123,10 +215,18 @@ export function ReservationModal({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const confirmBooking = async () => {
     setError(null);
-    await submitWithStatus(formData.status);
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      await onSave({ ...buildPayload(blocks[0]), status: "booked" });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -142,7 +242,8 @@ export function ReservationModal({
     }
   };
 
-  const selectedRoom = rooms.find((r) => r.id === formData.room_id);
+  const inputClass =
+    "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   return (
     <div
@@ -192,195 +293,22 @@ export function ReservationModal({
             </div>
           )}
 
-          {/* Title */}
+          {/* Linked event — the reservation's identity; its name titles the blocks */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Title *
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) =>
-                setFormData({ ...formData, title: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Meeting title"
-            />
-          </div>
-
-          {/* Room and Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Room *
-              </label>
-              <select
-                required
-                value={formData.room_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, room_id: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name}
-                  </option>
-                ))}
-              </select>
-              {selectedRoom && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <div
-                    className="w-2.5 h-2.5 rounded-sm"
-                    style={{ backgroundColor: selectedRoom.color }}
-                  />
-                  <span className="text-xs text-slate-400">
-                    {selectedRoom.capacity
-                      ? `Capacity: ${selectedRoom.capacity}`
-                      : ""}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Status *
-              </label>
-              <select
-                required
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    status: e.target.value as "held" | "booked",
-                  })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="held">Held</option>
-                <option value="booked">Booked</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Start date/time */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Start Date *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.start_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, start_date: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Start Time *
-              </label>
-              <input
-                type="time"
-                required
-                value={formData.start_time}
-                onChange={(e) =>
-                  setFormData({ ...formData, start_time: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* End date/time */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                End Date *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.end_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, end_date: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                End Time *
-              </label>
-              <input
-                type="time"
-                required
-                value={formData.end_time}
-                onChange={(e) =>
-                  setFormData({ ...formData, end_time: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Client and Salesperson */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Client Name
-              </label>
-              <input
-                type="text"
-                value={formData.client_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, client_name: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Optional"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Salesperson
-              </label>
-              <input
-                type="text"
-                value={formData.salesperson_name}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    salesperson_name: e.target.value,
-                  })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-
-          {/* Linked portal event — linking one moves its GHL opportunity to Planning */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Linked Event
+              Event *
             </label>
             <select
-              value={formData.event_id}
-              onChange={(e) =>
-                setFormData({ ...formData, event_id: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              value={eventId}
+              onChange={(e) => handleEventChange(e.target.value)}
+              className={inputClass}
             >
-              <option value="">None</option>
+              <option value="">Choose an event…</option>
               {/* Keep an event linked before it left the active list */}
-              {formData.event_id &&
-                !portalEvents.some((ev) => ev.id === formData.event_id) && (
-                  <option value={formData.event_id}>Linked event</option>
-                )}
+              {eventId && !portalEvents.some((ev) => ev.id === eventId) && (
+                <option value={eventId}>Linked event</option>
+              )}
               {portalEvents.map((event) => (
                 <option key={event.id} value={event.id}>
                   {event.label}
@@ -388,55 +316,184 @@ export function ReservationModal({
               ))}
             </select>
             <p className="mt-1 text-xs text-slate-400">
-              Linking an event moves its GHL opportunity to the Planning stage.
+              Reserving a room moves this event&apos;s GHL opportunity to the
+              Planning stage.
             </p>
           </div>
 
-          {/* Event Coordinator */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Event Coordinator
-            </label>
-            <select
-              value={formData.coordinator_name}
-              onChange={(e) =>
-                setFormData({ ...formData, coordinator_name: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">None</option>
-              {/* Keep a coordinator assigned before they were removed from settings */}
-              {formData.coordinator_name &&
-                !coordinators.some(
-                  (c) => c.name === formData.coordinator_name,
-                ) && (
-                  <option value={formData.coordinator_name}>
-                    {formData.coordinator_name}
+          {/* Date and coordinator */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Date *
+              </label>
+              <input
+                type="date"
+                required
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setDateEdited(true);
+                }}
+                className={inputClass}
+              />
+              {selectedEvent?.eventDate && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Date of interest: {selectedEvent.eventDate}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Event Coordinator
+              </label>
+              <select
+                value={coordinatorName}
+                onChange={(e) => setCoordinatorName(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">None</option>
+                {/* Keep a coordinator assigned before they were removed from settings */}
+                {coordinatorName &&
+                  !coordinators.some((c) => c.name === coordinatorName) && (
+                    <option value={coordinatorName}>{coordinatorName}</option>
+                  )}
+                {coordinators.map((coordinator) => (
+                  <option key={coordinator.id} value={coordinator.name}>
+                    {coordinator.name}
                   </option>
-                )}
-              {coordinators.map((coordinator) => (
-                <option key={coordinator.id} value={coordinator.name}>
-                  {coordinator.name}
-                </option>
-              ))}
-            </select>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Notes
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
-              }
-              rows={2}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Optional notes"
-            />
+          {/* Divider */}
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              {isEditing ? "Room" : "Rooms"}
+            </span>
+            <div className="h-px flex-1 bg-slate-200" />
           </div>
+
+          {/* Room blocks */}
+          {blocks.map((block) => {
+            const room = rooms.find((r) => r.id === block.room_id);
+            return (
+              <div
+                key={block.key}
+                className={`rounded-xl border p-3 space-y-3 ${
+                  block.error
+                    ? "border-red-300 bg-red-50/50"
+                    : "border-slate-200 bg-slate-50/50"
+                }`}
+              >
+                {block.error && (
+                  <p className="text-xs text-red-600">{block.error}</p>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Room *
+                    </label>
+                    <select
+                      required
+                      value={block.room_id}
+                      onChange={(e) =>
+                        updateBlock(block.key, { room_id: e.target.value })
+                      }
+                      className={inputClass}
+                    >
+                      {rooms.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                    {room && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <div
+                          className="w-2.5 h-2.5 rounded-sm"
+                          style={{ backgroundColor: room.color }}
+                        />
+                        <span className="text-xs text-slate-400">
+                          {room.capacity ? `Capacity: ${room.capacity}` : ""}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Status *
+                    </label>
+                    <select
+                      required
+                      value={block.status}
+                      onChange={(e) =>
+                        updateBlock(block.key, {
+                          status: e.target.value as "held" | "booked",
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="held">Held</option>
+                      <option value="booked">Booked</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Start Time *
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={block.start_time}
+                      onChange={(e) =>
+                        updateBlock(block.key, { start_time: e.target.value })
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      End Time *
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={block.end_time}
+                      onChange={(e) =>
+                        updateBlock(block.key, { end_time: e.target.value })
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                {!isEditing && blocks.length > 1 && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => removeBlock(block.key)}
+                      className="text-xs text-slate-400 hover:text-red-600 transition-colors"
+                    >
+                      Remove room
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={addBlock}
+              className="w-full px-3 py-2 text-sm font-medium text-blue-600 border border-dashed border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              + Reserve another room
+            </button>
+          )}
 
           {/* Actions */}
           <div className="flex items-center justify-between pt-2">
@@ -456,11 +513,7 @@ export function ReservationModal({
               {isEditing && reservation!.status === "held" && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setError(null);
-                    setFormData((f) => ({ ...f, status: "booked" }));
-                    submitWithStatus("booked");
-                  }}
+                  onClick={confirmBooking}
                   disabled={saving}
                   className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
                 >
@@ -479,7 +532,13 @@ export function ReservationModal({
                 disabled={saving}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                {saving ? "Saving..." : isEditing ? "Update" : "Create"}
+                {saving
+                  ? "Saving..."
+                  : isEditing
+                    ? "Update"
+                    : blocks.length > 1
+                      ? `Reserve ${blocks.length} Rooms`
+                      : "Reserve"}
               </button>
             </div>
           </div>

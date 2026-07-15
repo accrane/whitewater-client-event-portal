@@ -9,9 +9,12 @@ export type ReservationFormData = Omit<
   "id" | "created_at" | "updated_at"
 >;
 
-// Portal events a reservation can be linked to (id + display label).
+// Portal events a reservation can be linked to. `name` becomes the block
+// title, `eventDate` auto-fills the booking date (GHL "Date of Interest").
 export type PortalEventOption = {
   id: string;
+  name: string;
+  eventDate: string | null;
   label: string;
 };
 
