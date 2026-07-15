@@ -211,6 +211,49 @@ export async function assignOpportunityCoordinator(
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
 }
 
+// Called when an event is deleted: blanks the Event Planning App ID custom
+// field on the opportunity so GHL no longer references a dead portal event
+// and the inquiry flow can be re-run. Never throws.
+export async function clearEventIdFromOpportunity(
+  event: Pick<EventRow, "id" | "ghl_location_id" | "ghl_opportunity_id">,
+): Promise<OpportunitySyncOutcome> {
+  const fieldId = appConfig.ghl.opportunityEventFieldId;
+
+  if (!event.ghl_opportunity_id || !fieldId) {
+    return {
+      ok: false,
+      skipped: true,
+      error: !event.ghl_opportunity_id
+        ? "Event has no GHL opportunity id"
+        : "GHL_OPPORTUNITY_EVENT_FIELD_ID is not configured",
+    };
+  }
+
+  const result = await updateGhlOpportunity(
+    event.ghl_opportunity_id,
+    buildEventFieldWriteBackBody(fieldId, ""),
+  );
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_event_id_cleared",
+    ghlLocationId: event.ghl_location_id,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? "Portal event deleted; event id cleared from the GHL opportunity."
+      : "Failed clearing the portal event id from the GHL opportunity.",
+    details: {
+      deleted_portal_event_id: event.id,
+      ghl_opportunity_id: event.ghl_opportunity_id,
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  return result.ok
+    ? { ok: true }
+    : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
 async function recordWriteBackFailure(
   event: EventRow,
   failure: { skipped: boolean; error: string },

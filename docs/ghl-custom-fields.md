@@ -14,8 +14,13 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | --- | --- | --- | --- |
 | Event Planning App ID | `IDk5IeH17B5bpEqcHvkK` | `opportunity.event_planning_app_id` | App **writes** the portal event id here after the inquiry webhook creates the event (`GHL_OPPORTUNITY_EVENT_FIELD_ID`). |
 | Date of Interest | `EMDW0kB1fSuaq8Lixzpq` | `opportunity.date_of_interest` | App **reads** this live from GHL (`GHL_DATE_OF_INTEREST_FIELD_ID`) when loading the calendar's event list; the reservation modal auto-fills the booking date from it. Mapping it into the webhook as `event.date` remains a useful fallback. |
-| Group/Event Name | `Yz2CcYRaCRvjHK3FlekO` | `opportunity.groupevent_name` | Map into the webhook as `event.name`; becomes the portal event name and the calendar block title. |
-| Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | Map into the webhook as `event.type`. |
+| Group/Event Name | `Yz2CcYRaCRvjHK3FlekO` | `opportunity.groupevent_name` | **Read** (by key) when the admin event page auto-syncs from GHL; becomes the portal event name. Also map into the webhook as `event.name`. |
+| Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | **Read** (by key) on event-page auto-sync as the event type. Also map into the webhook as `event.type`. |
+
+The admin event detail page auto-syncs from GHL on load (`src/lib/ghl/event-sync.ts`),
+resolving Date of Interest, Group/Event Name, and Inquiry Type **by field key** —
+renaming a field's key in GHL breaks the sync. Deleting an event from the admin
+page blanks its Event Planning App ID on the opportunity.
 
 ## Native GHL properties in use (no custom field needed)
 

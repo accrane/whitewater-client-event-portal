@@ -21,16 +21,27 @@ export function findDateOfInterest(
   customFields: unknown,
   fieldId: string,
 ): string | null {
-  if (!Array.isArray(customFields)) return null;
+  return ghlDateValueToIso(findFieldRawValue(customFields, fieldId));
+}
+
+// Pulls one custom field's string value out of a GHL customFields array.
+export function findFieldString(
+  customFields: unknown,
+  fieldId: string,
+): string | null {
+  const value = findFieldRawValue(customFields, fieldId);
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function findFieldRawValue(customFields: unknown, fieldId: string): unknown {
+  if (!Array.isArray(customFields)) return undefined;
 
   for (const field of customFields) {
     if (!field || typeof field !== "object") continue;
     const record = field as Record<string, unknown>;
     if (record.id !== fieldId) continue;
-    return ghlDateValueToIso(
-      record.fieldValueDate ?? record.fieldValueString ?? record.fieldValue,
-    );
+    return record.fieldValueDate ?? record.fieldValueString ?? record.fieldValue;
   }
 
-  return null;
+  return undefined;
 }

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ghlDateValueToIso,
   findDateOfInterest,
+  findFieldString,
 } from "../../src/lib/ghl/field-values.ts";
 
 test("ghlDateValueToIso converts GHL epoch-ms date values", () => {
@@ -28,4 +29,17 @@ test("findDateOfInterest pulls the configured field from customFields", () => {
   assert.equal(findDateOfInterest(customFields, "date_field"), "2026-09-09");
   assert.equal(findDateOfInterest(customFields, "missing"), null);
   assert.equal(findDateOfInterest(null, "date_field"), null);
+});
+
+test("findFieldString returns trimmed strings and null otherwise", () => {
+  const customFields = [
+    { id: "name_field", fieldValueString: "  Acme Retreat  " },
+    { id: "empty_field", fieldValueString: "   " },
+    { id: "date_field", fieldValueDate: 1788912000000 },
+  ];
+
+  assert.equal(findFieldString(customFields, "name_field"), "Acme Retreat");
+  assert.equal(findFieldString(customFields, "empty_field"), null);
+  assert.equal(findFieldString(customFields, "date_field"), null);
+  assert.equal(findFieldString(customFields, "missing"), null);
 });
