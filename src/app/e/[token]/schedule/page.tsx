@@ -4,7 +4,10 @@ import { ClientHero } from "@/components/client/client-hero";
 import { ClientPortalNav } from "@/components/client/client-portal-nav";
 import { ClientScheduleSection } from "@/components/client/client-schedule-section";
 import { NoteTiles } from "@/components/schedule/note-tiles";
-import { getEventScheduleData } from "@/lib/admin/event-schedule";
+import {
+  getEventScheduleData,
+  getScheduleItems,
+} from "@/lib/admin/event-schedule";
 import { getClientPortalEventByToken } from "@/lib/client/portal";
 import { formatDisplayDate } from "@/lib/dates";
 
@@ -22,7 +25,10 @@ export default async function ClientSchedulePage({ params }: ClientSchedulePageP
     return <InvalidOrUnavailableSchedule token={token} />;
   }
 
-  const schedule = await getEventScheduleData(event.id);
+  const [schedule, items] = await Promise.all([
+    getEventScheduleData(event.id),
+    getScheduleItems(event.id),
+  ]);
 
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
@@ -49,6 +55,7 @@ export default async function ClientSchedulePage({ params }: ClientSchedulePageP
         <ClientScheduleSection
           blocks={schedule.blocks}
           groups={schedule.groups}
+          items={items}
         />
 
         <NoteTiles notes={schedule.notes} />
