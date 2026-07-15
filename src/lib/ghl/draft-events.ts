@@ -1,10 +1,10 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
+import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import type { CreateDraftEventPayload } from "@/lib/ghl/types";
 import { normalizeGhlEventSnapshot } from "@/lib/ghl/types";
 import type { Database, Json } from "@/types/database";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
-type IntegrationStatus = Database["public"]["Enums"]["integration_status"];
 
 type EventInsert = {
   ghl_location_id: string;
@@ -16,17 +16,6 @@ type EventInsert = {
   last_synced_at: string;
   last_sync_status: "success";
   last_sync_error: null;
-};
-
-type IntegrationLogInsert = {
-  direction: "GHL_TO_PORTAL";
-  event_type: string;
-  ghl_location_id: string | null;
-  ghl_event_record_id: string | null;
-  portal_event_id: string | null;
-  status: IntegrationStatus;
-  message: string;
-  details: Json;
 };
 
 export type CreateDraftEventResult = {
@@ -70,6 +59,10 @@ export async function createOrReuseDraftEvent(
       message: "Duplicate draft event webhook ignored; existing portal event reused.",
       details: { portal_event_id: existing.id },
     });
+
+    // Retried deliveries still get the hold linked in case the first attempt
+    // failed between creating the event and updating the reservation.
+    await bookProposalHoldForEvent(payload, existing);
 
     return { created: false, event: existing };
   }
@@ -118,47 +111,68 @@ export async function createOrReuseDraftEvent(
     details: { portal_event_id: event.id },
   });
 
+  await bookProposalHoldForEvent(payload, event);
+
   return { created: true, event };
 }
 
-type LogIntegrationEventArgs = {
-  eventType: string;
-  ghlLocationId?: string | null;
-  ghlEventRecordId?: string | null;
-  portalEventId?: string | null;
-  status: IntegrationStatus;
-  message: string;
-  details?: Json;
-};
-
-async function logIntegrationEvent({
-  eventType,
-  ghlLocationId,
-  ghlEventRecordId,
-  portalEventId,
-  status,
-  message,
-  details = {},
-}: LogIntegrationEventArgs) {
+// The "proposal sent" webhook holds a room before the portal event exists.
+// Once the proposal is signed and this draft event is created, attach that
+// hold to the event and promote it to a confirmed booking. Failures here are
+// logged but never fail the webhook — the draft event is the primary record.
+async function bookProposalHoldForEvent(
+  payload: CreateDraftEventPayload,
+  event: EventRow,
+) {
   const supabase = createServiceRoleSupabaseClient();
-  const insertPayload: IntegrationLogInsert = {
-    direction: "GHL_TO_PORTAL",
-    event_type: eventType,
-    ghl_location_id: ghlLocationId ?? null,
-    ghl_event_record_id: ghlEventRecordId ?? null,
-    portal_event_id: portalEventId ?? null,
-    status,
-    message,
-    details,
-  };
 
-  const { error } = await supabase
-    .from("integration_logs")
-    .insert(insertPayload as never);
+  const { data, error } = await supabase
+    .from("reservations")
+    .update({ event_id: event.id, status: "booked" } as never)
+    .eq("ghl_event_record_id", payload.ghl_event_record_id)
+    .or(`event_id.is.null,event_id.eq.${event.id}`)
+    .select("id, status");
 
   if (error) {
-    console.error("Failed writing integration log", error.message);
+    await logIntegrationEvent({
+      eventType: "book_proposal_hold",
+      ghlLocationId: payload.ghl_location_id,
+      ghlEventRecordId: payload.ghl_event_record_id,
+      portalEventId: event.id,
+      status: "error",
+      message: "Failed booking the proposal hold for this event.",
+      details: { error: error.message },
+    });
+
+    return;
   }
+
+  const updated = (data ?? []) as { id: string; status: string }[];
+
+  if (updated.length === 0) {
+    await logIntegrationEvent({
+      eventType: "book_proposal_hold",
+      ghlLocationId: payload.ghl_location_id,
+      ghlEventRecordId: payload.ghl_event_record_id,
+      portalEventId: event.id,
+      status: "warning",
+      message:
+        "No proposal hold found for this GHL event record; calendar not updated.",
+      details: {},
+    });
+
+    return;
+  }
+
+  await logIntegrationEvent({
+    eventType: "book_proposal_hold",
+    ghlLocationId: payload.ghl_location_id,
+    ghlEventRecordId: payload.ghl_event_record_id,
+    portalEventId: event.id,
+    status: "success",
+    message: "Proposal hold linked to portal event and booked.",
+    details: { reservation_id: updated[0].id },
+  });
 }
 
 function toJson(value: unknown): Json {

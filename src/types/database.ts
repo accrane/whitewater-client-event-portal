@@ -217,6 +217,190 @@ export type Database = {
         };
         Update: Partial<Database["public"]["Tables"]["uploads"]["Insert"]>;
       };
+      rooms: {
+        Row: {
+          id: string;
+          name: string;
+          color: string;
+          description: string | null;
+          capacity: number | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          color: string;
+          description?: string | null;
+          capacity?: number | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rooms"]["Insert"]>;
+      };
+      coordinators: {
+        Row: {
+          id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["coordinators"]["Insert"]>;
+      };
+      reservations: {
+        Row: {
+          id: string;
+          room_id: string;
+          title: string;
+          status: Database["public"]["Enums"]["reservation_status"];
+          start_datetime: string;
+          end_datetime: string;
+          notes: string | null;
+          client_name: string | null;
+          salesperson_name: string | null;
+          coordinator_id: string | null;
+          coordinator_name: string | null;
+          event_id: string | null;
+          source: Database["public"]["Enums"]["reservation_source"];
+          ghl_event_record_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          title: string;
+          status?: Database["public"]["Enums"]["reservation_status"];
+          start_datetime: string;
+          end_datetime: string;
+          notes?: string | null;
+          client_name?: string | null;
+          salesperson_name?: string | null;
+          coordinator_id?: string | null;
+          coordinator_name?: string | null;
+          event_id?: string | null;
+          source?: Database["public"]["Enums"]["reservation_source"];
+          ghl_event_record_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["reservations"]["Insert"]>;
+      };
+      event_schedule_groups: {
+        Row: {
+          id: string;
+          event_id: string;
+          name: string;
+          size: number | null;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          name: string;
+          size?: number | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_schedule_groups"]["Insert"]>;
+      };
+      event_schedule_blocks: {
+        Row: {
+          id: string;
+          event_id: string;
+          group_id: string | null;
+          label: string;
+          start_minutes: number;
+          end_minutes: number;
+          color: Database["public"]["Enums"]["schedule_block_color"];
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          group_id?: string | null;
+          label: string;
+          start_minutes: number;
+          end_minutes: number;
+          color?: Database["public"]["Enums"]["schedule_block_color"];
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_schedule_blocks"]["Insert"]>;
+      };
+      event_schedule_items: {
+        Row: {
+          id: string;
+          event_id: string;
+          title: string;
+          description: string;
+          note_html: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          title: string;
+          description?: string;
+          note_html?: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_schedule_items"]["Insert"]>;
+      };
+      schedule_template_items: {
+        Row: {
+          id: string;
+          title: string;
+          description: string;
+          note_html: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string;
+          note_html?: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["schedule_template_items"]["Insert"]>;
+      };
+      event_notes: {
+        Row: {
+          id: string;
+          event_id: string;
+          title: string;
+          content: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          title: string;
+          content?: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_notes"]["Insert"]>;
+      };
       integration_logs: {
         Row: {
           id: string;
@@ -255,6 +439,10 @@ export type Database = {
         | "completed"
         | "not_applicable";
       upload_status: "uploaded" | "needs_review";
+      reservation_status: "held" | "booked";
+      reservation_source: "manual" | "ghl";
+      // Text column with a check constraint, typed here as an enum for safety.
+      schedule_block_color: "green" | "purple" | "yellow" | "blue" | "plain";
       integration_direction: "GHL_TO_PORTAL" | "PORTAL_TO_GHL";
       integration_status: "success" | "warning" | "error";
     };

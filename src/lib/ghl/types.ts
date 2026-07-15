@@ -115,6 +115,79 @@ export function normalizeGhlEventSnapshot(
   };
 }
 
+export type ProposalSentPayload = {
+  ghl_location_id: string;
+  ghl_event_record_id: string;
+  ghl_contact_id?: string;
+  ghl_opportunity_id?: string;
+  event: {
+    name: string;
+    room: string;
+    start: string;
+    end: string;
+  };
+  client_name?: string;
+  salesperson_name?: string;
+};
+
+export type ParseGhlProposalSentPayloadResult =
+  | {
+      ok: true;
+      payload: ProposalSentPayload;
+    }
+  | {
+      ok: false;
+      errors: string[];
+    };
+
+export function parseGhlProposalSentPayload(
+  input: unknown,
+): ParseGhlProposalSentPayloadResult {
+  if (!isRecord(input)) {
+    return { ok: false, errors: ["payload must be an object"] };
+  }
+
+  const errors: string[] = [];
+  const event = isRecord(input.event) ? input.event : undefined;
+
+  const payload: ProposalSentPayload = {
+    ghl_location_id: requireString(input.ghl_location_id, "ghl_location_id", errors),
+    ghl_event_record_id: requireString(
+      input.ghl_event_record_id,
+      "ghl_event_record_id",
+      errors,
+    ),
+    ...(optionalString(input.ghl_contact_id) && {
+      ghl_contact_id: optionalString(input.ghl_contact_id),
+    }),
+    ...(optionalString(input.ghl_opportunity_id) && {
+      ghl_opportunity_id: optionalString(input.ghl_opportunity_id),
+    }),
+    event: {
+      name: requireString(event?.name, "event.name", errors),
+      room: requireString(event?.room, "event.room", errors),
+      start: requireDatetimeString(event?.start, "event.start", errors),
+      end: requireDatetimeString(event?.end, "event.end", errors),
+    },
+    client_name: optionalString(input.client_name),
+    salesperson_name: optionalString(input.salesperson_name),
+  };
+
+  if (
+    payload.event.start &&
+    payload.event.end &&
+    new Date(payload.event.start) >= new Date(payload.event.end)
+  ) {
+    errors.push("event.end must be after event.start");
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  return { ok: true, payload };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -131,6 +204,20 @@ function requireString(
   }
 
   return parsed ?? "";
+}
+
+function requireDatetimeString(
+  value: unknown,
+  fieldName: string,
+  errors: string[],
+): string {
+  const parsed = requireString(value, fieldName, errors);
+
+  if (parsed && Number.isNaN(new Date(parsed).getTime())) {
+    errors.push(`${fieldName} must be a valid ISO 8601 datetime`);
+  }
+
+  return parsed;
 }
 
 function requireDateString(
