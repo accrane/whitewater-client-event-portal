@@ -1,3 +1,4 @@
+import { clearEventIdFromOpportunity } from "@/lib/ghl/opportunity-sync";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { GhlEventSnapshot } from "@/types/portal";
 
@@ -16,7 +17,7 @@ type UploadRow = Database["public"]["Tables"]["uploads"]["Row"];
 
 export type AdminEventListItem = {
   id: string;
-  ghlEventRecordId: string;
+  ghlEventRecordId: string | null;
   status: EventRow["status"];
   eventName: string;
   eventType: string | null;
@@ -283,6 +284,57 @@ export async function markEventVendorReviewed({
   if (updateError) {
     throw new Error(`Unable to review vendor submission: ${updateError.message}`);
   }
+}
+
+// Permanently deletes an event: linked calendar blocks are removed, database
+// rows cascade (checklist, vendors, uploads, schedule), and the GHL
+// opportunity's Event Planning App ID field is blanked so the inquiry flow
+// can re-run. Uploaded files stay in Supabase Storage.
+export async function deleteAdminEvent(eventId: string): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, ghl_location_id, ghl_opportunity_id")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to load event for deletion: ${error.message}`);
+  }
+
+  const event = data as Pick<
+    EventRow,
+    "id" | "ghl_location_id" | "ghl_opportunity_id"
+  > | null;
+
+  if (!event) {
+    throw new Error("Event not found");
+  }
+
+  const { error: reservationError } = await supabase
+    .from("reservations")
+    .delete()
+    .eq("event_id", eventId);
+
+  if (reservationError) {
+    throw new Error(
+      `Unable to delete linked reservations: ${reservationError.message}`,
+    );
+  }
+
+  const { error: deleteError } = await supabase
+    .from("events")
+    .delete()
+    .eq("id", eventId);
+
+  if (deleteError) {
+    throw new Error(`Unable to delete event: ${deleteError.message}`);
+  }
+
+  // Outcome is logged to integration_logs; a GHL failure here must not undo
+  // the deletion.
+  await clearEventIdFromOpportunity(event);
 }
 
 export async function markEventUploadReviewed({

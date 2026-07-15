@@ -1,7 +1,8 @@
-import { appConfig } from "@/lib/env";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { createSecureToken, sha256Hex } from "@/lib/tokens";
 import type { Database, Json } from "@/types/database";
+
+import { buildPortalPath } from "./portal-urls";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 type IntegrationStatus = Database["public"]["Enums"]["integration_status"];
@@ -27,7 +28,6 @@ export type PortalLaunchPreparation = {
 
 export async function preparePortalLaunchFields({
   eventId,
-  portalBaseUrl = appConfig.portalBaseUrl,
   token = createSecureToken(),
   now = new Date(),
 }: {
@@ -42,7 +42,7 @@ export async function preparePortalLaunchFields({
     eventId,
     token,
     tokenHash,
-    portalUrl: buildPortalUrl(portalBaseUrl, token),
+    portalUrl: buildPortalPath(token),
     launchedAt: now.toISOString(),
   };
 }
@@ -88,12 +88,6 @@ export async function prepareAdminPortalLaunch(
   await logPortalLaunchHandoff(event as EventRow, launch);
 
   return launch;
-}
-
-export function buildPortalUrl(portalBaseUrl: string, token: string): string {
-  const normalizedBaseUrl = portalBaseUrl.replace(/\/+$/, "");
-
-  return `${normalizedBaseUrl}/e/${encodeURIComponent(token)}`;
 }
 
 function assertLaunchableEvent(event: EventRow) {

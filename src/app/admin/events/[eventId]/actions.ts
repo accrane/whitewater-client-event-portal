@@ -7,7 +7,11 @@ import {
   applyChecklistTemplateToEvent,
   updateEventChecklistItem,
 } from "@/lib/admin/checklist-templates";
-import { markEventUploadReviewed, markEventVendorReviewed } from "@/lib/admin/events";
+import {
+  deleteAdminEvent,
+  markEventUploadReviewed,
+  markEventVendorReviewed,
+} from "@/lib/admin/events";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -41,6 +45,38 @@ export async function launchPortalAction(formData: FormData) {
   revalidatePath(`/admin/events/${eventId}`);
 
   redirect(`/admin/events/${eventId}?launched=1`);
+}
+
+const deleteConfirmationValue = "delete-event-confirmed";
+
+export async function deleteEventAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "").trim();
+  const confirmation = String(formData.get("deleteConfirmation") || "").trim();
+
+  if (!eventId) {
+    throw new Error("Unable to delete event: missing event ID");
+  }
+
+  if (confirmation !== deleteConfirmationValue) {
+    throw new Error("Unable to delete event: confirmation missing");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  await deleteAdminEvent(eventId);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/calendar");
+
+  redirect("/admin/events?deleted=1");
 }
 
 export async function applyChecklistTemplateAction(formData: FormData) {

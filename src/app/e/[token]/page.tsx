@@ -1,8 +1,13 @@
 import Link from "next/link";
 
+import { ClientHero } from "@/components/client/client-hero";
+import { ClientPortalNav } from "@/components/client/client-portal-nav";
 import { ClientSectionCard } from "@/components/client/client-section-card";
 import { formatDisplayDate } from "@/lib/dates";
-import { getClientPortalEventByToken } from "@/lib/client/portal";
+import {
+  getClientPortalEventByToken,
+  type ClientChecklistItem,
+} from "@/lib/client/portal";
 
 import { completeChecklistItemAction, submitVendorAction, uploadFileAction } from "./actions";
 
@@ -28,19 +33,14 @@ export default async function ClientPortalPlaceholderPage({
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
       <div className="mx-auto max-w-5xl space-y-6">
+        <ClientPortalNav active="overview" token={token} />
+
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="bg-slate-950 px-6 py-8 text-white sm:px-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-300">
-              Client Event Portal
-            </p>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-              {event.eventName}
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
-              A read-only overview of your event details, planner contact,
-              documents, checklist, vendors, and uploads.
-            </p>
-          </div>
+          <ClientHero
+            description="A read-only overview of your event details, planner contact, documents, checklist, vendors, and uploads."
+            eyebrow="Client Event Portal"
+            title={event.eventName}
+          />
 
           <div className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8">
             <SummaryItem label="Event date" value={formatNullableDate(event.eventDate)} />
@@ -72,6 +72,8 @@ export default async function ClientPortalPlaceholderPage({
             event materials.
           </div>
         ) : null}
+
+        <ClientChecklistAccordion items={event.checklistItems} token={token} />
 
         <div className="grid gap-5 lg:grid-cols-2">
           <ClientSectionCard
@@ -112,64 +114,6 @@ export default async function ClientPortalPlaceholderPage({
                 ["Payment", event.paymentUrl],
               ]}
             />
-          </ClientSectionCard>
-
-          <ClientSectionCard
-            description="The detailed schedule builder is not connected yet."
-            title="Schedule"
-          >
-            <p className="text-sm text-slate-600">
-              Schedule items will appear here after planner setup is added.
-            </p>
-          </ClientSectionCard>
-
-          <ClientSectionCard
-            description="Your planner-controlled checklist with due dates, statuses, and which items need your attention."
-            title="Checklist"
-          >
-            {event.checklistItems.length > 0 ? (
-              <ul className="space-y-3">
-                {event.checklistItems.map((item) => (
-                  <li className="rounded-xl bg-slate-50 p-4" key={item.id}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-slate-950">{item.title}</p>
-                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                        {item.requiredLabel}
-                      </span>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-                        {item.statusLabel}
-                      </span>
-                    </div>
-                    {item.description ? (
-                      <p className="mt-2 text-sm text-slate-600">{item.description}</p>
-                    ) : null}
-                    <dl className="mt-3 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                      <ChecklistCue label="Due" value={item.dueDateLabel} />
-                      <ChecklistCue
-                        label="Completion"
-                        value={item.clientCompletableLabel}
-                      />
-                    </dl>
-                    {item.clientCompletable && item.status === "not_completed" ? (
-                      <form action={completeChecklistItemAction} className="mt-4">
-                        <input name="token" type="hidden" value={token} />
-                        <input name="itemId" type="hidden" value={item.id} />
-                        <button
-                          className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                          type="submit"
-                        >
-                          Mark ready for planner review
-                        </button>
-                      </form>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-slate-600">
-                No client-visible checklist items are connected yet.
-              </p>
-            )}
           </ClientSectionCard>
 
           <ClientSectionCard
@@ -264,22 +208,120 @@ export default async function ClientPortalPlaceholderPage({
   );
 }
 
+function ClientChecklistAccordion({
+  items,
+  token,
+}: {
+  items: ClientChecklistItem[];
+  token: string;
+}) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-700">
+            Action checklist
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+            Things to complete for your event
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Click each item to open the instructions, due date, and completion
+            details from your planner.
+          </p>
+        </div>
+        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
+          {items.length} item{items.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {items.length > 0 ? (
+        <ul className="mt-5 space-y-3">
+          {items.map((item) => (
+            <li key={item.id}>
+              <details className="group rounded-2xl border-2 border-red-300 bg-red-50/40 p-4 transition hover:border-red-500 hover:bg-red-50">
+                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-700">
+                      Click to view task details
+                    </p>
+                    <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                      {item.title}
+                    </h3>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
+                      {item.requiredLabel}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                      {item.statusLabel}
+                    </span>
+                    <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white transition group-open:bg-slate-950">
+                      <span className="group-open:hidden">Open</span>
+                      <span className="hidden group-open:inline">Close</span>
+                    </span>
+                  </div>
+                </summary>
+
+                <div className="mt-4 border-t border-red-200 pt-4">
+                  <p className="text-sm leading-6 text-slate-700">
+                    {item.description ||
+                      "Your planner will add instructions for this task soon."}
+                  </p>
+                  <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                    <ChecklistCue label="Due" value={item.dueDateLabel} />
+                    <ChecklistCue
+                      label="Completion"
+                      value={item.clientCompletableLabel}
+                    />
+                  </dl>
+                  {item.clientCompletable && item.status === "not_completed" ? (
+                    <form action={completeChecklistItemAction} className="mt-4">
+                      <input name="token" type="hidden" value={token} />
+                      <input name="itemId" type="hidden" value={item.id} />
+                      <button
+                        className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        type="submit"
+                      >
+                        Mark ready for planner review
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <details className="mt-5 rounded-2xl border-2 border-dashed border-red-300 bg-red-50/40 p-4">
+          <summary className="cursor-pointer list-none">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-700">
+              Click to preview checklist style
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-950">
+              Checklist items will appear here after planner setup
+            </h3>
+          </summary>
+          <p className="mt-4 border-t border-red-200 pt-4 text-sm leading-6 text-slate-700">
+            Once checklist templates are connected, each client-visible task will
+            display as a red outlined dropdown tile with instructions, due dates,
+            status, and any available client completion action.
+          </p>
+        </details>
+      )}
+    </section>
+  );
+}
+
 function InvalidOrUnavailablePortal({ token }: { token: string }) {
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
       <section className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="bg-slate-950 px-6 py-8 text-white sm:px-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-300">
-            Client Portal Preview
-          </p>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            This portal link is not active yet.
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
-            Portal access remains locked until a planner launches the client
-            portal and the secure token is connected to a launched event.
-          </p>
-        </div>
+        <ClientHero
+          description="Portal access remains locked until a planner launches the client portal and the secure token is connected to a launched event."
+          eyebrow="Client Portal Preview"
+          title="This portal link is not active yet."
+        />
 
         <div className="space-y-5 p-6 sm:p-8">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">

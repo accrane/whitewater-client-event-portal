@@ -115,6 +115,100 @@ export function normalizeGhlEventSnapshot(
   };
 }
 
+// Sent by the GHL workflow when a new inquiry opportunity is created.
+// Only the location and opportunity IDs are required — inquiry-stage
+// opportunities may have sparse event details.
+export type InquiryPayload = {
+  ghl_location_id: string;
+  ghl_opportunity_id: string;
+  ghl_contact_id?: string;
+  contact?: {
+    name?: string;
+    email?: string;
+    phone?: string | null;
+  };
+  event?: {
+    name?: string;
+    type?: string;
+    date?: string;
+  };
+};
+
+export type ParseGhlInquiryPayloadResult =
+  | {
+      ok: true;
+      payload: InquiryPayload;
+    }
+  | {
+      ok: false;
+      errors: string[];
+    };
+
+export function parseGhlInquiryPayload(
+  input: unknown,
+): ParseGhlInquiryPayloadResult {
+  if (!isRecord(input)) {
+    return { ok: false, errors: ["payload must be an object"] };
+  }
+
+  const errors: string[] = [];
+  const contact = isRecord(input.contact) ? input.contact : undefined;
+  const event = isRecord(input.event) ? input.event : undefined;
+
+  const eventDate = optionalString(event?.date);
+
+  if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    errors.push("event.date must use YYYY-MM-DD format");
+  }
+
+  const payload: InquiryPayload = {
+    ghl_location_id: requireString(input.ghl_location_id, "ghl_location_id", errors),
+    ghl_opportunity_id: requireString(
+      input.ghl_opportunity_id,
+      "ghl_opportunity_id",
+      errors,
+    ),
+    ...(optionalString(input.ghl_contact_id) && {
+      ghl_contact_id: optionalString(input.ghl_contact_id),
+    }),
+    ...(contact && {
+      contact: {
+        name: optionalString(contact.name),
+        email: optionalString(contact.email),
+        phone: optionalString(contact.phone) ?? null,
+      },
+    }),
+    ...(event && {
+      event: {
+        name: optionalString(event.name),
+        type: optionalString(event.type),
+        date: eventDate,
+      },
+    }),
+  };
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  return { ok: true, payload };
+}
+
+export function buildInquiryEventSnapshot(
+  payload: InquiryPayload,
+): GhlEventSnapshot {
+  return {
+    eventName:
+      payload.event?.name ??
+      (payload.contact?.name
+        ? `Inquiry — ${payload.contact.name}`
+        : "New inquiry"),
+    eventType: payload.event?.type,
+    eventDate: payload.event?.date,
+    contact: payload.contact,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

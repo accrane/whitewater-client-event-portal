@@ -12,10 +12,10 @@ export default function Home() {
       <section className="mx-auto flex max-w-5xl flex-col gap-10 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-12">
         <div className="max-w-3xl space-y-5">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
-            Client Event Portal
+            Whitewater Group Events
           </p>
           <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            A polished event hub for booked clients.
+            Manage Group Events
           </h1>
           <p className="text-lg leading-8 text-slate-600">
             This app shell will become the external portal connected to
@@ -41,13 +41,7 @@ export default function Home() {
             className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             href="/admin"
           >
-            Open admin placeholder
-          </Link>
-          <Link
-            className="inline-flex items-center justify-center rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-            href="/e/demo-token"
-          >
-            View client placeholder
+            Login to Manage Events
           </Link>
         </div>
       </section>
