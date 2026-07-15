@@ -5,6 +5,118 @@
   --foreground: #020617;
 }
 
+/*
+ * Admin theme scopes. Tailwind v4 utilities resolve through var(--color-*),
+ * so remapping the slate scale + white inside a [data-theme] scope re-skins
+ * every admin component without per-component changes. Applied by
+ * AdminThemeScope on the admin shell wrapper only, so client-facing portal
+ * pages are never affected.
+ */
+[data-theme="light"] {
+  /* Slightly deeper page background so white tiles stand out. */
+  --background: #e8edf4;
+}
+
+[data-theme="dark"] {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --color-white: #0f172a;
+  --color-slate-50: #182234;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+  --color-slate-950: #f8fafc;
+
+  /* Accent scales inverted: light tint surfaces become dark tints and dark
+     accent text becomes light, so banner/badge tiles stay readable. */
+  --color-amber-50: #451a03;
+  --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
+  --color-amber-300: #b45309;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+  --color-emerald-50: #022c22;
+  --color-emerald-100: #064e3b;
+  --color-emerald-200: #065f46;
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b9;
+  --color-emerald-800: #a7f3d0;
+  --color-red-50: #450a0a;
+  --color-red-200: #991b1b;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-rose-50: #4c0519;
+  --color-rose-600: #fb7185;
+  --color-rose-700: #fda4af;
+  --color-blue-50: #172554;
+  --color-blue-200: #1e40af;
+  --color-blue-600: #60a5fa;
+  --color-blue-700: #93c5fd;
+  --color-sky-100: #0c4a6e;
+  --color-sky-900: #e0f2fe;
+}
+
+/*
+ * Forest theme palette:
+ * Olive Leaf #606C38, Black Forest #283618, Cornsilk #FEFAE0,
+ * Light Caramel #DDA15E, Copper #BC6C25
+ */
+[data-theme="forest"] {
+  --background: #1f2b10;
+  --foreground: #fefae0;
+  --color-white: #283618;
+  --color-slate-50: #2e3d1b;
+  --color-slate-100: #35461f;
+  --color-slate-200: #4a5c2a;
+  --color-slate-300: #606c38;
+  --color-slate-400: #bc6c25;
+  --color-slate-500: #dda15e;
+  --color-slate-600: #e6bc85;
+  --color-slate-700: #efd6ab;
+  --color-slate-800: #f7e9c9;
+  --color-slate-900: #fefae0;
+  --color-slate-950: #fefae0;
+
+  /* Accent scales pulled toward the forest palette: amber warnings become
+     caramel/copper, emerald success becomes olive, red/blue stay hue-true
+     but darkened for the green background. */
+  --color-amber-50: #40300f;
+  --color-amber-100: #574116;
+  --color-amber-200: #6d5220;
+  --color-amber-300: #bc6c25;
+  --color-amber-600: #dda15e;
+  --color-amber-700: #e6bc85;
+  --color-amber-800: #efd3a4;
+  --color-amber-900: #f7e6c4;
+  --color-emerald-50: #2e3d1b;
+  --color-emerald-100: #35461f;
+  --color-emerald-200: #4a5c2a;
+  --color-emerald-600: #a3b465;
+  --color-emerald-700: #bccd85;
+  --color-emerald-800: #d5e2ab;
+  --color-red-50: #491410;
+  --color-red-200: #8c2f24;
+  --color-red-600: #f28b74;
+  --color-red-700: #fbb4a3;
+  --color-rose-50: #4c1420;
+  --color-rose-600: #f38d97;
+  --color-rose-700: #fbb8be;
+  --color-blue-50: #1d2b40;
+  --color-blue-200: #32517a;
+  --color-blue-600: #8db4dd;
+  --color-blue-700: #b3cfea;
+  --color-sky-100: #24425a;
+  --color-sky-900: #d8ecf8;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -28,4 +140,21 @@ body {
 
 a {
   text-decoration: none;
+}
+
+/* Custom scrollbar for the room calendar grid */
+.calendar-grid::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.calendar-grid::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.calendar-grid::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.calendar-grid::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

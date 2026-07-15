@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -31,6 +32,10 @@ import {
   type AdminEventUpload,
   type AdminEventVendor,
 } from "@/lib/admin/events";
+import {
+  buildPortalUrlForOrigin,
+  normalizeStoredPortalPath,
+} from "@/lib/admin/portal-urls";
 import { formatDisplayDate } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -92,6 +97,13 @@ export default async function AdminEventDetailPage({
     notFound();
   }
 
+  const requestOrigin = getRequestOrigin(await headers());
+  const portalUrl = buildPortalUrlForOrigin({
+    origin: requestOrigin,
+    portalUrl: event.clientPortalUrl,
+  });
+  const storedPortalPath = normalizeStoredPortalPath(event.clientPortalUrl);
+
   return (
     <AdminShell
       description="Read-only event details from Supabase and the latest GoHighLevel snapshot stored for this portal event."
@@ -99,12 +111,18 @@ export default async function AdminEventDetailPage({
       title={event.eventName}
       userEmail={user.email}
     >
-      <div>
+      <div className="flex flex-wrap gap-3">
         <Link
           className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           href="/admin/events"
         >
           Back to events
+        </Link>
+        <Link
+          className="inline-flex items-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          href={`/admin/events/${event.id}/schedule`}
+        >
+          Schedule &amp; Notes
         </Link>
       </div>
 
@@ -166,7 +184,8 @@ export default async function AdminEventDetailPage({
           label="Portal access prepared"
           value={event.hasPortalTokenHash || event.clientPortalUrl ? "Yes" : "No"}
         />
-        <DetailRow label="Stored portal URL" value={event.clientPortalUrl} />
+        <DetailRow label="Portal URL" value={portalUrl} />
+        <DetailRow label="Stored portal path" value={storedPortalPath} />
         <DetailRow label="Launched" value={formatNullableDateTime(event.launchedAt)} />
         <DetailRow
           label="Client notification"
@@ -241,7 +260,7 @@ export default async function AdminEventDetailPage({
         </DetailSection>
 
         <DetailSection title="Portal activity">
-          <DetailRow label="Portal URL" value={event.clientPortalUrl} />
+          <DetailRow label="Portal URL" value={portalUrl} />
           <DetailRow label="Launched" value={formatNullableDateTime(event.launchedAt)} />
           <DetailRow
             label="Public expires"
@@ -789,4 +808,13 @@ function canShowLaunchForm(event: {
   return (
     event.status === "draft" && !event.clientPortalUrl && !event.hasPortalTokenHash
   );
+}
+
+function getRequestOrigin(headersList: Headers): string {
+  const forwardedHost = headersList.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || headersList.get("host")?.split(",")[0]?.trim();
+  const forwardedProto = headersList.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const proto = forwardedProto || (host?.startsWith("localhost") ? "http" : "https");
+
+  return host ? `${proto}://${host}` : "http://localhost:3000";
 }
