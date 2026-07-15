@@ -80,27 +80,48 @@ export type AdminEventUpload = {
   signedUrl: string | null;
 };
 
+// Lists events a planner has booked onto the room calendar. Webhook intake
+// creates an event row for every GHL inquiry opportunity, but those stay
+// hidden here (they appear in the Create Event modal's dropdown) until a
+// planner links a calendar block to them.
 export async function listAdminEvents(): Promise<AdminEventListItem[]> {
   const supabase = createServiceRoleSupabaseClient();
 
-  const [eventsResult, reviewItemsResult, reviewVendorsResult] = await Promise.all([
-    supabase
-      .from("events")
-      .select(
-        "id, ghl_event_record_id, status, client_portal_url, launched_at, last_synced_at, last_sync_status, ghl_snapshot, created_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("event_checklist_items")
-      .select("event_id, status")
-      .eq("status", "needs_review"),
-    supabase.from("vendors").select("event_id, metadata"),
-  ]);
+  const [eventsResult, reviewItemsResult, reviewVendorsResult, bookedResult] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select(
+          "id, ghl_event_record_id, status, client_portal_url, launched_at, last_synced_at, last_sync_status, ghl_snapshot, created_at",
+        )
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("event_checklist_items")
+        .select("event_id, status")
+        .eq("status", "needs_review"),
+      supabase.from("vendors").select("event_id, metadata"),
+      supabase
+        .from("reservations")
+        .select("event_id")
+        .not("event_id", "is", null),
+    ]);
 
   if (eventsResult.error) {
     throw new Error(`Unable to load admin events: ${eventsResult.error.message}`);
   }
+
+  if (bookedResult.error) {
+    throw new Error(
+      `Unable to load booked event links: ${bookedResult.error.message}`,
+    );
+  }
+
+  const bookedEventIds = new Set(
+    ((bookedResult.data ?? []) as { event_id: string | null }[])
+      .map((row) => row.event_id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   if (reviewItemsResult.error) {
     throw new Error(
@@ -137,13 +158,15 @@ export async function listAdminEvents(): Promise<AdminEventListItem[]> {
     | "created_at"
   >[];
 
-  return eventRows.map((row) =>
-    mapEventRowToListItem({
-      row,
-      checklistReviewCount: reviewCounts.get(row.id) ?? 0,
-      vendorReviewCount: vendorReviewCounts.get(row.id) ?? 0,
-    }),
-  );
+  return eventRows
+    .filter((row) => bookedEventIds.has(row.id))
+    .map((row) =>
+      mapEventRowToListItem({
+        row,
+        checklistReviewCount: reviewCounts.get(row.id) ?? 0,
+        vendorReviewCount: vendorReviewCounts.get(row.id) ?? 0,
+      }),
+    );
 }
 
 export async function getAdminEventById(

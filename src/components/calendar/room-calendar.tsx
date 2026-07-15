@@ -9,6 +9,7 @@ import type {
 import { useCalendarData } from "@/lib/calendar/use-calendar-data";
 import { nextWeek, prevWeek, nextDay, prevDay } from "@/lib/calendar/utils";
 import { api } from "@/lib/calendar/api";
+import { createReservationBlocks } from "@/lib/calendar/create-blocks";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { CalendarGrid } from "./calendar-grid";
 import { ReservationModal } from "./reservation-modal";
@@ -93,52 +94,30 @@ export function RoomCalendar() {
     setModalOpen(true);
   }, []);
 
-  // Assigns the chosen coordinator to the event's GHL opportunity. Outcomes
-  // are logged server-side; a GHL failure must not fail the reservation save.
-  const assignCoordinator = useCallback(
-    async (eventId: string | null | undefined, ghlUserId?: string) => {
-      if (!eventId || !ghlUserId) return;
-      try {
-        await api.coordinatorAssignment.set(eventId, ghlUserId);
-      } catch (err) {
-        console.error("Coordinator assignment failed", err);
-      }
-    },
-    [],
-  );
-
   const handleSave = useCallback(
     async (data: ReservationFormData, coordinatorUserId?: string) => {
       if (!editingReservation) return;
       await api.reservations.update(editingReservation.id, data);
-      await assignCoordinator(data.event_id, coordinatorUserId);
-      await refetch();
-    },
-    [editingReservation, assignCoordinator, refetch],
-  );
-
-  // Creates one reservation per room block, returning the blocks that failed
-  // (e.g. conflicts) so the modal can keep them open for correction.
-  const handleCreateMany = useCallback(
-    async (blocks: ReservationFormData[], coordinatorUserId?: string) => {
-      const failures: { index: number; message: string }[] = [];
-      for (const [index, block] of blocks.entries()) {
+      if (data.event_id && coordinatorUserId) {
+        // Outcome is logged server-side; a GHL hiccup must not fail the save.
         try {
-          await api.reservations.create(block);
+          await api.coordinatorAssignment.set(data.event_id, coordinatorUserId);
         } catch (err) {
-          failures.push({
-            index,
-            message: err instanceof Error ? err.message : "Failed to save",
-          });
+          console.error("Coordinator assignment failed", err);
         }
       }
-      if (failures.length < blocks.length) {
-        await assignCoordinator(blocks[0]?.event_id, coordinatorUserId);
-      }
+      await refetch();
+    },
+    [editingReservation, refetch],
+  );
+
+  const handleCreateMany = useCallback(
+    async (blocks: ReservationFormData[], coordinatorUserId?: string) => {
+      const failures = await createReservationBlocks(blocks, coordinatorUserId);
       await refetch();
       return failures;
     },
-    [assignCoordinator, refetch],
+    [refetch],
   );
 
   const handleDelete = useCallback(async () => {
@@ -205,7 +184,7 @@ export function RoomCalendar() {
           }}
           className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
         >
-          + New Reservation
+          + Create Event
         </button>
       </div>
 

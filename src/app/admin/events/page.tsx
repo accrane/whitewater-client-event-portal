@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminStatCard } from "@/components/admin/admin-stat-card";
+import { CreateEventButton } from "@/components/admin/create-event-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDisplayDate } from "@/lib/dates";
 import { listAdminEvents } from "@/lib/admin/events";
@@ -44,11 +45,15 @@ export default async function AdminEventsPage() {
 
   return (
     <AdminShell
-      description="Review draft and upcoming client portals. This page now reads event records from Supabase without adding create, edit, delete, or GHL sync workflows."
+      description="Events that have been booked onto the room calendar. New GHL inquiries stay in the Create Event dropdown until a planner books them."
       eyebrow="Events"
       title="Event portal workspace"
       userEmail={user.email}
     >
+      <div className="flex justify-end">
+        <CreateEventButton />
+      </div>
+
       <section className="grid gap-4 xl:grid-cols-4">
         <AdminStatCard
           description={`${draftCount} event${draftCount === 1 ? "" : "s"} waiting for planner setup before launch.`}
@@ -72,10 +77,10 @@ export default async function AdminEventsPage() {
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
             <h2 className="text-lg font-semibold text-slate-950">
-              Recent event records
+              Booked events
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Showing the 50 most recently created portal events from Supabase.
+              Events with rooms reserved on the calendar, newest first.
             </p>
           </div>
 
@@ -143,8 +148,8 @@ export default async function AdminEventsPage() {
         </section>
       ) : (
         <EmptyState
-          description="No event rows were returned from Supabase. Once GHL webhook intake or seed data creates events, they will appear here automatically."
-          title="No event records connected yet"
+          description="No events have been booked onto the room calendar yet. Use Create Event to link a GHL inquiry to rooms and times — it will appear here once booked."
+          title="No booked events yet"
         />
       )}
     </AdminShell>
