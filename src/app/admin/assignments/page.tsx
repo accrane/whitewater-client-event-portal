@@ -4,10 +4,10 @@ import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  listCoordinators,
   listUpcomingAssignments,
   type UpcomingAssignment,
 } from "@/lib/admin/room-calendar";
+import { listGhlUsers } from "@/lib/ghl/location-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const UNASSIGNED = "Unassigned";
@@ -124,13 +124,15 @@ export default async function AdminAssignmentsPage() {
     redirect("/admin/login");
   }
 
-  const [coordinators, assignments] = await Promise.all([
-    listCoordinators(),
+  // Planner columns are the GHL location users — the same list the
+  // reservation modal's Event Coordinator dropdown offers.
+  const [ghlUsers, assignments] = await Promise.all([
+    listGhlUsers(),
     listUpcomingAssignments(),
   ]);
 
   const groups = groupByPlanner(
-    [...coordinators.map((c) => c.name), UNASSIGNED],
+    [...ghlUsers.map((u) => u.name), UNASSIGNED],
     assignments,
   );
 
@@ -142,7 +144,7 @@ export default async function AdminAssignmentsPage() {
     >
       {groups.size === 0 ? (
         <EmptyState
-          description="Add event coordinators in the Room Calendar settings, then assign them to reservations to see their workload here."
+          description="Planners come from your GoHighLevel users. Once GHL is configured and reservations are assigned a coordinator, workloads appear here."
           title="No planners yet"
         />
       ) : (

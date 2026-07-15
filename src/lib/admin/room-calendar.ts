@@ -3,7 +3,6 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 type RoomRow = Database["public"]["Tables"]["rooms"]["Row"];
-type CoordinatorRow = Database["public"]["Tables"]["coordinators"]["Row"];
 type ReservationRow = Database["public"]["Tables"]["reservations"]["Row"];
 type ReservationInsert = Database["public"]["Tables"]["reservations"]["Insert"];
 type ReservationUpdate = Database["public"]["Tables"]["reservations"]["Update"];
@@ -11,9 +10,8 @@ type ReservationUpdate = Database["public"]["Tables"]["reservations"]["Update"];
 export const CONFLICT_MESSAGE =
   "This reservation conflicts with an existing reservation in the same room";
 
-// Postgres error codes surfaced by the reservations table constraints.
+// Postgres error code surfaced by the reservations overlap constraint.
 const EXCLUSION_VIOLATION = "23P01";
-const UNIQUE_VIOLATION = "23505";
 
 export class RoomCalendarError extends Error {
   constructor(
@@ -34,56 +32,6 @@ export async function listRooms() {
 
   if (error) throw error;
   return (data ?? []) as RoomRow[];
-}
-
-export async function listCoordinators() {
-  const supabase = createServiceRoleSupabaseClient();
-  const { data, error } = await supabase
-    .from("coordinators")
-    .select("*")
-    .order("name");
-
-  if (error) throw error;
-  return (data ?? []) as CoordinatorRow[];
-}
-
-export async function createCoordinator(name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    throw new RoomCalendarError("Name is required", 400);
-  }
-
-  const supabase = createServiceRoleSupabaseClient();
-  const { data, error } = await supabase
-    .from("coordinators")
-    .insert({ name: trimmed } as never)
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) {
-      throw new RoomCalendarError(
-        "A coordinator with this name already exists",
-        409,
-      );
-    }
-    throw error;
-  }
-  return data as CoordinatorRow;
-}
-
-export async function deleteCoordinator(id: string) {
-  const supabase = createServiceRoleSupabaseClient();
-  const { data, error } = await supabase
-    .from("coordinators")
-    .delete()
-    .eq("id", id)
-    .select("id");
-
-  if (error) throw error;
-  if (!data.length) {
-    throw new RoomCalendarError("Coordinator not found", 404);
-  }
 }
 
 export type LinkableEvent = {

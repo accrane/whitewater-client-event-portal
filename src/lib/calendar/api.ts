@@ -2,7 +2,6 @@ import type {
   Room,
   Reservation,
   ReservationFormData,
-  Coordinator,
   PortalEventOption,
   GhlUserOption,
 } from "./types";
@@ -40,16 +39,6 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ event_id, ghl_user_id }),
       }),
-  },
-  coordinators: {
-    list: () => request<Coordinator[]>("/coordinators"),
-    create: (name: string) =>
-      request<Coordinator>("/coordinators", {
-        method: "POST",
-        body: JSON.stringify({ name }),
-      }),
-    delete: (id: string) =>
-      request<void>(`/coordinators/${id}`, { method: "DELETE" }),
   },
   reservations: {
     list: (params?: {

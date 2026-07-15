@@ -1,7 +1,6 @@
 import type { Database } from "@/types/database";
 
 export type Room = Database["public"]["Tables"]["rooms"]["Row"];
-export type Coordinator = Database["public"]["Tables"]["coordinators"]["Row"];
 export type Reservation = Database["public"]["Tables"]["reservations"]["Row"];
 
 export type ReservationFormData = Omit<

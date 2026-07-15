@@ -5,7 +5,6 @@ import type {
   Room,
   Reservation,
   CalendarState,
-  Coordinator,
   PortalEventOption,
   GhlUserOption,
 } from "./types";
@@ -15,7 +14,6 @@ import { getWeekRange, getDayRange } from "./utils";
 export function useCalendarData() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [portalEvents, setPortalEvents] = useState<PortalEventOption[]>([]);
   const [ghlUsers, setGhlUsers] = useState<GhlUserOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,32 +35,25 @@ export function useCalendarData() {
           ? getWeekRange(calendarState.currentDate)
           : getDayRange(calendarState.currentDate);
 
-      const [
-        roomsData,
-        reservationsData,
-        coordinatorsData,
-        portalEventsData,
-        ghlUsersData,
-      ] = await Promise.all([
-        api.rooms.list(),
-        api.reservations.list({
-          start: range.start.toISOString(),
-          end: range.end.toISOString(),
-          ...(calendarState.selectedRoomId
-            ? { room_id: calendarState.selectedRoomId }
-            : {}),
-          ...(calendarState.statusFilter !== "all"
-            ? { status: calendarState.statusFilter }
-            : {}),
-        }),
-        api.coordinators.list(),
-        api.portalEvents.list(),
-        api.ghlUsers.list(),
-      ]);
+      const [roomsData, reservationsData, portalEventsData, ghlUsersData] =
+        await Promise.all([
+          api.rooms.list(),
+          api.reservations.list({
+            start: range.start.toISOString(),
+            end: range.end.toISOString(),
+            ...(calendarState.selectedRoomId
+              ? { room_id: calendarState.selectedRoomId }
+              : {}),
+            ...(calendarState.statusFilter !== "all"
+              ? { status: calendarState.statusFilter }
+              : {}),
+          }),
+          api.portalEvents.list(),
+          api.ghlUsers.list(),
+        ]);
 
       setRooms(roomsData);
       setReservations(reservationsData);
-      setCoordinators(coordinatorsData);
       setPortalEvents(portalEventsData);
       setGhlUsers(ghlUsersData);
     } catch (err) {
@@ -87,7 +78,6 @@ export function useCalendarData() {
   return {
     rooms,
     reservations,
-    coordinators,
     portalEvents,
     ghlUsers,
     loading,
