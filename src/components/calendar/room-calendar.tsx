@@ -20,6 +20,7 @@ export function RoomCalendar() {
     rooms,
     reservations,
     coordinators,
+    portalEvents,
     loading,
     error,
     calendarState,
@@ -232,6 +233,7 @@ export function RoomCalendar() {
           onDelete={editingReservation ? handleDelete : undefined}
           rooms={rooms}
           coordinators={coordinators}
+          portalEvents={portalEvents}
           reservation={editingReservation}
           defaultRoomId={defaultRoomId}
           defaultStart={defaultStart}

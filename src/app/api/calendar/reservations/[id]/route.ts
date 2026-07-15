@@ -7,6 +7,7 @@ import {
   getReservation,
   updateReservation,
 } from "@/lib/admin/room-calendar";
+import { triggerPlanningStageForEvent } from "@/lib/ghl/planning-trigger";
 import type { Database } from "@/types/database";
 
 type ReservationUpdate = Database["public"]["Tables"]["reservations"]["Update"];
@@ -28,7 +29,16 @@ export async function PUT(request: Request, { params }: RouteParams) {
     await requireAdminUser();
     const { id } = await params;
     const patch = (await request.json()) as ReservationUpdate;
-    return Response.json(await updateReservation(id, patch));
+    const before = await getReservation(id);
+    const updated = await updateReservation(id, patch);
+
+    // Linking a portal event to a block is what moves its GHL opportunity
+    // into Planning; only fire when the link is new.
+    if (updated.event_id && updated.event_id !== before.event_id) {
+      await triggerPlanningStageForEvent(updated.event_id);
+    }
+
+    return Response.json(updated);
   } catch (error) {
     return calendarErrorResponse(error);
   }

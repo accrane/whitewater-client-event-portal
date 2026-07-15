@@ -13,7 +13,7 @@ export type Database = {
         Row: {
           id: string;
           ghl_location_id: string;
-          ghl_event_record_id: string;
+          ghl_event_record_id: string | null;
           ghl_contact_id: string | null;
           ghl_opportunity_id: string | null;
           status: Database["public"]["Enums"]["portal_event_status"];
@@ -35,7 +35,7 @@ export type Database = {
         Insert: {
           id?: string;
           ghl_location_id: string;
-          ghl_event_record_id: string;
+          ghl_event_record_id?: string | null;
           ghl_contact_id?: string | null;
           ghl_opportunity_id?: string | null;
           status?: Database["public"]["Enums"]["portal_event_status"];
@@ -268,7 +268,6 @@ export type Database = {
           coordinator_name: string | null;
           event_id: string | null;
           source: Database["public"]["Enums"]["reservation_source"];
-          ghl_event_record_id: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -287,7 +286,6 @@ export type Database = {
           coordinator_name?: string | null;
           event_id?: string | null;
           source?: Database["public"]["Enums"]["reservation_source"];
-          ghl_event_record_id?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;

@@ -16,7 +16,7 @@ type UploadRow = Database["public"]["Tables"]["uploads"]["Row"];
 
 export type AdminEventListItem = {
   id: string;
-  ghlEventRecordId: string;
+  ghlEventRecordId: string | null;
   status: EventRow["status"];
   eventName: string;
   eventType: string | null;

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Room, Reservation, CalendarState, Coordinator } from "./types";
+import type {
+  Room,
+  Reservation,
+  CalendarState,
+  Coordinator,
+  PortalEventOption,
+} from "./types";
 import { api } from "./api";
 import { getWeekRange, getDayRange } from "./utils";
 
@@ -9,6 +15,7 @@ export function useCalendarData() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
+  const [portalEvents, setPortalEvents] = useState<PortalEventOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [calendarState, setCalendarState] = useState<CalendarState>({
@@ -28,7 +35,7 @@ export function useCalendarData() {
           ? getWeekRange(calendarState.currentDate)
           : getDayRange(calendarState.currentDate);
 
-      const [roomsData, reservationsData, coordinatorsData] =
+      const [roomsData, reservationsData, coordinatorsData, portalEventsData] =
         await Promise.all([
           api.rooms.list(),
           api.reservations.list({
@@ -42,11 +49,13 @@ export function useCalendarData() {
               : {}),
           }),
           api.coordinators.list(),
+          api.portalEvents.list(),
         ]);
 
       setRooms(roomsData);
       setReservations(reservationsData);
       setCoordinators(coordinatorsData);
+      setPortalEvents(portalEventsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -70,6 +79,7 @@ export function useCalendarData() {
     rooms,
     reservations,
     coordinators,
+    portalEvents,
     loading,
     error,
     calendarState,

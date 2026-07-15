@@ -3,6 +3,7 @@ import type {
   Reservation,
   ReservationFormData,
   Coordinator,
+  PortalEventOption,
 } from "./types";
 
 const BASE = "/api/calendar";
@@ -25,6 +26,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 export const api = {
   rooms: {
     list: () => request<Room[]>("/rooms"),
+  },
+  portalEvents: {
+    list: () => request<PortalEventOption[]>("/portal-events"),
   },
   coordinators: {
     list: () => request<Coordinator[]>("/coordinators"),

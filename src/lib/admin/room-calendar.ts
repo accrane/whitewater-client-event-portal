@@ -85,6 +85,49 @@ export async function deleteCoordinator(id: string) {
   }
 }
 
+export type LinkableEvent = {
+  id: string;
+  label: string;
+};
+
+// Active portal events a planner can attach a reservation to. Linking one
+// pushes its GHL opportunity into the Planning stage (see
+// src/lib/ghl/planning-trigger.ts).
+export async function listLinkableEvents(): Promise<LinkableEvent[]> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, status, ghl_snapshot")
+    .in("status", ["draft", "launched"])
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw error;
+
+  const rows = (data ?? []) as {
+    id: string;
+    status: string;
+    ghl_snapshot: unknown;
+  }[];
+
+  return rows.map((row) => {
+    const snapshot =
+      row.ghl_snapshot && typeof row.ghl_snapshot === "object" && !Array.isArray(row.ghl_snapshot)
+        ? (row.ghl_snapshot as Record<string, unknown>)
+        : {};
+    const name =
+      typeof snapshot.eventName === "string" && snapshot.eventName
+        ? snapshot.eventName
+        : "Untitled event";
+    const date =
+      typeof snapshot.eventDate === "string" && snapshot.eventDate
+        ? ` — ${snapshot.eventDate}`
+        : "";
+
+    return { id: row.id, label: `${name}${date} (${row.status})` };
+  });
+}
+
 export type ReservationFilters = {
   start?: string;
   end?: string;

@@ -10,6 +10,11 @@ export type GhlEventSnapshot = {
     email?: string;
     phone?: string | null;
   };
+  contact?: {
+    name?: string;
+    email?: string;
+    phone?: string | null;
+  };
   links?: {
     proposal?: string;
     contract?: string;

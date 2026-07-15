@@ -9,6 +9,12 @@ export type ReservationFormData = Omit<
   "id" | "created_at" | "updated_at"
 >;
 
+// Portal events a reservation can be linked to (id + display label).
+export type PortalEventOption = {
+  id: string;
+  label: string;
+};
+
 export type ViewMode = "week" | "day";
 
 export interface CalendarState {

@@ -4,6 +4,7 @@ import type {
   Reservation,
   ReservationFormData,
   Coordinator,
+  PortalEventOption,
 } from "@/lib/calendar/types";
 import { format } from "date-fns";
 import { StatusBadge } from "./status-badge";
@@ -16,6 +17,7 @@ interface ReservationModalProps {
   onDelete?: () => Promise<void>;
   rooms: Room[];
   coordinators: Coordinator[];
+  portalEvents: PortalEventOption[];
   reservation?: Reservation | null;
   defaultRoomId?: string;
   defaultStart?: Date;
@@ -27,6 +29,7 @@ export function ReservationModal({
   onDelete,
   rooms,
   coordinators,
+  portalEvents,
   reservation,
   defaultRoomId,
   defaultStart,
@@ -55,6 +58,7 @@ export function ReservationModal({
         client_name: reservation.client_name || "",
         salesperson_name: reservation.salesperson_name || "",
         coordinator_name: reservation.coordinator_name || "",
+        event_id: reservation.event_id || "",
         created_by: reservation.created_by || "",
       };
     }
@@ -72,6 +76,7 @@ export function ReservationModal({
       client_name: "",
       salesperson_name: "",
       coordinator_name: "",
+      event_id: "",
       created_by: "",
     };
   });
@@ -93,6 +98,7 @@ export function ReservationModal({
     client_name: formData.client_name || undefined,
     salesperson_name: formData.salesperson_name || undefined,
     coordinator_name: formData.coordinator_name || undefined,
+    event_id: formData.event_id || null,
     created_by: formData.created_by || undefined,
   });
 
@@ -355,6 +361,35 @@ export function ReservationModal({
                 placeholder="Optional"
               />
             </div>
+          </div>
+
+          {/* Linked portal event — linking one moves its GHL opportunity to Planning */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Linked Event
+            </label>
+            <select
+              value={formData.event_id}
+              onChange={(e) =>
+                setFormData({ ...formData, event_id: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">None</option>
+              {/* Keep an event linked before it left the active list */}
+              {formData.event_id &&
+                !portalEvents.some((ev) => ev.id === formData.event_id) && (
+                  <option value={formData.event_id}>Linked event</option>
+                )}
+              {portalEvents.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">
+              Linking an event moves its GHL opportunity to the Planning stage.
+            </p>
           </div>
 
           {/* Event Coordinator */}

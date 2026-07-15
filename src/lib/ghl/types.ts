@@ -115,77 +115,98 @@ export function normalizeGhlEventSnapshot(
   };
 }
 
-export type ProposalSentPayload = {
+// Sent by the GHL workflow when a new inquiry opportunity is created.
+// Only the location and opportunity IDs are required — inquiry-stage
+// opportunities may have sparse event details.
+export type InquiryPayload = {
   ghl_location_id: string;
-  ghl_event_record_id: string;
+  ghl_opportunity_id: string;
   ghl_contact_id?: string;
-  ghl_opportunity_id?: string;
-  event: {
-    name: string;
-    room: string;
-    start: string;
-    end: string;
+  contact?: {
+    name?: string;
+    email?: string;
+    phone?: string | null;
   };
-  client_name?: string;
-  salesperson_name?: string;
+  event?: {
+    name?: string;
+    type?: string;
+    date?: string;
+  };
 };
 
-export type ParseGhlProposalSentPayloadResult =
+export type ParseGhlInquiryPayloadResult =
   | {
       ok: true;
-      payload: ProposalSentPayload;
+      payload: InquiryPayload;
     }
   | {
       ok: false;
       errors: string[];
     };
 
-export function parseGhlProposalSentPayload(
+export function parseGhlInquiryPayload(
   input: unknown,
-): ParseGhlProposalSentPayloadResult {
+): ParseGhlInquiryPayloadResult {
   if (!isRecord(input)) {
     return { ok: false, errors: ["payload must be an object"] };
   }
 
   const errors: string[] = [];
+  const contact = isRecord(input.contact) ? input.contact : undefined;
   const event = isRecord(input.event) ? input.event : undefined;
 
-  const payload: ProposalSentPayload = {
+  const eventDate = optionalString(event?.date);
+
+  if (eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    errors.push("event.date must use YYYY-MM-DD format");
+  }
+
+  const payload: InquiryPayload = {
     ghl_location_id: requireString(input.ghl_location_id, "ghl_location_id", errors),
-    ghl_event_record_id: requireString(
-      input.ghl_event_record_id,
-      "ghl_event_record_id",
+    ghl_opportunity_id: requireString(
+      input.ghl_opportunity_id,
+      "ghl_opportunity_id",
       errors,
     ),
     ...(optionalString(input.ghl_contact_id) && {
       ghl_contact_id: optionalString(input.ghl_contact_id),
     }),
-    ...(optionalString(input.ghl_opportunity_id) && {
-      ghl_opportunity_id: optionalString(input.ghl_opportunity_id),
+    ...(contact && {
+      contact: {
+        name: optionalString(contact.name),
+        email: optionalString(contact.email),
+        phone: optionalString(contact.phone) ?? null,
+      },
     }),
-    event: {
-      name: requireString(event?.name, "event.name", errors),
-      room: requireString(event?.room, "event.room", errors),
-      start: requireDatetimeString(event?.start, "event.start", errors),
-      end: requireDatetimeString(event?.end, "event.end", errors),
-    },
-    client_name: optionalString(input.client_name),
-    salesperson_name: optionalString(input.salesperson_name),
+    ...(event && {
+      event: {
+        name: optionalString(event.name),
+        type: optionalString(event.type),
+        date: eventDate,
+      },
+    }),
   };
-
-  if (
-    payload.event.start &&
-    payload.event.end &&
-    new Date(payload.event.start) >= new Date(payload.event.end)
-  ) {
-    errors.push("event.end must be after event.start");
-  }
 
   if (errors.length > 0) {
     return { ok: false, errors };
   }
 
   return { ok: true, payload };
+}
+
+export function buildInquiryEventSnapshot(
+  payload: InquiryPayload,
+): GhlEventSnapshot {
+  return {
+    eventName:
+      payload.event?.name ??
+      (payload.contact?.name
+        ? `Inquiry — ${payload.contact.name}`
+        : "New inquiry"),
+    eventType: payload.event?.type,
+    eventDate: payload.event?.date,
+    contact: payload.contact,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -204,20 +225,6 @@ function requireString(
   }
 
   return parsed ?? "";
-}
-
-function requireDatetimeString(
-  value: unknown,
-  fieldName: string,
-  errors: string[],
-): string {
-  const parsed = requireString(value, fieldName, errors);
-
-  if (parsed && Number.isNaN(new Date(parsed).getTime())) {
-    errors.push(`${fieldName} must be a valid ISO 8601 datetime`);
-  }
-
-  return parsed;
 }
 
 function requireDateString(

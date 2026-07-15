@@ -39,17 +39,27 @@ being merged into this portal under the admin area.
 
 ### Shipped
 
-- **GHL calendar integration** (2026-07-15) — two shared-secret webhooks drive
-  the room calendar from GoHighLevel workflows:
-  - `POST /api/ghl/reservations/proposal-sent` places a **held** block on the
-    room calendar (`source = 'ghl'`, linked via
-    `reservations.ghl_event_record_id`). Idempotent on retried deliveries;
-    unknown room values are logged to `integration_logs` and rejected with 422.
-    GHL venue values that differ from portal room names are translated by the
-    editable map in `src/lib/ghl/room-mapping.ts` (case-insensitive exact-name
-    fallback).
-  - `POST /api/ghl/events/create-draft` (existing) now also links the earlier
-    hold to the draft portal event it creates and promotes it to **booked**,
-    since the proposal is signed and the deposit paid.
-  - Both require the `x-portal-webhook-secret` header matching
-    `GHL_WEBHOOK_SECRET`.
+- **GHL inquiry workflow** (2026-07-15) — replaces the same-day "proposal sent
+  auto-booking" design (removed; preserved in git history). The app now drives
+  GHL pipeline movement instead of GHL driving the calendar:
+  1. Gravity Forms inquiry → GHL contact + opportunity in the Inquiry stage
+     (GHL-side).
+  2. A GHL workflow webhook posts the opportunity to
+     `POST /api/ghl/opportunities/inquiry` (`x-portal-webhook-secret` header
+     must match `GHL_WEBHOOK_SECRET`); the app creates a draft portal event,
+     idempotent on `events.ghl_opportunity_id`.
+  3. The app writes the portal event id back onto the opportunity custom
+     field `GHL_OPPORTUNITY_EVENT_FIELD_ID` (retried on duplicate webhook
+     deliveries until it succeeds; outcome recorded in `events.last_sync_*`).
+  4. A planner creates the calendar block and picks the event in the
+     reservation modal's "Linked Event" select
+     (`GET /api/calendar/portal-events` feeds the options).
+  5. Linking the event moves the GHL opportunity into the Planning stage
+     (`GHL_PIPELINE_ID` + `GHL_PLANNING_STAGE_ID`), which GHL workflows use
+     to start internal tasks and notifications.
+  - All inbound and outbound steps log to `integration_logs`
+    (`GHL_TO_PORTAL` / `PORTAL_TO_GHL`); outbound GHL calls degrade to logged
+    warnings when GHL env vars are not configured.
+  - `POST /api/ghl/events/create-draft` (MVP, keyed on
+    `ghl_event_record_id`) remains but is superseded by the inquiry webhook;
+    remove it once the GHL workflows are finalized.

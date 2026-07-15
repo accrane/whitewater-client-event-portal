@@ -1,0 +1,15 @@
+{
+  "ghl_location_id": "loc_test_123",
+  "ghl_opportunity_id": "opp_test_789",
+  "ghl_contact_id": "contact_test_456",
+  "contact": {
+    "name": "Jordan Client",
+    "email": "jordan@example.com",
+    "phone": "+17045551234"
+  },
+  "event": {
+    "name": "Acme Corp — Corporate Event",
+    "type": "Corporate",
+    "date": "2026-08-15"
+  }
+}

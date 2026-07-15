@@ -2,9 +2,10 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
 
 type IntegrationStatus = Database["public"]["Enums"]["integration_status"];
+type IntegrationDirection = Database["public"]["Enums"]["integration_direction"];
 
 type IntegrationLogInsert = {
-  direction: "GHL_TO_PORTAL";
+  direction: IntegrationDirection;
   event_type: string;
   ghl_location_id: string | null;
   ghl_event_record_id: string | null;
@@ -15,6 +16,7 @@ type IntegrationLogInsert = {
 };
 
 export type LogIntegrationEventArgs = {
+  direction?: IntegrationDirection;
   eventType: string;
   ghlLocationId?: string | null;
   ghlEventRecordId?: string | null;
@@ -25,6 +27,7 @@ export type LogIntegrationEventArgs = {
 };
 
 export async function logIntegrationEvent({
+  direction = "GHL_TO_PORTAL",
   eventType,
   ghlLocationId,
   ghlEventRecordId,
@@ -35,7 +38,7 @@ export async function logIntegrationEvent({
 }: LogIntegrationEventArgs) {
   const supabase = createServiceRoleSupabaseClient();
   const insertPayload: IntegrationLogInsert = {
-    direction: "GHL_TO_PORTAL",
+    direction,
     event_type: eventType,
     ghl_location_id: ghlLocationId ?? null,
     ghl_event_record_id: ghlEventRecordId ?? null,
