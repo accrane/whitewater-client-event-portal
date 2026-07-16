@@ -52,6 +52,7 @@ export type GhlOpportunity = {
   name: string | null;
   contactId: string | null;
   assignedTo: string | null;
+  monetaryValue: number | null;
   customFields: unknown;
 };
 
@@ -77,6 +78,7 @@ export async function fetchOpportunity(
         name?: string;
         contactId?: string;
         assignedTo?: string;
+        monetaryValue?: number;
         customFields?: unknown;
       };
     };
@@ -88,6 +90,11 @@ export async function fetchOpportunity(
       name: opportunity.name ?? null,
       contactId: opportunity.contactId ?? null,
       assignedTo: opportunity.assignedTo ?? null,
+      monetaryValue:
+        typeof opportunity.monetaryValue === "number" &&
+        Number.isFinite(opportunity.monetaryValue)
+          ? opportunity.monetaryValue
+          : null,
       customFields: opportunity.customFields,
     };
   } catch (error) {

@@ -4,6 +4,10 @@ export type GhlEventSnapshot = {
   eventDate?: string;
   arrivalTime?: string;
   meetingLocation?: string;
+  // GHL opportunity monetaryValue; admin-only in the UI, synced both ways.
+  value?: number;
+  // GHL opportunity.number_of_guests custom field, synced both ways.
+  numberOfGuests?: number;
   planner?: {
     id?: string;
     name?: string;

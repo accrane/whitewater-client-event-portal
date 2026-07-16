@@ -142,6 +142,12 @@ a {
   text-decoration: none;
 }
 
+/* Tailwind v4 preflight leaves buttons on the default arrow cursor. */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Custom scrollbar for the room calendar grid */
 .calendar-grid::-webkit-scrollbar {
   width: 8px;

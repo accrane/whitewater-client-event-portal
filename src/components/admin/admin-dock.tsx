@@ -89,14 +89,12 @@ const adminNavItems = [
     ),
   },
   {
-    href: "/admin/schedule-template",
-    label: "Schedule Template",
+    href: "/admin/settings",
+    label: "Settings",
     icon: (
       <DockIcon>
-        <rect height="7" rx="1" width="12" x="3" y="3" />
-        <path d="M15 6.5h6" />
-        <rect height="7" rx="1" width="12" x="3" y="14" />
-        <path d="M15 17.5h6" />
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
       </DockIcon>
     ),
   },
@@ -111,20 +109,18 @@ const adminNavItems = [
       </DockIcon>
     ),
   },
-  {
-    href: "/admin/integration-logs",
-    label: "Integration Logs",
-    icon: (
-      <DockIcon>
-        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-        <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-        <path d="M10 9H8" />
-        <path d="M16 13H8" />
-        <path d="M16 17H8" />
-      </DockIcon>
-    ),
-  },
 ];
+
+// Shown only to admin-role users; houses user management and integration logs.
+const adminOnlyNavItem = {
+  href: "/admin/system",
+  label: "Admin",
+  icon: (
+    <DockIcon>
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z" />
+    </DockIcon>
+  ),
+};
 
 const themeOptions: Array<{
   value: AdminTheme;
@@ -171,9 +167,10 @@ const themeOptions: Array<{
 
 type AdminDockProps = {
   userEmail?: string | null;
+  showAdminNav?: boolean;
 };
 
-export function AdminDock({ userEmail }: AdminDockProps) {
+export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useAdminTheme();
   const [collapsedValue, setCollapsedValue] = useLocalStorageValue(
@@ -234,7 +231,7 @@ export function AdminDock({ userEmail }: AdminDockProps) {
         aria-label="Admin navigation"
         className="flex-1 space-y-1 overflow-y-auto px-3 py-4"
       >
-        {adminNavItems.map((item) => (
+        {[...adminNavItems, ...(showAdminNav ? [adminOnlyNavItem] : [])].map((item) => (
           <Link
             aria-current={isActive(item.href) ? "page" : undefined}
             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition ${

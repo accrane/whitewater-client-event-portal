@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 
 import { noteHtmlHasContent, type ScheduleTileFields } from "@/lib/schedule";
 
@@ -133,10 +134,75 @@ function NotePanel({ html }: { html: string }) {
 
 // Renders planner-authored WYSIWYG HTML (trusted admin input).
 export function NoteHtml({ html }: { html: string }) {
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(
+    null,
+  );
+
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (target instanceof HTMLImageElement) {
+      setLightbox({ src: target.src, alt: target.alt });
+    }
+  };
+
   return (
+    <>
+      <div
+        className="mt-2 space-y-2 text-sm leading-6 text-slate-700 [&_a]:text-blue-700 [&_a]:underline [&_b]:font-semibold [&_strong]:font-semibold [&_img]:my-2 [&_img]:max-w-full [&_img]:cursor-zoom-in [&_img]:rounded-lg [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+        dangerouslySetInnerHTML={{ __html: html }}
+        onClick={handleClick}
+      />
+      {lightbox && (
+        <ImageLightbox
+          alt={lightbox.alt}
+          onClose={() => setLightbox(null)}
+          src={lightbox.src}
+        />
+      )}
+    </>
+  );
+}
+
+// Fullscreen view of a note image; closes on backdrop click or Escape.
+function ImageLightbox({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return createPortal(
     <div
-      className="mt-2 space-y-2 text-sm leading-6 text-slate-700 [&_a]:text-blue-700 [&_a]:underline [&_b]:font-semibold [&_strong]:font-semibold [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-lg [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+      aria-modal
+      className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-slate-950/80 p-4 sm:p-10"
+      onClick={onClose}
+      role="dialog"
+    >
+      <button
+        aria-label="Close image"
+        className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl leading-none text-white transition hover:bg-white/20"
+        type="button"
+      >
+        &times;
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={alt}
+        className="max-h-full max-w-full cursor-default rounded-lg shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        src={src}
+      />
+    </div>,
+    document.body,
   );
 }

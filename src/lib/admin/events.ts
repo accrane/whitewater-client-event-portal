@@ -1,4 +1,7 @@
-import { clearEventIdFromOpportunity } from "@/lib/ghl/opportunity-sync";
+import {
+  clearEventIdFromOpportunity,
+  writeOpportunityEventDetails,
+} from "@/lib/ghl/opportunity-sync";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { GhlEventSnapshot } from "@/types/portal";
 
@@ -45,6 +48,8 @@ export type AdminEventDetail = AdminEventListItem & {
   updatedAt: string;
   arrivalTime: string | null;
   meetingLocation: string | null;
+  value: number | null;
+  numberOfGuests: number | null;
   plannerEmail: string | null;
   plannerPhone: string | null;
   proposalUrl: string | null;
@@ -80,14 +85,13 @@ export type AdminEventUpload = {
   signedUrl: string | null;
 };
 
-// Lists events a planner has booked onto the room calendar. Webhook intake
-// creates an event row for every GHL inquiry opportunity, but those stay
-// hidden here (they appear in the Create Event modal's dropdown) until a
-// planner links a calendar block to them.
+// Lists every portal event, with or without rooms reserved on the calendar —
+// webhook intake creates an event row for each GHL inquiry opportunity, and
+// planners may work an event that never books a room.
 export async function listAdminEvents(): Promise<AdminEventListItem[]> {
   const supabase = createServiceRoleSupabaseClient();
 
-  const [eventsResult, reviewItemsResult, reviewVendorsResult, bookedResult] =
+  const [eventsResult, reviewItemsResult, reviewVendorsResult] =
     await Promise.all([
       supabase
         .from("events")
@@ -101,27 +105,11 @@ export async function listAdminEvents(): Promise<AdminEventListItem[]> {
         .select("event_id, status")
         .eq("status", "needs_review"),
       supabase.from("vendors").select("event_id, metadata"),
-      supabase
-        .from("reservations")
-        .select("event_id")
-        .not("event_id", "is", null),
     ]);
 
   if (eventsResult.error) {
     throw new Error(`Unable to load admin events: ${eventsResult.error.message}`);
   }
-
-  if (bookedResult.error) {
-    throw new Error(
-      `Unable to load booked event links: ${bookedResult.error.message}`,
-    );
-  }
-
-  const bookedEventIds = new Set(
-    ((bookedResult.data ?? []) as { event_id: string | null }[])
-      .map((row) => row.event_id)
-      .filter((id): id is string => Boolean(id)),
-  );
 
   if (reviewItemsResult.error) {
     throw new Error(
@@ -158,15 +146,13 @@ export async function listAdminEvents(): Promise<AdminEventListItem[]> {
     | "created_at"
   >[];
 
-  return eventRows
-    .filter((row) => bookedEventIds.has(row.id))
-    .map((row) =>
-      mapEventRowToListItem({
-        row,
-        checklistReviewCount: reviewCounts.get(row.id) ?? 0,
-        vendorReviewCount: vendorReviewCounts.get(row.id) ?? 0,
-      }),
-    );
+  return eventRows.map((row) =>
+    mapEventRowToListItem({
+      row,
+      checklistReviewCount: reviewCounts.get(row.id) ?? 0,
+      vendorReviewCount: vendorReviewCounts.get(row.id) ?? 0,
+    }),
+  );
 }
 
 export async function getAdminEventById(
@@ -309,18 +295,17 @@ export async function markEventVendorReviewed({
   }
 }
 
-// Planner-editable event summary details. Stored in ghl_snapshot alongside
-// the GHL-synced fields; the auto-sync never touches these keys, so edits
-// survive page loads.
-export async function updateEventSummaryDetails(
+// Merges keys into an event's ghl_snapshot and returns the (pre-merge) event
+// row so callers can follow up with a GHL writeback.
+async function mergeEventSnapshot(
   eventId: string,
-  details: { arrivalTime: string | null; meetingLocation: string | null },
-): Promise<void> {
+  patch: Record<string, Json>,
+): Promise<EventRow> {
   const supabase = createServiceRoleSupabaseClient();
 
   const { data, error } = await supabase
     .from("events")
-    .select("ghl_snapshot")
+    .select("*")
     .eq("id", eventId)
     .maybeSingle();
 
@@ -332,7 +317,7 @@ export async function updateEventSummaryDetails(
     throw new Error("Event not found");
   }
 
-  const row = data as { ghl_snapshot: Json };
+  const row = data as EventRow;
   const existing =
     row.ghl_snapshot &&
     typeof row.ghl_snapshot === "object" &&
@@ -340,11 +325,7 @@ export async function updateEventSummaryDetails(
       ? (row.ghl_snapshot as Record<string, Json>)
       : {};
 
-  const snapshot: Record<string, Json> = {
-    ...existing,
-    arrivalTime: details.arrivalTime,
-    meetingLocation: details.meetingLocation,
-  };
+  const snapshot: Record<string, Json> = { ...existing, ...patch };
 
   const { error: updateError } = await supabase
     .from("events")
@@ -354,6 +335,34 @@ export async function updateEventSummaryDetails(
   if (updateError) {
     throw new Error(`Unable to update event details: ${updateError.message}`);
   }
+
+  return row;
+}
+
+// Saves the Event summary form in one shot: arrival time and meeting
+// location stay app-only, while guest count and Value (admin-only; omit the
+// key for planners) also mirror to the GHL opportunity in a single PUT. The
+// GHL writeback is non-fatal — its outcome lands in integration_logs.
+export async function updateEventSummary(
+  eventId: string,
+  details: {
+    arrivalTime: string | null;
+    meetingLocation: string | null;
+    numberOfGuests: number | null;
+    value?: number | null;
+  },
+): Promise<void> {
+  const row = await mergeEventSnapshot(eventId, {
+    arrivalTime: details.arrivalTime,
+    meetingLocation: details.meetingLocation,
+    numberOfGuests: details.numberOfGuests,
+    ...(details.value !== undefined ? { value: details.value } : {}),
+  });
+
+  await writeOpportunityEventDetails(row, {
+    numberOfGuests: details.numberOfGuests,
+    ...(details.value !== undefined ? { monetaryValue: details.value } : {}),
+  });
 }
 
 // Permanently deletes an event: linked calendar blocks are removed, database
@@ -516,6 +525,8 @@ function mapEventRowToDetail(row: EventRow): AdminEventDetail {
     updatedAt: row.updated_at,
     arrivalTime: snapshot.arrivalTime ?? null,
     meetingLocation: snapshot.meetingLocation ?? null,
+    value: snapshot.value ?? null,
+    numberOfGuests: snapshot.numberOfGuests ?? null,
     plannerEmail: snapshot.planner?.email ?? null,
     plannerPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
@@ -611,6 +622,8 @@ function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     eventDate: getString(raw.eventDate),
     arrivalTime: getString(raw.arrivalTime),
     meetingLocation: getString(raw.meetingLocation),
+    value: getNumber(raw.value),
+    numberOfGuests: getNumber(raw.numberOfGuests),
     planner:
       planner && typeof planner === "object" && !Array.isArray(planner)
         ? {
@@ -642,4 +655,8 @@ function parseLinks(value: Json | undefined): GhlEventSnapshot["links"] {
 
 function getString(value: Json | undefined): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function getNumber(value: Json | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

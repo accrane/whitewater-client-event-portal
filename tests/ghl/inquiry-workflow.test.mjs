@@ -9,6 +9,7 @@ import {
 import {
   buildEventFieldWriteBackBody,
   buildPlanningStageBody,
+  buildPortalLinkWriteBackBody,
 } from "../../src/lib/ghl/opportunity-payloads.ts";
 
 const validPayload = JSON.parse(
@@ -75,6 +76,17 @@ test("buildEventFieldWriteBackBody targets the configured custom field", () => {
   assert.deepEqual(buildEventFieldWriteBackBody("field_abc", "event-uuid"), {
     customFields: [{ id: "field_abc", field_value: "event-uuid" }],
   });
+});
+
+test("buildPortalLinkWriteBackBody targets the portal link custom field", () => {
+  assert.deepEqual(
+    buildPortalLinkWriteBackBody("field_link", "https://portal.example.com/e/tok"),
+    {
+      customFields: [
+        { id: "field_link", field_value: "https://portal.example.com/e/tok" },
+      ],
+    },
+  );
 });
 
 test("buildPlanningStageBody sets the pipeline and stage", () => {

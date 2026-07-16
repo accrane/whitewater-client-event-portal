@@ -1,9 +1,11 @@
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
+import { fetchOpportunityFieldIndex } from "@/lib/ghl/location-data";
 import {
   buildEventFieldWriteBackBody,
   buildPlanningStageBody,
+  buildPortalLinkWriteBackBody,
   type OpportunityUpdateBody,
 } from "@/lib/ghl/opportunity-payloads";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
@@ -93,6 +95,139 @@ export async function writeEventIdBackToOpportunity(
   });
 
   return { ok: true };
+}
+
+// Pushes app-edited Event summary numbers to the GHL opportunity in one PUT:
+// Value → the built-in monetaryValue (admins only, so it may be omitted) and
+// guest count → the opportunity.number_of_guests custom field. Never throws —
+// the app save is the primary action.
+export async function writeOpportunityEventDetails(
+  event: EventRow,
+  updates: {
+    monetaryValue?: number | null;
+    numberOfGuests: number | null;
+  },
+): Promise<OpportunitySyncOutcome> {
+  if (!event.ghl_opportunity_id) {
+    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+  }
+
+  const fieldIndex = await fetchOpportunityFieldIndex();
+  const guestsFieldId = fieldIndex.get("opportunity.number_of_guests");
+
+  const body: OpportunityUpdateBody = {
+    ...(updates.monetaryValue !== undefined
+      ? { monetaryValue: updates.monetaryValue ?? 0 }
+      : {}),
+    ...(guestsFieldId
+      ? {
+          customFields: [
+            {
+              id: guestsFieldId,
+              field_value:
+                updates.numberOfGuests === null
+                  ? ""
+                  : String(updates.numberOfGuests),
+            },
+          ],
+        }
+      : {}),
+  };
+
+  if (Object.keys(body).length === 0) {
+    const error = "opportunity.number_of_guests custom field not found in GHL";
+
+    await logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType: "opportunity_event_details_write_back",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: event.id,
+      status: "warning",
+      message: `Skipped writing event details to GHL: ${error}.`,
+      details: { ghl_opportunity_id: event.ghl_opportunity_id },
+    });
+
+    return { ok: false, skipped: true, error };
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, body);
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_event_details_write_back",
+    ghlLocationId: event.ghl_location_id,
+    portalEventId: event.id,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? "Event summary details written to the GHL opportunity."
+      : "Failed writing event summary details to the GHL opportunity.",
+    details: {
+      ghl_opportunity_id: event.ghl_opportunity_id,
+      ...(updates.monetaryValue !== undefined
+        ? { monetary_value: updates.monetaryValue }
+        : {}),
+      number_of_guests: updates.numberOfGuests,
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  return result.ok
+    ? { ok: true }
+    : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
+// Step in the launch workflow: when a planner publishes the portal, write the
+// client portal link onto the GHL opportunity so GHL workflows (email/SMS
+// templates) can use it. Never throws — the portal launch is the primary
+// action and must not roll back on a GHL failure.
+export async function writePortalLinkToOpportunity(
+  event: EventRow,
+  portalLink: string,
+): Promise<OpportunitySyncOutcome> {
+  const fieldId = appConfig.ghl.portalLinkFieldId;
+
+  if (!event.ghl_opportunity_id || !fieldId) {
+    const skipReason = !event.ghl_opportunity_id
+      ? "Event has no GHL opportunity id"
+      : "GHL_PORTAL_LINK_FIELD_ID is not configured";
+
+    await logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType: "opportunity_portal_link_write_back",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: event.id,
+      status: "warning",
+      message: `Skipped writing the portal link to GHL: ${skipReason}.`,
+      details: { ghl_opportunity_id: event.ghl_opportunity_id },
+    });
+
+    return { ok: false, skipped: true, error: skipReason };
+  }
+
+  const result = await updateGhlOpportunity(
+    event.ghl_opportunity_id,
+    buildPortalLinkWriteBackBody(fieldId, portalLink),
+  );
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_portal_link_write_back",
+    ghlLocationId: event.ghl_location_id,
+    portalEventId: event.id,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? "Client portal link written to the GHL opportunity."
+      : "Failed writing the client portal link to the GHL opportunity.",
+    details: {
+      ghl_opportunity_id: event.ghl_opportunity_id,
+      portal_link: portalLink,
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  return result.ok
+    ? { ok: true }
+    : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
 }
 
 // Step in the inquiry workflow: once a planner puts the event on the room
@@ -213,7 +348,9 @@ export async function assignOpportunityCoordinator(
 
 // Called when an event is deleted: blanks the Event Planning App ID custom
 // field on the opportunity so GHL no longer references a dead portal event
-// and the inquiry flow can be re-run. Never throws.
+// and the inquiry flow can be re-run. Also blanks the portal link field —
+// the deleted event's token is dead, so a stale link must not linger in GHL
+// workflows. Never throws.
 export async function clearEventIdFromOpportunity(
   event: Pick<EventRow, "id" | "ghl_location_id" | "ghl_opportunity_id">,
 ): Promise<OpportunitySyncOutcome> {
@@ -229,10 +366,15 @@ export async function clearEventIdFromOpportunity(
     };
   }
 
-  const result = await updateGhlOpportunity(
-    event.ghl_opportunity_id,
-    buildEventFieldWriteBackBody(fieldId, ""),
-  );
+  const body = buildEventFieldWriteBackBody(fieldId, "");
+  if (appConfig.ghl.portalLinkFieldId) {
+    body.customFields?.push({
+      id: appConfig.ghl.portalLinkFieldId,
+      field_value: "",
+    });
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, body);
 
   await logIntegrationEvent({
     direction: "PORTAL_TO_GHL",

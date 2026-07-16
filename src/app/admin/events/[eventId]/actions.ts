@@ -11,9 +11,10 @@ import {
   deleteAdminEvent,
   markEventUploadReviewed,
   markEventVendorReviewed,
-  updateEventSummaryDetails,
+  updateEventSummary,
 } from "@/lib/admin/events";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
+import { getUserRole } from "@/lib/admin/users";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const launchConfirmationValue = "planner-approved-launch";
@@ -48,6 +49,8 @@ export async function launchPortalAction(formData: FormData) {
   redirect(`/admin/events/${eventId}?launched=1`);
 }
 
+// Saves the whole Event summary form. Value is admin-only: planners never see
+// the input, and a non-admin submission with a value key is ignored here.
 export async function updateEventDetailsAction(formData: FormData) {
   const eventId = String(formData.get("eventId") || "").trim();
 
@@ -67,9 +70,33 @@ export async function updateEventDetailsAction(formData: FormData) {
   const arrivalTime = String(formData.get("arrivalTime") || "").trim();
   const meetingLocation = String(formData.get("meetingLocation") || "").trim();
 
-  await updateEventSummaryDetails(eventId, {
+  const rawGuests = String(formData.get("numberOfGuests") || "").trim();
+  const numberOfGuests = rawGuests ? Number.parseInt(rawGuests, 10) : null;
+
+  if (
+    numberOfGuests !== null &&
+    (!Number.isFinite(numberOfGuests) || numberOfGuests < 0)
+  ) {
+    throw new Error("Unable to update event details: enter a valid guest count");
+  }
+
+  const isAdmin = getUserRole(user) === "admin";
+  let value: number | null | undefined;
+
+  if (isAdmin && formData.has("value")) {
+    const rawValue = String(formData.get("value") || "").trim();
+    value = rawValue ? Number.parseFloat(rawValue) : null;
+
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      throw new Error("Unable to update event details: enter a valid value");
+    }
+  }
+
+  await updateEventSummary(eventId, {
     arrivalTime: arrivalTime || null,
     meetingLocation: meetingLocation || null,
+    numberOfGuests,
+    ...(value !== undefined ? { value } : {}),
   });
 
   revalidatePath(`/admin/events/${eventId}`);

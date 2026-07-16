@@ -1,8 +1,13 @@
+import { appConfig } from "@/lib/env";
+import {
+  writePortalLinkToOpportunity,
+  type OpportunitySyncOutcome,
+} from "@/lib/ghl/opportunity-sync";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { createSecureToken, sha256Hex } from "@/lib/tokens";
 import type { Database, Json } from "@/types/database";
 
-import { buildPortalPath } from "./portal-urls";
+import { buildPortalPath, buildPortalUrl } from "./portal-urls";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 type IntegrationStatus = Database["public"]["Enums"]["integration_status"];
@@ -85,7 +90,15 @@ export async function prepareAdminPortalLaunch(
     throw new Error(`Unable to prepare portal launch: ${updateError.message}`);
   }
 
-  await logPortalLaunchHandoff(event as EventRow, launch);
+  // Push the absolute portal link onto the GHL opportunity so GHL workflows
+  // (client email/SMS templates) can reference it. Non-fatal by design.
+  const portalLink = buildPortalUrl(appConfig.portalBaseUrl, launch.token);
+  const writeBack = await writePortalLinkToOpportunity(
+    event as EventRow,
+    portalLink,
+  );
+
+  await logPortalLaunchHandoff(event as EventRow, launch, writeBack);
 
   return launch;
 }
@@ -105,6 +118,7 @@ function assertLaunchableEvent(event: EventRow) {
 async function logPortalLaunchHandoff(
   event: EventRow,
   launch: PortalLaunchPreparation,
+  portalLinkWriteBack: OpportunitySyncOutcome,
 ) {
   const supabase = createServiceRoleSupabaseClient();
   const insertPayload: IntegrationLogInsert = {
@@ -113,13 +127,16 @@ async function logPortalLaunchHandoff(
     ghl_location_id: event.ghl_location_id,
     ghl_event_record_id: event.ghl_event_record_id,
     portal_event_id: launch.eventId,
-    status: "warning",
-    message:
-      "Portal launch prepared; GHL client notification/writeback remains pending and separate.",
+    status: portalLinkWriteBack.ok ? "success" : "warning",
+    message: portalLinkWriteBack.ok
+      ? "Portal launch prepared; portal link written to the GHL opportunity. Client notification remains GHL-owned."
+      : "Portal launch prepared, but the portal link was not written to the GHL opportunity. Client notification remains GHL-owned.",
     details: {
       portal_event_id: launch.eventId,
       launched_at: launch.launchedAt,
-      ghl_writeback_status: "pending_separate_step",
+      ghl_writeback_status: portalLinkWriteBack.ok
+        ? "portal_link_written"
+        : `portal_link_write_failed: ${portalLinkWriteBack.error}`,
       client_notification_status: "not_sent_by_portal",
     },
   };

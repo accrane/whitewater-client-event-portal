@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -11,6 +12,12 @@ import { listGhlUsers } from "@/lib/ghl/location-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const UNASSIGNED = "Unassigned";
+
+// Accept only YYYY-MM-DD values from the query string; anything else is
+// treated as unset.
+function parseDateParam(value: string | undefined): string | null {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
 
 function groupByPlanner(
   plannerNames: string[],
@@ -114,7 +121,13 @@ function AssignmentCard({ assignment }: { assignment: UpcomingAssignment }) {
   );
 }
 
-export default async function AdminAssignmentsPage() {
+type AdminAssignmentsPageProps = {
+  searchParams: Promise<{ from?: string; to?: string }>;
+};
+
+export default async function AdminAssignmentsPage({
+  searchParams,
+}: AdminAssignmentsPageProps) {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -124,11 +137,16 @@ export default async function AdminAssignmentsPage() {
     redirect("/admin/login");
   }
 
+  const params = await searchParams;
+  const from = parseDateParam(params.from);
+  const to = parseDateParam(params.to);
+  const hasRange = Boolean(from || to);
+
   // Planner columns are the GHL location users — the same list the
   // reservation modal's Event Coordinator dropdown offers.
   const [ghlUsers, assignments] = await Promise.all([
     listGhlUsers(),
-    listUpcomingAssignments(),
+    listUpcomingAssignments({ from, to }),
   ]);
 
   const groups = groupByPlanner(
@@ -142,6 +160,49 @@ export default async function AdminAssignmentsPage() {
       title="Planner Assignments"
       userEmail={user.email}
     >
+      <form
+        className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        method="get"
+      >
+        <label className="grid gap-1 text-xs font-semibold text-slate-500">
+          Event date from
+          <input
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+            defaultValue={from ?? ""}
+            name="from"
+            type="date"
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-slate-500">
+          Event date to
+          <input
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+            defaultValue={to ?? ""}
+            name="to"
+            type="date"
+          />
+        </label>
+        <button
+          className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          type="submit"
+        >
+          Apply
+        </button>
+        {hasRange ? (
+          <Link
+            className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            href="/admin/assignments"
+          >
+            Clear
+          </Link>
+        ) : null}
+        <p className="w-full text-xs text-slate-500 sm:ml-auto sm:w-auto">
+          {hasRange
+            ? `Showing events ${from ? `from ${format(new Date(`${from}T00:00:00`), "MMM d, yyyy")}` : ""}${from && to ? " " : ""}${to ? `through ${format(new Date(`${to}T00:00:00`), "MMM d, yyyy")}` : ""}.`
+            : "Showing all upcoming events."}
+        </p>
+      </form>
+
       {groups.size === 0 ? (
         <EmptyState
           description="Planners come from your GoHighLevel users. Once GHL is configured and reservations are assigned a coordinator, workloads appear here."
@@ -165,7 +226,7 @@ export default async function AdminAssignmentsPage() {
               <div className="mt-3 space-y-2">
                 {items.length === 0 ? (
                   <p className="py-2 text-xs text-slate-400">
-                    No upcoming events.
+                    {hasRange ? "No events in this range." : "No upcoming events."}
                   </p>
                 ) : (
                   items.map((assignment) => (

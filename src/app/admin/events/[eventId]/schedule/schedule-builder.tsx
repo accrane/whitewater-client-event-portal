@@ -66,7 +66,7 @@ export function ScheduleBuilder({ eventId, items }: ScheduleBuilderProps) {
               belong to this event only &mdash; edit the skeleton on the{" "}
               <Link
                 className="font-medium text-blue-700 underline hover:text-blue-900"
-                href="/admin/schedule-template"
+                href="/admin/settings/schedule-template"
               >
                 template settings page
               </Link>

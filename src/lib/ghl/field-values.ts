@@ -33,6 +33,24 @@ export function findFieldString(
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+// Pulls one custom field's numeric value out of a GHL customFields array.
+// NUMERICAL fields usually arrive as numbers but occasionally as strings.
+export function findFieldNumber(
+  customFields: unknown,
+  fieldId: string,
+): number | null {
+  const value = findFieldRawValue(customFields, fieldId);
+
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
 function findFieldRawValue(customFields: unknown, fieldId: string): unknown {
   if (!Array.isArray(customFields)) return undefined;
 

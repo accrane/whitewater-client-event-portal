@@ -23,7 +23,7 @@ async function requirePlanner() {
 }
 
 function revalidateTemplate() {
-  revalidatePath("/admin/schedule-template");
+  revalidatePath("/admin/settings/schedule-template");
 }
 
 export async function saveScheduleTemplateItemAction(

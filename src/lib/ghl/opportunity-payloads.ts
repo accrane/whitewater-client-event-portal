@@ -4,6 +4,7 @@ export type OpportunityUpdateBody = {
   pipelineId?: string;
   pipelineStageId?: string;
   assignedTo?: string;
+  monetaryValue?: number;
   customFields?: { id: string; field_value: string }[];
 };
 
@@ -13,6 +14,15 @@ export function buildEventFieldWriteBackBody(
 ): OpportunityUpdateBody {
   return {
     customFields: [{ id: fieldId, field_value: portalEventId }],
+  };
+}
+
+export function buildPortalLinkWriteBackBody(
+  fieldId: string,
+  portalLink: string,
+): OpportunityUpdateBody {
+  return {
+    customFields: [{ id: fieldId, field_value: portalLink }],
   };
 }
 

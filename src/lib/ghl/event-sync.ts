@@ -1,4 +1,8 @@
-import { findDateOfInterest, findFieldString } from "@/lib/ghl/field-values";
+import {
+  findDateOfInterest,
+  findFieldNumber,
+  findFieldString,
+} from "@/lib/ghl/field-values";
 import {
   fetchOpportunity,
   fetchOpportunityFieldIndex,
@@ -14,6 +18,7 @@ const FIELD_KEYS = {
   dateOfInterest: "opportunity.date_of_interest",
   groupEventName: "opportunity.groupevent_name",
   inquiryType: "opportunity.inquiry_type",
+  numberOfGuests: "opportunity.number_of_guests",
 } as const;
 
 // Refreshes an event's stored GHL snapshot from the live opportunity: event
@@ -54,6 +59,10 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
     opportunity.customFields,
     fieldId(FIELD_KEYS.inquiryType),
   );
+  const numberOfGuests = findFieldNumber(
+    opportunity.customFields,
+    fieldId(FIELD_KEYS.numberOfGuests),
+  );
   const assignedUser = opportunity.assignedTo
     ? users.find((user) => user.id === opportunity.assignedTo)
     : undefined;
@@ -72,6 +81,14 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
       : {}),
     ...(eventType ? { eventType } : {}),
     ...(eventDate ? { eventDate } : {}),
+    // GHL owns these two: app edits write back to GHL, so the live opportunity
+    // is authoritative here. GHL reports monetaryValue as 0 when unset (and the
+    // app pushes 0 to clear it), so 0 renders as blank.
+    value:
+      opportunity.monetaryValue !== null && opportunity.monetaryValue > 0
+        ? opportunity.monetaryValue
+        : null,
+    numberOfGuests,
     ...(assignedUser
       ? {
           planner: {

@@ -120,15 +120,32 @@ export type UpcomingAssignment = ReservationRow & {
   rooms: Pick<RoomRow, "name" | "color"> | null;
 };
 
-// Upcoming (not yet ended) reservations with their room, for the
-// Planner Assignments view.
-export async function listUpcomingAssignments() {
+// Reservations with their room, for the Planner Assignments view. Defaults
+// to upcoming (not yet ended); an explicit date range filters on the event's
+// start date instead, so past ranges can be reviewed too.
+export async function listUpcomingAssignments(range?: {
+  from?: string | null;
+  to?: string | null;
+}) {
   const supabase = createServiceRoleSupabaseClient();
-  const { data, error } = await supabase
-    .from("reservations")
-    .select("*, rooms(name, color)")
-    .gte("end_datetime", new Date().toISOString())
-    .order("start_datetime");
+  let query = supabase.from("reservations").select("*, rooms(name, color)");
+
+  if (range?.from) {
+    query = query.gte(
+      "start_datetime",
+      new Date(`${range.from}T00:00:00`).toISOString(),
+    );
+  } else {
+    query = query.gte("end_datetime", new Date().toISOString());
+  }
+
+  if (range?.to) {
+    const endOfDay = new Date(`${range.to}T00:00:00`);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    query = query.lt("start_datetime", endOfDay.toISOString());
+  }
+
+  const { data, error } = await query.order("start_datetime");
 
   if (error) throw error;
   return (data ?? []) as unknown as UpcomingAssignment[];

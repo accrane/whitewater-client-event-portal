@@ -3,6 +3,9 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
+import { CopyableValue } from "@/components/admin/copyable-value";
+import { DirtySaveButton } from "@/components/admin/dirty-save-button";
+import { FlashBanner } from "@/components/admin/flash-banner";
 import {
   buildChecklistReviewSummary,
   getChecklistReviewClassName,
@@ -36,6 +39,7 @@ import {
   buildPortalUrlForOrigin,
   normalizeStoredPortalPath,
 } from "@/lib/admin/portal-urls";
+import { getUserRole } from "@/lib/admin/users";
 import { formatDisplayDate } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -98,6 +102,7 @@ export default async function AdminEventDetailPage({
     redirect("/admin/login");
   }
 
+  const isAdmin = getUserRole(user) === "admin";
   const { eventId } = await params;
   const { checklist, details, launched, upload, vendor } = await searchParams;
 
@@ -127,7 +132,6 @@ export default async function AdminEventDetailPage({
 
   return (
     <AdminShell
-      description="Read-only event details from Supabase and the latest GoHighLevel snapshot stored for this portal event."
       eyebrow="Event Details"
       title={event.eventName}
       userEmail={user.email}
@@ -148,46 +152,47 @@ export default async function AdminEventDetailPage({
       </div>
 
       {launched === "1" ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
-          Portal launch prepared. The secure URL is stored below. Client
-          notification is still separate and should be handled through
-          GoHighLevel.
-        </div>
+        <FlashBanner>
+          Portal launch prepared. The secure URL is stored below and pushed to
+          the GHL opportunity&apos;s Portal Link field. Client notification is
+          still separate and should be handled through GoHighLevel.
+        </FlashBanner>
       ) : null}
 
       {details === "1" ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
-          Event details saved. Arrival time and meeting location will show on
-          the client portal.
-        </div>
+        <FlashBanner>
+          Event summary saved. Guest count and value were pushed to the GHL
+          opportunity; arrival time and meeting location will show on the
+          client portal.
+        </FlashBanner>
       ) : null}
 
       {checklist === "applied" ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+        <FlashBanner>
           Checklist template applied. Event-specific checklist items are now
           available for planner review.
-        </div>
+        </FlashBanner>
       ) : null}
 
       {checklist === "updated" ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+        <FlashBanner>
           Checklist item updated. The client portal will reflect the latest
           client-visible item details after launch.
-        </div>
+        </FlashBanner>
       ) : null}
 
       {vendor === "reviewed" ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+        <FlashBanner>
           Vendor submission marked reviewed. This app did not sync the vendor
           back to GoHighLevel or notify the client.
-        </div>
+        </FlashBanner>
       ) : null}
 
       {upload === "reviewed" ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+        <FlashBanner>
           Upload marked reviewed. The file remains private in Supabase Storage;
           this app did not sync it to GoHighLevel or notify the client.
-        </div>
+        </FlashBanner>
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-3">
@@ -206,13 +211,117 @@ export default async function AdminEventDetailPage({
         />
       </section>
 
+      <DetailSection title="Event summary">
+        <DetailRow label="Event type" value={event.eventType} />
+        <DetailRow label="Payment status" value={event.paymentStatus} />
+        <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
+          <dt className="font-semibold text-slate-500">Planner</dt>
+          <dd className="space-y-0.5 sm:col-span-2">
+            <p className="text-slate-800">{event.plannerName || "Not assigned"}</p>
+            {event.plannerEmail ? (
+              <p className="text-slate-600">{event.plannerEmail}</p>
+            ) : null}
+            {event.plannerPhone ? (
+              <p className="text-slate-600">{event.plannerPhone}</p>
+            ) : null}
+          </dd>
+        </div>
+        <DetailRow copyable label="Portal URL" value={portalUrl} />
+        <div className="py-4">
+          <form action={updateEventDetailsAction} className="space-y-4">
+            <input name="eventId" type="hidden" value={event.id} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-500">
+                  Arrival time
+                </span>
+                <select
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  defaultValue={event.arrivalTime ?? ""}
+                  name="arrivalTime"
+                >
+                  <option value="">Not set</option>
+                  {event.arrivalTime &&
+                  !ARRIVAL_TIME_OPTIONS.includes(event.arrivalTime) ? (
+                    <option value={event.arrivalTime}>
+                      {event.arrivalTime}
+                    </option>
+                  ) : null}
+                  {ARRIVAL_TIME_OPTIONS.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-500">
+                  Meeting location
+                </span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  defaultValue={event.meetingLocation ?? ""}
+                  list="meeting-location-options"
+                  name="meetingLocation"
+                  placeholder="e.g. Big Drop, Main Entrance"
+                  type="text"
+                />
+                <datalist id="meeting-location-options">
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.name} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-500">
+                  Number of guests
+                </span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  defaultValue={event.numberOfGuests ?? ""}
+                  min="0"
+                  name="numberOfGuests"
+                  placeholder="Not set"
+                  step="1"
+                  type="number"
+                />
+              </label>
+              {isAdmin ? (
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-500">
+                    Value{" "}
+                    <span className="font-normal text-slate-400">
+                      (visible to admins only)
+                    </span>
+                  </span>
+                  <div className="relative mt-1">
+                    <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-slate-500">
+                      $
+                    </span>
+                    <input
+                      className="w-full rounded-lg border border-slate-300 py-2 pr-3 pl-7 text-sm text-slate-800"
+                      defaultValue={event.value ?? ""}
+                      min="0"
+                      name="value"
+                      placeholder="0.00"
+                      step="0.01"
+                      type="number"
+                    />
+                  </div>
+                </label>
+              ) : null}
+            </div>
+            <DirtySaveButton>Save details</DirtySaveButton>
+          </form>
+        </div>
+      </DetailSection>
+
       <DetailSection title="Launch preview">
         <DetailRow label="Launch readiness" value={getLaunchReadiness(event)} />
         <DetailRow
           label="Portal access prepared"
           value={event.hasPortalTokenHash || event.clientPortalUrl ? "Yes" : "No"}
         />
-        <DetailRow label="Portal URL" value={portalUrl} />
         <DetailRow label="Stored portal path" value={storedPortalPath} />
         <DetailRow label="Launched" value={formatNullableDateTime(event.launchedAt)} />
         <DetailRow
@@ -274,76 +383,7 @@ export default async function AdminEventDetailPage({
       <UploadReviewSection eventId={event.id} uploads={uploads} />
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <DetailSection title="Event summary">
-          <DetailRow label="Event type" value={event.eventType} />
-          <DetailRow label="Payment status" value={event.paymentStatus} />
-          <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
-            <dt className="font-semibold text-slate-500">
-              Arrival &amp; location
-            </dt>
-            <dd className="sm:col-span-2">
-              <form action={updateEventDetailsAction} className="space-y-3">
-                <input name="eventId" type="hidden" value={event.id} />
-                <label className="block">
-                  <span className="text-xs font-semibold text-slate-500">
-                    Arrival time
-                  </span>
-                  <select
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-                    defaultValue={event.arrivalTime ?? ""}
-                    name="arrivalTime"
-                  >
-                    <option value="">Not set</option>
-                    {event.arrivalTime &&
-                    !ARRIVAL_TIME_OPTIONS.includes(event.arrivalTime) ? (
-                      <option value={event.arrivalTime}>
-                        {event.arrivalTime}
-                      </option>
-                    ) : null}
-                    {ARRIVAL_TIME_OPTIONS.map((time) => (
-                      <option key={time} value={time}>
-                        {time}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-xs font-semibold text-slate-500">
-                    Meeting location
-                  </span>
-                  <input
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-                    defaultValue={event.meetingLocation ?? ""}
-                    list="meeting-location-options"
-                    name="meetingLocation"
-                    placeholder="e.g. Big Drop, Main Entrance"
-                    type="text"
-                  />
-                  <datalist id="meeting-location-options">
-                    {rooms.map((room) => (
-                      <option key={room.id} value={room.name} />
-                    ))}
-                  </datalist>
-                </label>
-                <button
-                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  type="submit"
-                >
-                  Save details
-                </button>
-              </form>
-            </dd>
-          </div>
-        </DetailSection>
-
-        <DetailSection title="Planner">
-          <DetailRow label="Name" value={event.plannerName} />
-          <DetailRow label="Email" value={event.plannerEmail} />
-          <DetailRow label="Phone" value={event.plannerPhone} />
-        </DetailSection>
-
         <DetailSection title="Portal activity">
-          <DetailRow label="Portal URL" value={portalUrl} />
           <DetailRow label="Launched" value={formatNullableDateTime(event.launchedAt)} />
           <DetailRow
             label="Public expires"
@@ -860,14 +900,15 @@ function DetailSection({ children, title }: DetailSectionProps) {
 type DetailRowProps = {
   label: string;
   value: string | null;
+  copyable?: boolean;
 };
 
-function DetailRow({ label, value }: DetailRowProps) {
+function DetailRow({ label, value, copyable }: DetailRowProps) {
   return (
     <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
       <dt className="font-semibold text-slate-500">{label}</dt>
       <dd className="break-words text-slate-800 sm:col-span-2">
-        {value || "Not set"}
+        {copyable && value ? <CopyableValue value={value} /> : value || "Not set"}
       </dd>
     </div>
   );

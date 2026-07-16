@@ -16,6 +16,86 @@ const statusLabels = {
   archived: "Archived",
 } as const;
 
+// Lucide-style outline icons rendered inline (matches the admin dock).
+function StatusGlyph({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      aria-hidden
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
+      {children}
+    </svg>
+  );
+}
+
+const statusIcons: Record<
+  keyof typeof statusLabels,
+  { className: string; glyph: React.ReactNode }
+> = {
+  // Pencil — still being set up by a planner.
+  draft: {
+    className: "bg-amber-100 text-amber-700",
+    glyph: (
+      <StatusGlyph>
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+        <path d="m15 5 4 4" />
+      </StatusGlyph>
+    ),
+  },
+  // Rocket — client portal is live.
+  launched: {
+    className: "bg-emerald-100 text-emerald-700",
+    glyph: (
+      <StatusGlyph>
+        <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+        <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+        <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+        <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+      </StatusGlyph>
+    ),
+  },
+  // Clock — portal access has lapsed.
+  expired: {
+    className: "bg-slate-100 text-slate-500",
+    glyph: (
+      <StatusGlyph>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 6v6l4 2" />
+      </StatusGlyph>
+    ),
+  },
+  // Archive box — filed away.
+  archived: {
+    className: "bg-slate-100 text-slate-500",
+    glyph: (
+      <StatusGlyph>
+        <rect height="5" rx="1" width="20" x="2" y="3" />
+        <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+        <path d="M10 12h4" />
+      </StatusGlyph>
+    ),
+  },
+};
+
+function EventStatusIcon({ status }: { status: keyof typeof statusLabels }) {
+  const icon = statusIcons[status];
+
+  return (
+    <span
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${icon.className}`}
+      title={statusLabels[status]}
+    >
+      {icon.glyph}
+    </span>
+  );
+}
+
 export default async function AdminEventsPage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -45,7 +125,7 @@ export default async function AdminEventsPage() {
 
   return (
     <AdminShell
-      description="Events that have been booked onto the room calendar. New GHL inquiries stay in the Create Event dropdown until a planner books them."
+      description="Every portal event, from new GHL inquiries through launched client portals."
       eyebrow="Events"
       title="Event portal workspace"
       userEmail={user.email}
@@ -77,20 +157,21 @@ export default async function AdminEventsPage() {
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
             <h2 className="text-lg font-semibold text-slate-950">
-              Booked events
+              Events
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Events with rooms reserved on the calendar, newest first.
+              Newest first.
             </p>
           </div>
 
           <div className="divide-y divide-slate-200">
             {events.map((event) => (
               <Link
-                className="grid gap-4 px-5 py-5 transition hover:bg-slate-50 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+                className="grid grid-cols-[auto_minmax(0,1fr)] gap-4 px-5 py-5 transition hover:bg-slate-50 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center"
                 href={`/admin/events/${event.id}`}
                 key={event.id}
               >
+                <EventStatusIcon status={event.status} />
                 <div className="min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="truncate text-base font-semibold text-slate-950">
@@ -133,7 +214,7 @@ export default async function AdminEventsPage() {
                   </dl>
                 </div>
 
-                <div className="flex flex-col gap-2 text-sm text-slate-600 lg:min-w-48 lg:text-right">
+                <div className="col-start-2 flex flex-col gap-2 text-sm text-slate-600 lg:col-start-3 lg:min-w-48 lg:text-right">
                   <span>
                     Created {formatNullableDateTime(event.createdAt)}
                   </span>
@@ -148,8 +229,8 @@ export default async function AdminEventsPage() {
         </section>
       ) : (
         <EmptyState
-          description="No events have been booked onto the room calendar yet. Use Create Event to link a GHL inquiry to rooms and times — it will appear here once booked."
-          title="No booked events yet"
+          description="New GHL inquiries appear here automatically, or use Create Event to book one onto the room calendar."
+          title="No events yet"
         />
       )}
     </AdminShell>
