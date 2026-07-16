@@ -14,7 +14,8 @@ export function ClientPortalNav({ token, active }: ClientPortalNavProps) {
   ] as const;
 
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex items-center gap-4">
+      <WhitewaterMark className="h-9 w-auto shrink-0 text-slate-950" />
       <nav
         aria-label="Portal navigation"
         className="flex w-fit gap-1 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm"
@@ -34,7 +35,6 @@ export function ClientPortalNav({ token, active }: ClientPortalNavProps) {
           </Link>
         ))}
       </nav>
-      <WhitewaterMark className="h-9 w-auto shrink-0 text-slate-950" />
     </div>
   );
 }

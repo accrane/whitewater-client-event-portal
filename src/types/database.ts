@@ -378,6 +378,48 @@ export type Database = {
         };
         Update: Partial<Database["public"]["Tables"]["schedule_template_items"]["Insert"]>;
       };
+      checklist_template_sections: {
+        Row: {
+          id: string;
+          title: string;
+          content_html: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          content_html?: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["checklist_template_sections"]["Insert"]>;
+      };
+      event_checklist_sections: {
+        Row: {
+          id: string;
+          event_id: string;
+          title: string;
+          content_html: string;
+          status: Database["public"]["Enums"]["checklist_section_status"];
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          title: string;
+          content_html?: string;
+          status?: Database["public"]["Enums"]["checklist_section_status"];
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_checklist_sections"]["Insert"]>;
+      };
       event_notes: {
         Row: {
           id: string;
@@ -436,6 +478,7 @@ export type Database = {
         | "needs_review"
         | "completed"
         | "not_applicable";
+      checklist_section_status: "open" | "ready_for_review" | "complete";
       upload_status: "uploaded" | "needs_review";
       reservation_status: "held" | "booked";
       reservation_source: "manual" | "ghl";

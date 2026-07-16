@@ -5,9 +5,28 @@ import { redirect } from "next/navigation";
 
 import {
   completeClientChecklistItemForToken,
+  markClientChecklistSectionReadyForToken,
   submitClientVendorForToken,
   uploadClientFileForToken,
 } from "@/lib/client/portal";
+
+export async function markChecklistSectionReadyAction(formData: FormData) {
+  const token = String(formData.get("token") || "").trim();
+  const sectionId = String(formData.get("sectionId") || "").trim();
+
+  if (!token) {
+    throw new Error("Unable to update checklist section: missing portal token");
+  }
+
+  if (!sectionId) {
+    throw new Error("Unable to update checklist section: missing section ID");
+  }
+
+  await markClientChecklistSectionReadyForToken({ sectionId, token });
+
+  revalidatePath(`/e/${token}`);
+  redirect(`/e/${encodeURIComponent(token)}?checklist=received`);
+}
 
 export async function completeChecklistItemAction(formData: FormData) {
   const token = String(formData.get("token") || "").trim();

@@ -144,10 +144,16 @@ export function TileEditor({
 type AddTileFormProps = {
   isPending: boolean;
   placeholder?: string;
+  submitLabel?: string;
   onAdd: (title: string) => void;
 };
 
-export function AddTileForm({ isPending, placeholder, onAdd }: AddTileFormProps) {
+export function AddTileForm({
+  isPending,
+  placeholder,
+  submitLabel,
+  onAdd,
+}: AddTileFormProps) {
   const [title, setTitle] = useState("");
 
   return (
@@ -172,13 +178,13 @@ export function AddTileForm({ isPending, placeholder, onAdd }: AddTileFormProps)
         disabled={isPending || !title.trim()}
         type="submit"
       >
-        + Add tile
+        {submitLabel ?? "+ Add tile"}
       </button>
     </form>
   );
 }
 
-function MoveButton({
+export function MoveButton({
   direction,
   disabled,
   onClick,

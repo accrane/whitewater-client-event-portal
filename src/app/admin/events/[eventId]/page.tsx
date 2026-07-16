@@ -149,6 +149,12 @@ export default async function AdminEventDetailPage({
         >
           Schedule &amp; Notes
         </Link>
+        <Link
+          className="inline-flex items-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          href={`/admin/events/${event.id}/checklist`}
+        >
+          Checklist
+        </Link>
       </div>
 
       {launched === "1" ? (

@@ -145,6 +145,45 @@ export async function completeClientChecklistItemForToken({
   }
 }
 
+// Client "Mark ready for planner review" on an FAQ checklist section. Only
+// open sections can be submitted; completed or already-submitted sections
+// wait on the planner.
+export async function markClientChecklistSectionReadyForToken({
+  sectionId,
+  token,
+}: {
+  sectionId: string;
+  token: string;
+}): Promise<void> {
+  const event = await getLaunchedPortalEventByToken(token);
+
+  if (!event) {
+    throw new Error(
+      "Unable to update checklist section: portal link is not active",
+    );
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("event_checklist_sections")
+    .update({ status: "ready_for_review" } as never)
+    .eq("id", sectionId)
+    .eq("event_id", event.id)
+    .eq("status", "open")
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to update checklist section: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error(
+      "Unable to update checklist section: section is not open for submission",
+    );
+  }
+}
+
 export async function submitClientVendorForToken({
   token,
   vendor,

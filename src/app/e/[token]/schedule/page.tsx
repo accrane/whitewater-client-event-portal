@@ -32,7 +32,7 @@ export default async function ClientSchedulePage({ params }: ClientSchedulePageP
 
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-5xl space-y-6">
         <ClientPortalNav active="schedule" token={token} />
 
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">

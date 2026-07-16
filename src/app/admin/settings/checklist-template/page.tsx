@@ -2,9 +2,11 @@ import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SettingsNav } from "@/components/admin/settings-nav";
+import { getChecklistTemplateSections } from "@/lib/admin/checklist-sections";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-// Route reserved ahead of the checklist template editor build-out.
+import { TemplateEditor } from "./template-editor";
+
 export default async function ChecklistTemplatePage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -15,24 +17,17 @@ export default async function ChecklistTemplatePage() {
     redirect("/admin/login");
   }
 
+  const sections = await getChecklistTemplateSections();
+
   return (
     <AdminShell
-      description="Manage the default checklist applied to new events."
+      description="Edit the checklist clients see in their portal: FAQ-style sections they can expand for details on what they need to do."
       eyebrow="Settings"
       title="Checklist Template"
       userEmail={user.email}
     >
       <SettingsNav />
-
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-        <p className="text-sm font-semibold text-slate-700">
-          Checklist template editing is coming soon.
-        </p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          For now, checklist templates are seeded in Supabase and applied per
-          event from the event detail page.
-        </p>
-      </div>
+      <TemplateEditor sections={sections} />
     </AdminShell>
   );
 }
