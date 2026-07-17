@@ -8,6 +8,7 @@ import { getEventChecklistSections } from "@/lib/admin/checklist-sections";
 import type { EventChecklistSection } from "@/lib/checklist";
 import { formatDisplayDate } from "@/lib/dates";
 import { getClientPortalEventByToken } from "@/lib/client/portal";
+import { buildMergeTagContext, resolveMergeTags } from "@/lib/merge-tags";
 
 import {
   markChecklistSectionReadyAction,
@@ -34,7 +35,15 @@ export default async function ClientPortalPlaceholderPage({
     return <InvalidOrUnavailablePortal token={token} />;
   }
 
-  const checklistSections = await getEventChecklistSections(event.id);
+  // Merge tags like {{event.num_attendees}} resolve at view time so the
+  // client always sees the latest GHL-synced values.
+  const mergeContext = buildMergeTagContext(event);
+  const checklistSections = (await getEventChecklistSections(event.id)).map(
+    (section) => ({
+      ...section,
+      content_html: resolveMergeTags(section.content_html, mergeContext),
+    }),
+  );
 
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">

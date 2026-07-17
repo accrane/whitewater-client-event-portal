@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { getAdminEventById } from "@/lib/admin/events";
 import { getEventChecklistSections } from "@/lib/admin/checklist-sections";
+import { buildMergeTagContext } from "@/lib/merge-tags";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { ChecklistBuilder } from "./checklist-builder";
@@ -47,7 +48,11 @@ export default async function AdminChecklistPage({
         Back to event
       </Link>
 
-      <ChecklistBuilder eventId={eventId} sections={sections} />
+      <ChecklistBuilder
+        eventId={eventId}
+        mergeContext={buildMergeTagContext(event)}
+        sections={sections}
+      />
     </AdminShell>
   );
 }

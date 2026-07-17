@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { getAdminEventById } from "@/lib/admin/events";
 import { getScheduleItems } from "@/lib/admin/event-schedule";
+import { buildMergeTagContext } from "@/lib/merge-tags";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { ScheduleBuilder } from "./schedule-builder";
@@ -47,7 +48,11 @@ export default async function AdminSchedulePage({
         Back to event
       </Link>
 
-      <ScheduleBuilder eventId={eventId} items={items} />
+      <ScheduleBuilder
+        eventId={eventId}
+        items={items}
+        mergeContext={buildMergeTagContext(event)}
+      />
     </AdminShell>
   );
 }

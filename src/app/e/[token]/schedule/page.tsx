@@ -10,6 +10,7 @@ import {
 } from "@/lib/admin/event-schedule";
 import { getClientPortalEventByToken } from "@/lib/client/portal";
 import { formatDisplayDate } from "@/lib/dates";
+import { buildMergeTagContext, resolveMergeTags } from "@/lib/merge-tags";
 
 type ClientSchedulePageProps = {
   params: Promise<{
@@ -25,10 +26,18 @@ export default async function ClientSchedulePage({ params }: ClientSchedulePageP
     return <InvalidOrUnavailableSchedule token={token} />;
   }
 
-  const [schedule, items] = await Promise.all([
+  const [schedule, rawItems] = await Promise.all([
     getEventScheduleData(event.id),
     getScheduleItems(event.id),
   ]);
+
+  // Merge tags in tile notes resolve at view time against the latest
+  // GHL-synced event data.
+  const mergeContext = buildMergeTagContext(event);
+  const items = rawItems.map((item) => ({
+    ...item,
+    note_html: resolveMergeTags(item.note_html, mergeContext),
+  }));
 
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">

@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { ScheduleTimeline } from "@/components/schedule/schedule-timeline";
 import { AddTileForm, TileEditor } from "@/components/schedule/tile-editor";
+import { resolveMergeTags, type MergeTagContext } from "@/lib/merge-tags";
 import type { ScheduleItem } from "@/lib/schedule";
 import {
   applyScheduleItemsTemplateAction,
@@ -16,9 +17,14 @@ import {
 type ScheduleBuilderProps = {
   eventId: string;
   items: ScheduleItem[];
+  mergeContext: MergeTagContext;
 };
 
-export function ScheduleBuilder({ eventId, items }: ScheduleBuilderProps) {
+export function ScheduleBuilder({
+  eventId,
+  items,
+  mergeContext,
+}: ScheduleBuilderProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"edit" | "preview">("edit");
@@ -108,7 +114,12 @@ export function ScheduleBuilder({ eventId, items }: ScheduleBuilderProps) {
             </p>
           ) : tab === "preview" ? (
             <div className="rounded-2xl bg-slate-50 p-4 sm:p-6">
-              <ScheduleTimeline items={items} />
+              <ScheduleTimeline
+                items={items.map((item) => ({
+                  ...item,
+                  note_html: resolveMergeTags(item.note_html, mergeContext),
+                }))}
+              />
             </div>
           ) : (
             <div className="space-y-4">

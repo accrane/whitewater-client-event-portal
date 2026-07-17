@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { MERGE_TAG_MENU } from "@/lib/merge-tags";
 
 // Inline images are downscaled and embedded as data URLs so the note HTML is
 // self-contained (no storage plumbing). Keep these small enough that a few
@@ -18,6 +20,28 @@ type NoteWysiwygProps = {
 export function NoteWysiwyg({ initialHtml, onChange }: NoteWysiwygProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tagMenuRef = useRef<HTMLDivElement>(null);
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!tagMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!tagMenuRef.current?.contains(event.target as Node)) {
+        setTagMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTagMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [tagMenuOpen]);
 
   // Seed once; afterwards the DOM owns the content.
   useEffect(() => {
@@ -37,6 +61,30 @@ export function NoteWysiwyg({ initialHtml, onChange }: NoteWysiwygProps) {
     emitChange();
   };
 
+  const insertTag = (token: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.focus();
+    // If the caret isn't inside the editor (e.g. the menu was opened before
+    // ever clicking into it), append at the end instead of the start.
+    const selection = window.getSelection();
+    if (
+      selection &&
+      (selection.rangeCount === 0 || !editor.contains(selection.anchorNode))
+    ) {
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    document.execCommand("insertText", false, `{{${token}}}`);
+    setTagMenuOpen(false);
+    emitChange();
+  };
+
   const insertImage = async (file: File) => {
     const dataUrl = await fileToCompressedDataUrl(file);
     editorRef.current?.focus();
@@ -45,8 +93,10 @@ export function NoteWysiwyg({ initialHtml, onChange }: NoteWysiwygProps) {
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
-      <div className="flex items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-1.5">
+    // No overflow-hidden here: the tag dropdown must escape the card, so the
+    // toolbar and body carry the rounded corners instead.
+    <div className="rounded-lg border border-slate-300 bg-white">
+      <div className="flex items-center gap-1 rounded-t-lg border-b border-slate-200 bg-slate-50 px-2 py-1.5">
         <ToolbarButton label="Bold" onClick={() => exec("bold")}>
           <span className="font-bold">B</span>
         </ToolbarButton>
@@ -84,6 +134,44 @@ export function NoteWysiwyg({ initialHtml, onChange }: NoteWysiwygProps) {
             />
           </svg>
         </ToolbarButton>
+        <div className="relative" ref={tagMenuRef}>
+          <ToolbarButton
+            label="Insert event tag"
+            onClick={() => setTagMenuOpen((open) => !open)}
+          >
+            <span aria-hidden className="font-mono text-xs font-semibold">
+              {"{ }"}
+            </span>
+          </ToolbarButton>
+          {tagMenuOpen && (
+            <div
+              className="absolute left-0 top-full z-20 mt-1 max-h-72 w-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+              // Keep the editor selection so the tag inserts at the caret.
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {MERGE_TAG_MENU.map((group) => (
+                <div key={group.label}>
+                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {group.label}
+                  </p>
+                  {group.tags.map((tag) => (
+                    <button
+                      className="flex w-full flex-col items-start px-3 py-1.5 text-left transition hover:bg-slate-100"
+                      key={tag.token}
+                      onClick={() => insertTag(tag.token)}
+                      type="button"
+                    >
+                      <span className="text-sm text-slate-800">{tag.label}</span>
+                      <span className="font-mono text-[11px] text-slate-400">
+                        {`{{${tag.token}}}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <input
           accept="image/*"
           className="hidden"

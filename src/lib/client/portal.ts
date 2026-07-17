@@ -28,6 +28,7 @@ export type ClientPortalEvent = {
   eventDate: string | null;
   arrivalTime: string | null;
   meetingLocation: string | null;
+  numberOfGuests: number | null;
   plannerName: string | null;
   plannerEmail: string | null;
   plannerPhone: string | null;
@@ -36,6 +37,7 @@ export type ClientPortalEvent = {
   invoiceUrl: string | null;
   paymentUrl: string | null;
   paymentStatus: string | null;
+  clientPortalUrl: string | null;
   checklistItems: ClientChecklistItem[];
   vendors: ClientVendor[];
   uploads: ClientUpload[];
@@ -311,6 +313,7 @@ function mapEventToClientPortalEvent(
     eventDate: snapshot.eventDate ?? null,
     arrivalTime: snapshot.arrivalTime ?? null,
     meetingLocation: snapshot.meetingLocation ?? null,
+    numberOfGuests: snapshot.numberOfGuests ?? null,
     plannerName: snapshot.planner?.name ?? null,
     plannerEmail: snapshot.planner?.email ?? null,
     plannerPhone: snapshot.planner?.phone ?? null,
@@ -319,6 +322,7 @@ function mapEventToClientPortalEvent(
     invoiceUrl: snapshot.links?.invoice ?? null,
     paymentUrl: snapshot.links?.payment ?? null,
     paymentStatus: snapshot.paymentStatus ?? null,
+    clientPortalUrl: event.client_portal_url,
     checklistItems: buildClientChecklistDisplayItems(checklistItems),
     vendors: vendors.map((vendor) => ({
       id: vendor.id,
@@ -349,6 +353,7 @@ function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     eventDate: getString(raw.eventDate),
     arrivalTime: getString(raw.arrivalTime),
     meetingLocation: getString(raw.meetingLocation),
+    numberOfGuests: getNumber(raw.numberOfGuests),
     planner:
       planner && typeof planner === "object" && !Array.isArray(planner)
         ? {
@@ -380,6 +385,12 @@ function parseLinks(value: Json | undefined): GhlEventSnapshot["links"] {
 
 function getString(value: Json | undefined): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function getNumber(value: Json | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function isExpired(event: EventRow): boolean {

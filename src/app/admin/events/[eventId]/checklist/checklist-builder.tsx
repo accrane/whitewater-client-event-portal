@@ -7,6 +7,7 @@ import { ChecklistFaq } from "@/components/checklist/checklist-faq";
 import { SectionEditor } from "@/components/checklist/section-editor";
 import { AddTileForm } from "@/components/schedule/tile-editor";
 import type { EventChecklistSection } from "@/lib/checklist";
+import { resolveMergeTags, type MergeTagContext } from "@/lib/merge-tags";
 import {
   applyChecklistSectionsTemplateAction,
   deleteEventChecklistSectionAction,
@@ -17,10 +18,15 @@ import {
 
 type ChecklistBuilderProps = {
   eventId: string;
+  mergeContext: MergeTagContext;
   sections: EventChecklistSection[];
 };
 
-export function ChecklistBuilder({ eventId, sections }: ChecklistBuilderProps) {
+export function ChecklistBuilder({
+  eventId,
+  mergeContext,
+  sections,
+}: ChecklistBuilderProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"edit" | "preview">("edit");
@@ -111,7 +117,15 @@ export function ChecklistBuilder({ eventId, sections }: ChecklistBuilderProps) {
             </p>
           ) : tab === "preview" ? (
             <div className="rounded-2xl bg-slate-50 p-4 sm:p-6">
-              <ChecklistFaq sections={sections} />
+              <ChecklistFaq
+                sections={sections.map((section) => ({
+                  ...section,
+                  content_html: resolveMergeTags(
+                    section.content_html,
+                    mergeContext,
+                  ),
+                }))}
+              />
             </div>
           ) : (
             <div className="space-y-4">
