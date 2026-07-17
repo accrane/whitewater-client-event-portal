@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ReservationModal } from "@/components/calendar/reservation-modal";
+import { buttonClasses } from "@/components/ui/button";
 import { api } from "@/lib/calendar/api";
 import { createReservationBlocks } from "@/lib/calendar/create-blocks";
 import type {
@@ -60,7 +61,7 @@ export function CreateEventButton() {
       <button
         disabled={loading}
         onClick={openModal}
-        className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+        className={buttonClasses("primary")}
         type="button"
       >
         {loading ? "Loading…" : "+ Create Event"}

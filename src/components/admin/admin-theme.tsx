@@ -40,9 +40,17 @@ export function AdminThemeScope({ children }: { children: ReactNode }) {
   return (
     <AdminThemeContext.Provider value={{ theme, setTheme }}>
       <div
-        className="flex min-h-screen bg-[var(--background)] text-[var(--foreground)]"
+        className="flex min-h-screen flex-col bg-[var(--background)] text-[var(--foreground)] lg:flex-row"
         data-theme={theme}
+        suppressHydrationWarning
       >
+        {/* Applies the stored theme while the HTML is still parsing so dark
+            and forest users don't get a light flash before hydration. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t==="dark"||t==="forest")document.currentScript.parentElement.setAttribute("data-theme",t)}catch(e){}`,
+          }}
+        />
         {children}
       </div>
     </AdminThemeContext.Provider>

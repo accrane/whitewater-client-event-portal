@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
@@ -6,6 +5,8 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { CopyableValue } from "@/components/admin/copyable-value";
 import { DirtySaveButton } from "@/components/admin/dirty-save-button";
 import { FlashBanner } from "@/components/admin/flash-banner";
+import { ButtonLink, buttonClasses } from "@/components/ui/button";
+import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import {
   buildChecklistReviewSummary,
   getChecklistReviewClassName,
@@ -72,11 +73,54 @@ const statusLabels = {
   archived: "Archived",
 } as const;
 
+const statusTones: Record<keyof typeof statusLabels, BadgeTone> = {
+  draft: "warning",
+  launched: "success",
+  expired: "neutral",
+  archived: "neutral",
+};
+
 const syncStatusLabels = {
   success: "Success",
   warning: "Warning",
   error: "Error",
 } as const;
+
+// One consolidated confirmation notice; the previous per-param banners could
+// stack several tiles above the page content.
+function getFlashMessage(params: {
+  checklist?: string;
+  details?: string;
+  launched?: string;
+  upload?: string;
+  vendor?: string;
+}): string | null {
+  if (params.launched === "1") {
+    return "Portal launch prepared. The secure URL is stored below and pushed to the GHL opportunity's Portal Link field. Client notification is still separate and should be handled through GoHighLevel.";
+  }
+
+  if (params.details === "1") {
+    return "Event summary saved. Guest count and value were pushed to the GHL opportunity; arrival time and meeting location will show on the client portal.";
+  }
+
+  if (params.checklist === "applied") {
+    return "Checklist template applied. Event-specific checklist items are now available for planner review.";
+  }
+
+  if (params.checklist === "updated") {
+    return "Checklist item updated. The client portal will reflect the latest client-visible item details after launch.";
+  }
+
+  if (params.vendor === "reviewed") {
+    return "Vendor submission marked reviewed. This app did not sync the vendor back to GoHighLevel or notify the client.";
+  }
+
+  if (params.upload === "reviewed") {
+    return "Upload marked reviewed. The file remains private in Supabase Storage; this app did not sync it to GoHighLevel or notify the client.";
+  }
+
+  return null;
+}
 
 type AdminEventDetailPageProps = {
   params: Promise<{ eventId: string }>;
@@ -130,92 +174,48 @@ export default async function AdminEventDetailPage({
   });
   const storedPortalPath = normalizeStoredPortalPath(event.clientPortalUrl);
 
+  const flashMessage = getFlashMessage({
+    checklist,
+    details,
+    launched,
+    upload,
+    vendor,
+  });
+
   return (
     <AdminShell
-      eyebrow="Event Details"
+      actions={
+        <>
+          <ButtonLink
+            href={`/admin/events/${event.id}/checklist`}
+            variant="secondary"
+          >
+            Checklist
+          </ButtonLink>
+          <ButtonLink
+            href={`/admin/events/${event.id}/schedule`}
+            variant="primary"
+          >
+            Schedule &amp; Notes
+          </ButtonLink>
+        </>
+      }
+      backHref="/admin/events"
+      backLabel="Back to events"
+      description={`${formatNullableDate(event.eventDate)} · Sync: ${
+        event.lastSyncStatus
+          ? syncStatusLabels[event.lastSyncStatus]
+          : "Not synced"
+      }`}
+      meta={
+        <StatusBadge tone={statusTones[event.status]}>
+          {statusLabels[event.status]}
+        </StatusBadge>
+      }
       title={event.eventName}
       userEmail={user.email}
     >
-      <div className="flex flex-wrap gap-3">
-        <Link
-          className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-          href="/admin/events"
-        >
-          Back to events
-        </Link>
-        <Link
-          className="inline-flex items-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-          href={`/admin/events/${event.id}/schedule`}
-        >
-          Schedule &amp; Notes
-        </Link>
-        <Link
-          className="inline-flex items-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-          href={`/admin/events/${event.id}/checklist`}
-        >
-          Checklist
-        </Link>
-      </div>
-
-      {launched === "1" ? (
-        <FlashBanner>
-          Portal launch prepared. The secure URL is stored below and pushed to
-          the GHL opportunity&apos;s Portal Link field. Client notification is
-          still separate and should be handled through GoHighLevel.
-        </FlashBanner>
-      ) : null}
-
-      {details === "1" ? (
-        <FlashBanner>
-          Event summary saved. Guest count and value were pushed to the GHL
-          opportunity; arrival time and meeting location will show on the
-          client portal.
-        </FlashBanner>
-      ) : null}
-
-      {checklist === "applied" ? (
-        <FlashBanner>
-          Checklist template applied. Event-specific checklist items are now
-          available for planner review.
-        </FlashBanner>
-      ) : null}
-
-      {checklist === "updated" ? (
-        <FlashBanner>
-          Checklist item updated. The client portal will reflect the latest
-          client-visible item details after launch.
-        </FlashBanner>
-      ) : null}
-
-      {vendor === "reviewed" ? (
-        <FlashBanner>
-          Vendor submission marked reviewed. This app did not sync the vendor
-          back to GoHighLevel or notify the client.
-        </FlashBanner>
-      ) : null}
-
-      {upload === "reviewed" ? (
-        <FlashBanner>
-          Upload marked reviewed. The file remains private in Supabase Storage;
-          this app did not sync it to GoHighLevel or notify the client.
-        </FlashBanner>
-      ) : null}
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        <DetailCard label="Portal status" value={statusLabels[event.status]} />
-        <DetailCard
-          label="Event date"
-          value={formatNullableDate(event.eventDate)}
-        />
-        <DetailCard
-          label="Sync status"
-          value={
-            event.lastSyncStatus
-              ? syncStatusLabels[event.lastSyncStatus]
-              : "Not synced"
-          }
-        />
-      </section>
+      {flashMessage ? <FlashBanner>{flashMessage}</FlashBanner> : null}
 
       <DetailSection title="Event summary">
         <DetailRow label="Event type" value={event.eventType} />
@@ -366,7 +366,7 @@ export default async function AdminEventDetailPage({
                   </span>
                 </label>
                 <button
-                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className={buttonClasses("primary")}
                   type="submit"
                 >
                   Prepare portal launch
@@ -428,7 +428,7 @@ export default async function AdminEventDetailPage({
         <DetailRow label="Updated" value={formatNullableDateTime(event.updatedAt)} />
       </DetailSection>
 
-      <section className="rounded-3xl border border-red-200 bg-red-50/40 p-5 shadow-sm sm:p-6">
+      <section className="rounded-xl border border-red-200 bg-red-50/40 p-5 shadow-sm sm:p-6">
         <h2 className="text-lg font-semibold text-red-700">Danger zone</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
           Deleting this event removes its checklist, vendors, upload records,
@@ -452,7 +452,7 @@ export default async function AdminEventDetailPage({
             </span>
           </label>
           <button
-            className="rounded-full bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
+            className={buttonClasses("destructive")}
             type="submit"
           >
             Delete event
@@ -480,7 +480,7 @@ function ChecklistSetupSection({
   const reviewSummary = buildChecklistReviewSummary(items);
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Checklist setup</h2>
@@ -499,8 +499,8 @@ function ChecklistSetupSection({
         <div
           className={
             reviewSummary.hasItemsNeedingReview
-              ? "mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
-              : "mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+              ? "mt-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+              : "mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
           }
         >
           <p className="font-semibold">{reviewSummary.label}</p>
@@ -597,7 +597,7 @@ function ChecklistSetupSection({
                 </dl>
                 <div>
                   <button
-                    className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className={buttonClasses("primary")}
                     type="submit"
                   >
                     Save checklist item
@@ -608,7 +608,7 @@ function ChecklistSetupSection({
           ))}
         </ul>
       ) : (
-        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+        <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
           <p className="text-sm text-slate-700">
             No event-specific checklist items have been applied yet.
           </p>
@@ -619,7 +619,7 @@ function ChecklistSetupSection({
         templates.length > 0 ? (
           <form
             action={applyChecklistTemplateAction}
-            className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+            className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
           >
             <input name="eventId" type="hidden" value={eventId} />
             <label className="grid gap-2 text-sm font-semibold text-slate-700">
@@ -638,14 +638,14 @@ function ChecklistSetupSection({
               </select>
             </label>
             <button
-              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className={buttonClasses("primary")}
               type="submit"
             >
               Apply template
             </button>
           </form>
         ) : (
-          <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             No active checklist templates are available yet. Apply the local seed
             or add real templates before setting up this event checklist.
           </p>
@@ -665,7 +665,7 @@ function VendorSubmissionsSection({
   const reviewSummary = buildVendorReviewSummary(vendors);
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Vendor submissions</h2>
@@ -684,8 +684,8 @@ function VendorSubmissionsSection({
         <div
           className={
             reviewSummary.hasVendorsNeedingReview
-              ? "mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
-              : "mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+              ? "mt-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+              : "mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
           }
         >
           <p className="font-semibold">{reviewSummary.label}</p>
@@ -728,7 +728,7 @@ function VendorSubmissionsSection({
                   <input name="eventId" type="hidden" value={eventId} />
                   <input name="vendorId" type="hidden" value={vendor.id} />
                   <button
-                    className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className={buttonClasses("primary")}
                     type="submit"
                   >
                     Mark vendor reviewed
@@ -739,7 +739,7 @@ function VendorSubmissionsSection({
           ))}
         </ul>
       ) : (
-        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+        <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
           <p className="text-sm text-slate-700">
             No vendor submissions are connected to this event yet. Client portal
             submissions will appear here automatically after launch.
@@ -760,7 +760,7 @@ function UploadReviewSection({
   const reviewSummary = buildUploadReviewSummary(uploads);
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Upload review</h2>
@@ -778,8 +778,8 @@ function UploadReviewSection({
         <div
           className={
             reviewSummary.hasUploadsNeedingReview
-              ? "mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
-              : "mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+              ? "mt-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+              : "mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
           }
         >
           <p className="font-semibold">{reviewSummary.label}</p>
@@ -819,7 +819,7 @@ function UploadReviewSection({
               <div className="mt-4 flex flex-wrap gap-3">
                 {upload.signedUrl ? (
                   <a
-                    className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    className={buttonClasses("secondary")}
                     href={upload.signedUrl}
                     rel="noreferrer"
                     target="_blank"
@@ -836,7 +836,7 @@ function UploadReviewSection({
                     <input name="eventId" type="hidden" value={eventId} />
                     <input name="uploadId" type="hidden" value={upload.id} />
                     <button
-                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      className={buttonClasses("primary")}
                       type="submit"
                     >
                       Mark upload reviewed
@@ -848,7 +848,7 @@ function UploadReviewSection({
           ))}
         </ul>
       ) : (
-        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+        <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
           <p className="text-sm text-slate-700">
             No files are connected to this event yet. Client portal uploads will
             appear here automatically after launch.
@@ -873,22 +873,6 @@ function ChecklistMeta({ label, value }: ChecklistMetaProps) {
   );
 }
 
-type DetailCardProps = {
-  label: string;
-  value: string;
-};
-
-function DetailCard({ label, value }: DetailCardProps) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
-    </article>
-  );
-}
-
 type DetailSectionProps = {
   children: React.ReactNode;
   title: string;
@@ -896,7 +880,7 @@ type DetailSectionProps = {
 
 function DetailSection({ children, title }: DetailSectionProps) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
       <dl className="mt-4 divide-y divide-slate-200">{children}</dl>
     </section>

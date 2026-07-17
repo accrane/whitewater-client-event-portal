@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { buttonClasses } from "@/components/ui/button";
+
 // Submit button that stays dimmed (and disabled) until something in its form
 // actually changes from the server-rendered values.
 export function DirtySaveButton({ children }: { children: React.ReactNode }) {
@@ -33,7 +35,7 @@ export function DirtySaveButton({ children }: { children: React.ReactNode }) {
 
   return (
     <button
-      className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40"
+      className={buttonClasses("primary")}
       disabled={!dirty}
       ref={ref}
       type="submit"

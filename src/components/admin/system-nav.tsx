@@ -8,12 +8,15 @@ const systemNavItems = [
   { href: "/admin/system/integration-logs", label: "Integration Logs" },
 ];
 
-// Pill-style subnavigation shared by every page under /admin/system.
+// Segmented subnavigation shared by every page under /admin/system.
 export function SystemNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Admin sections" className="flex flex-wrap gap-2">
+    <nav
+      aria-label="Admin sections"
+      className="inline-flex flex-wrap items-center gap-1 self-start rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+    >
       {systemNavItems.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -21,10 +24,10 @@ export function SystemNav() {
         return (
           <Link
             aria-current={active ? "page" : undefined}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition ${
               active
                 ? "bg-slate-950 text-white"
-                : "border border-slate-300 text-slate-700 hover:bg-slate-100"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
             }`}
             href={item.href}
             key={item.href}

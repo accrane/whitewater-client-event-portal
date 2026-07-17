@@ -43,21 +43,24 @@ export default async function AdminIntegrationLogsPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <AdminStatCard
-          description={`${successCount} recent sync event${successCount === 1 ? "" : "s"} completed successfully.`}
-          title="Success"
+          hint="Recent sync events completed successfully"
+          label="Success"
+          value={String(successCount)}
         />
         <AdminStatCard
-          description={`${warningCount} duplicate or attention-needed event${warningCount === 1 ? "" : "s"}.`}
-          title="Warnings"
+          hint="Duplicate or attention-needed events"
+          label="Warnings"
+          value={String(warningCount)}
         />
         <AdminStatCard
-          description={`${errorCount} failed integration event${errorCount === 1 ? "" : "s"} in the latest logs.`}
-          title="Errors"
+          hint="Failed integration events in the latest logs"
+          label="Errors"
+          value={String(errorCount)}
         />
       </section>
 
       {logs.length > 0 ? (
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
             <h2 className="text-lg font-semibold text-slate-950">
               Recent integration activity

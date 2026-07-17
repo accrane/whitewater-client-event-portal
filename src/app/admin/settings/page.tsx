@@ -51,7 +51,7 @@ function SettingsCard({
 }) {
   return (
     <Link
-      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-400"
+      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-400"
       href={href}
     >
       <h2 className="text-base font-semibold text-slate-950">{title}</h2>

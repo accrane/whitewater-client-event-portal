@@ -161,7 +161,7 @@ export default async function AdminAssignmentsPage({
       userEmail={user.email}
     >
       <form
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
         method="get"
       >
         <label className="grid gap-1 text-xs font-semibold text-slate-500">
@@ -183,14 +183,14 @@ export default async function AdminAssignmentsPage({
           />
         </label>
         <button
-          className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
           type="submit"
         >
           Apply
         </button>
         {hasRange ? (
           <Link
-            className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
             href="/admin/assignments"
           >
             Clear
@@ -213,7 +213,7 @@ export default async function AdminAssignmentsPage({
           {[...groups.entries()].map(([plannerName, items]) => (
             <div
               key={plannerName}
-              className="w-72 shrink-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
             >
               <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
                 <h2 className="truncate text-sm font-semibold text-slate-950">

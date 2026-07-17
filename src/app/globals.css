@@ -135,11 +135,18 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
 a {
   text-decoration: none;
+}
+
+/* Consistent keyboard focus ring; browser defaults vary too much across the
+   themed surfaces. Mouse clicks stay ring-free via :focus-visible. */
+:where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-blue-600);
+  outline-offset: 2px;
 }
 
 /* Tailwind v4 preflight leaves buttons on the default arrow cursor. */

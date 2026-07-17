@@ -155,7 +155,7 @@ function LoginLayout({
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-10">
-      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
             Portal Admin

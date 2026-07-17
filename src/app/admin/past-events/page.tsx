@@ -1,17 +1,7 @@
-import { AdminShell } from "@/components/admin/admin-shell";
-import { EmptyState } from "@/components/ui/empty-state";
+import { redirect } from "next/navigation";
 
-export default function AdminPastEventsPage() {
-  return (
-    <AdminShell
-      description="Keep completed event portal history accessible without mixing it into active planner work. Real archived events will be queried later."
-      eyebrow="Past Events"
-      title="Completed event history"
-    >
-      <EmptyState
-        description="Past event rows will appear here after the admin dashboard is connected to Supabase event data."
-        title="No archived events connected yet"
-      />
-    </AdminShell>
-  );
+// Past events are now the "Past" filter on the Events list; keep old
+// bookmarks alive (same pattern as the other legacy admin routes).
+export default function LegacyPastEventsPage() {
+  redirect("/admin/events?status=past");
 }
