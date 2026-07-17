@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const systemNavItems = [
+  { href: "/admin/system/reports", label: "Reports" },
   { href: "/admin/system/users", label: "Users" },
   { href: "/admin/system/integration-logs", label: "Integration Logs" },
 ];

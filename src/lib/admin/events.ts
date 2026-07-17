@@ -608,7 +608,7 @@ async function createUploadSignedUrl(upload: AdminEventUpload): Promise<string |
   return data.signedUrl;
 }
 
-function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
+export function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     return {};
   }
