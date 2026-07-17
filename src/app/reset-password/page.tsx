@@ -8,10 +8,11 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type ViewState = "checking" | "ready" | "invalid" | "saving" | "done";
 
-// Landing page for the Supabase recovery-email link (kept outside /admin so
-// the auth middleware never intercepts the link's code exchange). The browser
-// client exchanges the ?code= in the URL for a session automatically; once
-// that session exists the user can pick a new password.
+// Landing page for the password-reset email link (kept outside /admin so the
+// auth middleware never intercepts it). Our Mailgun-sent email links here with
+// ?token_hash=..., which we verify to establish the recovery session. Links
+// without a token (older Supabase-sent emails carrying ?code=) fall back to
+// waiting for the browser client's automatic code exchange.
 export default function ResetPasswordPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -23,9 +24,15 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     let cancelled = false;
 
-    // The code exchange may still be in flight on first render; poll briefly
-    // before declaring the link invalid.
+    // window.location instead of useSearchParams: this page renders statically
+    // and the token is only needed after hydration.
+    const tokenHash = new URLSearchParams(window.location.search).get(
+      "token_hash",
+    );
+
     const waitForSession = async () => {
+      // The code exchange may still be in flight on first render; poll briefly
+      // before declaring the link invalid.
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const {
           data: { session },
@@ -44,7 +51,32 @@ export default function ResetPasswordPage() {
       if (!cancelled) setState("invalid");
     };
 
-    waitForSession();
+    const verifyToken = async (token: string) => {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        type: "recovery",
+        token_hash: token,
+      });
+
+      if (cancelled) return;
+
+      if (!verifyError) {
+        // Drop the consumed token so a refresh doesn't re-verify and flash
+        // the invalid state; the session decides from here.
+        window.history.replaceState(null, "", window.location.pathname);
+        setState("ready");
+        return;
+      }
+
+      // The token may already be consumed (e.g. refresh after verifying) but
+      // the recovery session can still be live.
+      await waitForSession();
+    };
+
+    if (tokenHash) {
+      verifyToken(tokenHash);
+    } else {
+      waitForSession();
+    }
 
     return () => {
       cancelled = true;

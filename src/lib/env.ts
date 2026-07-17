@@ -13,7 +13,11 @@ type EnvKey =
   | "GHL_DATE_OF_INTEREST_FIELD_ID"
   | "GHL_PIPELINE_ID"
   | "GHL_PLANNING_STAGE_ID"
-  | "PORTAL_BASE_URL";
+  | "PORTAL_BASE_URL"
+  | "MAILGUN_API_KEY"
+  | "MAILGUN_DOMAIN"
+  | "MAILGUN_API_BASE_URL"
+  | "EMAIL_FROM";
 
 export function getEnv(key: EnvKey): string {
   const value = process.env[key];

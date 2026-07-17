@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 
 import type { User } from "@supabase/supabase-js";
 
+import { sendEmail } from "@/lib/email";
+import { buildPasswordResetEmail } from "@/lib/email/password-reset";
 import {
   createServerSupabaseClient,
   createServiceRoleSupabaseClient,
@@ -142,18 +144,34 @@ export async function setPortalUserPassword(
   }
 }
 
-// Sends the Supabase recovery email; the link lands on /reset-password where
-// the user picks a new password. Uses the anon client — no session needed.
+// Sends the recovery email through Mailgun instead of Supabase's built-in
+// mailer (rate-limited, unbranded). The service role generates the recovery
+// token and the link lands on /reset-password, which verifies the token and
+// lets the user pick a new password — no Supabase redirect allowlist needed.
 export async function sendPasswordResetEmail(
   email: string,
   origin: string,
 ): Promise<void> {
-  const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin.replace(/\/+$/, "")}/reset-password`,
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.auth.admin.generateLink({
+    type: "recovery",
+    email,
   });
 
+  // Includes "user not found" — the caller shows the same confirmation either
+  // way so the form doesn't reveal which emails exist.
   if (error) {
-    throw new Error(`Unable to send reset email: ${error.message}`);
+    throw new Error(`Unable to create reset link: ${error.message}`);
   }
+
+  const tokenHash = data.properties?.hashed_token;
+
+  if (!tokenHash) {
+    throw new Error("Unable to create reset link: no token in response");
+  }
+
+  const resetUrl = `${origin.replace(/\/+$/, "")}/reset-password?token_hash=${encodeURIComponent(tokenHash)}`;
+  const { subject, html, text } = buildPasswordResetEmail(resetUrl);
+
+  await sendEmail({ to: email, subject, html, text });
 }
