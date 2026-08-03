@@ -13,6 +13,9 @@ export const CONFLICT_MESSAGE =
 // Postgres error code surfaced by the reservations overlap constraint.
 const EXCLUSION_VIOLATION = "23P01";
 
+// Postgres error code for unique-constraint violations (rooms.name).
+const UNIQUE_VIOLATION = "23505";
+
 export class RoomCalendarError extends Error {
   constructor(
     message: string,
@@ -32,6 +35,46 @@ export async function listRooms() {
 
   if (error) throw error;
   return (data ?? []) as RoomRow[];
+}
+
+export type RoomInput = {
+  name: string;
+  color: string;
+  capacity?: number | null;
+  description?: string | null;
+};
+
+export async function createRoom(input: RoomInput) {
+  const name = input.name?.trim();
+  if (!name) {
+    throw new RoomCalendarError("Room name is required", 400);
+  }
+  if (!/^#[0-9a-fA-F]{6}$/.test(input.color ?? "")) {
+    throw new RoomCalendarError("Room color must be a hex value like #3B82F6", 400);
+  }
+  if (input.capacity != null && (!Number.isInteger(input.capacity) || input.capacity <= 0)) {
+    throw new RoomCalendarError("Capacity must be a positive whole number", 400);
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("rooms")
+    .insert({
+      name,
+      color: input.color.toUpperCase(),
+      capacity: input.capacity ?? null,
+      description: input.description?.trim() || null,
+    } as never)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) {
+      throw new RoomCalendarError("A room with this name already exists", 409);
+    }
+    throw error;
+  }
+  return data as RoomRow;
 }
 
 export type LinkableEvent = {
@@ -91,6 +134,52 @@ export async function listLinkableEvents(): Promise<LinkableEvent[]> {
       label: `${name}${eventDate ? ` — ${eventDate}` : ""} (${row.status})`,
     };
   });
+}
+
+export type EventRoomReservation = ReservationRow & {
+  rooms: Pick<RoomRow, "name" | "color"> | null;
+};
+
+// Room reservations linked to a single portal event, for the admin event
+// detail view. Includes held and booked blocks, past and future.
+export async function listEventReservations(
+  eventId: string,
+): Promise<EventRoomReservation[]> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("*, rooms(name, color)")
+    .eq("event_id", eventId)
+    .order("start_datetime");
+
+  if (error) throw error;
+  return (data ?? []) as unknown as EventRoomReservation[];
+}
+
+// Flip linked reservations between held and booked from the admin event
+// detail view. Scoped to the event so a stale form can't touch another
+// event's reservations; pass reservationId to change one, omit it for all.
+export async function setEventReservationsStatus(params: {
+  eventId: string;
+  status: Database["public"]["Enums"]["reservation_status"];
+  reservationId?: string;
+}) {
+  const supabase = createServiceRoleSupabaseClient();
+  let query = supabase
+    .from("reservations")
+    .update({ status: params.status } as never)
+    .eq("event_id", params.eventId);
+
+  if (params.reservationId) {
+    query = query.eq("id", params.reservationId);
+  }
+
+  const { data, error } = await query.select("id");
+
+  if (error) throw error;
+  if (params.reservationId && !data.length) {
+    throw new RoomCalendarError("Reservation not found for this event", 404);
+  }
 }
 
 export type ReservationFilters = {

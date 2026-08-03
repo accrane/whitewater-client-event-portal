@@ -1,6 +1,6 @@
 # GHL custom fields the portal depends on
 
-_Last updated: 2026-07-16. Living log — add a row whenever the app starts
+_Last updated: 2026-07-28. Living log — add a row whenever the app starts
 reading or writing a GHL field, and create the field in GHL before shipping
 the feature that needs it._
 
@@ -18,6 +18,10 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | **Read** (by key) on event-page auto-sync as the event type. Also map into the webhook as `event.type`. |
 | Portal Link | `qV1K4voPyXZt2O5UiRBT` | `opportunity.portal_link` | App **writes** the absolute client portal URL (`PORTAL_BASE_URL` + path) when the planner prepares the portal launch (`GHL_PORTAL_LINK_FIELD_ID`), so GHL workflows can email/SMS the link. Blanked again when the event is deleted. |
 | Number of Guests | `WxC5gg3NuLHGBrdMx9YX` | `opportunity.number_of_guests` | **Two-way** (by key): read on event-page auto-sync into the Event summary's guest count; written back when the count is edited in the app. |
+| Activity Pass Count | `vFV0AVNqJTnzrO3miuHq` | `opportunity.activity_pass_count` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
+| Number of Parking Passes | `HfiRFH4P3jgBo0OCMw0F` | `opportunity.number_of_parking_passes` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
+| Number of Storage Bins | `qpNF4ub5ggXDcyhTnjkJ` | `opportunity.number_of_storage_bins` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
+| Proposal Link | `98j901wnmkPtIVFTaSYs` | `opportunity.proposal_link` | **Read** (by key) on event-page auto-sync into `ghl_snapshot.links.proposal`. PandaDoc (integrated in GHL) populates it when a proposal is sent; shown as a clickable link on the admin event page and in the client portal's Documents section. GHL is authoritative — blanking the field there blanks it in the app. |
 
 The admin event detail page auto-syncs from GHL on load (`src/lib/ghl/event-sync.ts`),
 resolving Date of Interest, Group/Event Name, and Inquiry Type **by field key** —

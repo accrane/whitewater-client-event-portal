@@ -8,6 +8,12 @@ export type GhlEventSnapshot = {
   value?: number;
   // GHL opportunity.number_of_guests custom field, synced both ways.
   numberOfGuests?: number;
+  // GHL opportunity.activity_pass_count custom field, synced both ways.
+  activityPassCount?: number;
+  // GHL opportunity.number_of_parking_passes custom field, synced both ways.
+  numberOfParkingPasses?: number;
+  // GHL opportunity.number_of_storage_bins custom field, synced both ways.
+  numberOfStorageBins?: number;
   planner?: {
     id?: string;
     name?: string;

@@ -96,6 +96,9 @@ export default async function ClientPortalPlaceholderPage({
                 ["Event type", event.eventType],
                 ["Payment status", event.paymentStatus],
                 ["Event date", formatNullableDate(event.eventDate)],
+                ["Activity passes", formatNullableCount(event.activityPassCount)],
+                ["Parking passes", formatNullableCount(event.numberOfParkingPasses)],
+                ["Storage bins", formatNullableCount(event.numberOfStorageBins)],
               ]}
             />
           </ClientSectionCard>
@@ -394,6 +397,10 @@ function CountPill({ count, label }: { count: number; label: string }) {
 
 function formatNullableDate(date: string | null): string {
   return date ? formatDisplayDate(date) : "Not set";
+}
+
+function formatNullableCount(count: number | null): string | null {
+  return count === null ? null : String(count);
 }
 
 function formatNullableDateTime(date: string | null): string {

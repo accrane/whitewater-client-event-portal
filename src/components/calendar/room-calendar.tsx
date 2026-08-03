@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import type {
   Reservation,
   ReservationFormData,
+  RoomFormData,
   ViewMode,
 } from "@/lib/calendar/types";
 import { useCalendarData } from "@/lib/calendar/use-calendar-data";
@@ -13,6 +14,7 @@ import { createReservationBlocks } from "@/lib/calendar/create-blocks";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { CalendarGrid } from "./calendar-grid";
 import { ReservationModal } from "./reservation-modal";
+import { AddRoomModal } from "./add-room-modal";
 import { RoomLegend } from "./room-legend";
 
 export function RoomCalendar() {
@@ -34,6 +36,7 @@ export function RoomCalendar() {
     useState<Reservation | null>(null);
   const [defaultRoomId, setDefaultRoomId] = useState<string | undefined>();
   const [defaultStart, setDefaultStart] = useState<Date | undefined>();
+  const [addRoomOpen, setAddRoomOpen] = useState(false);
 
   const handleNavigate = useCallback(
     (direction: "prev" | "next" | "today") => {
@@ -123,6 +126,14 @@ export function RoomCalendar() {
     await refetch();
   }, [editingReservation, refetch]);
 
+  const handleAddRoom = useCallback(
+    async (data: RoomFormData) => {
+      await api.rooms.create(data);
+      await refetch();
+    },
+    [refetch],
+  );
+
   const handleReservationDrop = useCallback(
     async (
       reservationId: string,
@@ -175,7 +186,7 @@ export function RoomCalendar() {
 
       {/* Legend */}
       <div className="flex-shrink-0">
-        <RoomLegend rooms={rooms} />
+        <RoomLegend rooms={rooms} onAddRoom={() => setAddRoomOpen(true)} />
       </div>
 
       {/* Calendar */}
@@ -227,6 +238,14 @@ export function RoomCalendar() {
           reservation={editingReservation}
           defaultRoomId={defaultRoomId}
           defaultStart={defaultStart}
+        />
+      )}
+
+      {addRoomOpen && (
+        <AddRoomModal
+          rooms={rooms}
+          onClose={() => setAddRoomOpen(false)}
+          onSave={handleAddRoom}
         />
       )}
     </div>

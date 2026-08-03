@@ -50,6 +50,9 @@ export type AdminEventDetail = AdminEventListItem & {
   meetingLocation: string | null;
   value: number | null;
   numberOfGuests: number | null;
+  activityPassCount: number | null;
+  numberOfParkingPasses: number | null;
+  numberOfStorageBins: number | null;
   plannerEmail: string | null;
   plannerPhone: string | null;
   proposalUrl: string | null;
@@ -349,6 +352,9 @@ export async function updateEventSummary(
     arrivalTime: string | null;
     meetingLocation: string | null;
     numberOfGuests: number | null;
+    activityPassCount: number | null;
+    numberOfParkingPasses: number | null;
+    numberOfStorageBins: number | null;
     value?: number | null;
   },
 ): Promise<void> {
@@ -356,11 +362,17 @@ export async function updateEventSummary(
     arrivalTime: details.arrivalTime,
     meetingLocation: details.meetingLocation,
     numberOfGuests: details.numberOfGuests,
+    activityPassCount: details.activityPassCount,
+    numberOfParkingPasses: details.numberOfParkingPasses,
+    numberOfStorageBins: details.numberOfStorageBins,
     ...(details.value !== undefined ? { value: details.value } : {}),
   });
 
   await writeOpportunityEventDetails(row, {
     numberOfGuests: details.numberOfGuests,
+    activityPassCount: details.activityPassCount,
+    numberOfParkingPasses: details.numberOfParkingPasses,
+    numberOfStorageBins: details.numberOfStorageBins,
     ...(details.value !== undefined ? { monetaryValue: details.value } : {}),
   });
 }
@@ -527,6 +539,9 @@ function mapEventRowToDetail(row: EventRow): AdminEventDetail {
     meetingLocation: snapshot.meetingLocation ?? null,
     value: snapshot.value ?? null,
     numberOfGuests: snapshot.numberOfGuests ?? null,
+    activityPassCount: snapshot.activityPassCount ?? null,
+    numberOfParkingPasses: snapshot.numberOfParkingPasses ?? null,
+    numberOfStorageBins: snapshot.numberOfStorageBins ?? null,
     plannerEmail: snapshot.planner?.email ?? null,
     plannerPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
@@ -624,6 +639,9 @@ export function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     meetingLocation: getString(raw.meetingLocation),
     value: getNumber(raw.value),
     numberOfGuests: getNumber(raw.numberOfGuests),
+    activityPassCount: getNumber(raw.activityPassCount),
+    numberOfParkingPasses: getNumber(raw.numberOfParkingPasses),
+    numberOfStorageBins: getNumber(raw.numberOfStorageBins),
     planner:
       planner && typeof planner === "object" && !Array.isArray(planner)
         ? {

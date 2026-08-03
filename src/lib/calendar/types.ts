@@ -3,6 +3,13 @@ import type { Database } from "@/types/database";
 export type Room = Database["public"]["Tables"]["rooms"]["Row"];
 export type Reservation = Database["public"]["Tables"]["reservations"]["Row"];
 
+export type RoomFormData = {
+  name: string;
+  color: string;
+  capacity?: number | null;
+  description?: string | null;
+};
+
 export type ReservationFormData = Omit<
   Database["public"]["Tables"]["reservations"]["Insert"],
   "id" | "created_at" | "updated_at"

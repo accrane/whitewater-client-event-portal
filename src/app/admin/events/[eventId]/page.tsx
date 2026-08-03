@@ -3,6 +3,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CopyableValue } from "@/components/admin/copyable-value";
+import {
+  AddRoomBookingButton,
+  DeleteBookingButton,
+} from "@/components/admin/event-room-bookings";
 import { DirtySaveButton } from "@/components/admin/dirty-save-button";
 import { FlashBanner } from "@/components/admin/flash-banner";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
@@ -44,7 +48,11 @@ import { getUserRole } from "@/lib/admin/users";
 import { formatDisplayDate } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { listRooms } from "@/lib/admin/room-calendar";
+import {
+  listEventReservations,
+  listRooms,
+  type EventRoomReservation,
+} from "@/lib/admin/room-calendar";
 import { syncEventFromGhl } from "@/lib/ghl/event-sync";
 
 import {
@@ -55,6 +63,7 @@ import {
   reviewVendorSubmissionAction,
   updateChecklistItemAction,
   updateEventDetailsAction,
+  updateRoomBookingStatusAction,
 } from "./actions";
 
 // 15-minute arrival-time choices, stored as the display label the client
@@ -89,12 +98,16 @@ const syncStatusLabels = {
 // One consolidated confirmation notice; the previous per-param banners could
 // stack several tiles above the page content.
 function getFlashMessage(params: {
+  bookings?: string;
   checklist?: string;
   details?: string;
   launched?: string;
   upload?: string;
   vendor?: string;
 }): string | null {
+  if (params.bookings === "booked" || params.bookings === "held") {
+    return `Room booking status updated to ${params.bookings}. The room calendar reflects the change immediately.`;
+  }
   if (params.launched === "1") {
     return "Portal launch prepared. The secure URL is stored below and pushed to the GHL opportunity's Portal Link field. Client notification is still separate and should be handled through GoHighLevel.";
   }
@@ -125,6 +138,7 @@ function getFlashMessage(params: {
 type AdminEventDetailPageProps = {
   params: Promise<{ eventId: string }>;
   searchParams: Promise<{
+    bookings?: string;
     checklist?: string;
     details?: string;
     launched?: string;
@@ -148,20 +162,23 @@ export default async function AdminEventDetailPage({
 
   const isAdmin = getUserRole(user) === "admin";
   const { eventId } = await params;
-  const { checklist, details, launched, upload, vendor } = await searchParams;
+  const { bookings, checklist, details, launched, upload, vendor } =
+    await searchParams;
 
   // Pull current opportunity data (Date of Interest, assigned planner,
   // contact, event type) from GHL before rendering; degrades quietly.
   await syncEventFromGhl(eventId);
 
-  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms] = await Promise.all([
-    getAdminEventById(eventId),
-    listEventChecklistItems(eventId),
-    listActiveChecklistTemplates(),
-    listEventVendors(eventId),
-    listEventUploads(eventId),
-    listRooms(),
-  ]);
+  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms, roomReservations] =
+    await Promise.all([
+      getAdminEventById(eventId),
+      listEventChecklistItems(eventId),
+      listActiveChecklistTemplates(),
+      listEventVendors(eventId),
+      listEventUploads(eventId),
+      listRooms(),
+      listEventReservations(eventId),
+    ]);
 
   if (!event) {
     notFound();
@@ -175,6 +192,7 @@ export default async function AdminEventDetailPage({
   const storedPortalPath = normalizeStoredPortalPath(event.clientPortalUrl);
 
   const flashMessage = getFlashMessage({
+    bookings,
     checklist,
     details,
     launched,
@@ -292,6 +310,48 @@ export default async function AdminEventDetailPage({
                   type="number"
                 />
               </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-500">
+                  Activity Pass Count
+                </span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  defaultValue={event.activityPassCount ?? ""}
+                  min="0"
+                  name="activityPassCount"
+                  placeholder="Not set"
+                  step="1"
+                  type="number"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-500">
+                  Number of Parking Passes
+                </span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  defaultValue={event.numberOfParkingPasses ?? ""}
+                  min="0"
+                  name="numberOfParkingPasses"
+                  placeholder="Not set"
+                  step="1"
+                  type="number"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-500">
+                  Number of Storage Bins
+                </span>
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  defaultValue={event.numberOfStorageBins ?? ""}
+                  min="0"
+                  name="numberOfStorageBins"
+                  placeholder="Not set"
+                  step="1"
+                  type="number"
+                />
+              </label>
               {isAdmin ? (
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-500">
@@ -321,6 +381,20 @@ export default async function AdminEventDetailPage({
           </form>
         </div>
       </DetailSection>
+
+      <RoomBookingsSection
+        eventDate={event.eventDate}
+        eventId={event.id}
+        eventName={event.eventName}
+        plannerName={event.plannerName}
+        reservations={roomReservations}
+        rooms={rooms.map((room) => ({
+          id: room.id,
+          name: room.name,
+          color: room.color,
+          capacity: room.capacity,
+        }))}
+      />
 
       <DetailSection title="Launch preview">
         <DetailRow label="Launch readiness" value={getLaunchReadiness(event)} />
@@ -411,10 +485,10 @@ export default async function AdminEventDetailPage({
           <DetailRow label="Event record ID" value={event.ghlEventRecordId} />
           <DetailRow label="Contact ID" value={event.ghlContactId} />
           <DetailRow label="Opportunity ID" value={event.ghlOpportunityId} />
-          <DetailRow label="Proposal link" value={event.proposalUrl} />
-          <DetailRow label="Contract link" value={event.contractUrl} />
-          <DetailRow label="Invoice link" value={event.invoiceUrl} />
-          <DetailRow label="Payment link" value={event.paymentUrl} />
+          <DetailRow label="Proposal link" link value={event.proposalUrl} />
+          <DetailRow label="Contract link" link value={event.contractUrl} />
+          <DetailRow label="Invoice link" link value={event.invoiceUrl} />
+          <DetailRow label="Payment link" link value={event.paymentUrl} />
         </DetailSection>
       </section>
 
@@ -460,6 +534,154 @@ export default async function AdminEventDetailPage({
         </form>
       </section>
     </AdminShell>
+  );
+}
+
+function RoomBookingsSection({
+  eventDate,
+  eventId,
+  eventName,
+  plannerName,
+  reservations,
+  rooms,
+}: {
+  eventDate: string | null;
+  eventId: string;
+  eventName: string;
+  plannerName: string | null;
+  reservations: EventRoomReservation[];
+  rooms: { id: string; name: string; color: string; capacity: number | null }[];
+}) {
+  const heldCount = reservations.filter((r) => r.status === "held").length;
+  const bookedCount = reservations.length - heldCount;
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">Room bookings</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Calendar reservations linked to this event. Add rooms and confirm
+            holds as booked here, or use the{" "}
+            <a
+              className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
+              href="/admin/calendar"
+            >
+              room calendar
+            </a>{" "}
+            for the full schedule view.
+          </p>
+        </div>
+        <span className="flex items-center gap-3">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+            {reservations.length} booking{reservations.length === 1 ? "" : "s"}
+          </span>
+          <AddRoomBookingButton
+            eventDate={eventDate}
+            eventId={eventId}
+            eventName={eventName}
+            plannerName={plannerName}
+            rooms={rooms}
+          />
+        </span>
+      </div>
+
+      {reservations.length > 0 ? (
+        <ul className="mt-5 divide-y divide-slate-200">
+          {reservations.map((reservation) => (
+            <li
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-sm"
+              key={reservation.id}
+            >
+              <span className="flex min-w-40 items-center gap-2 font-semibold text-slate-950">
+                <span
+                  aria-hidden
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: reservation.rooms?.color ?? "#94A3B8" }}
+                />
+                {reservation.rooms?.name ?? "Unknown room"}
+              </span>
+              <span className="text-slate-700">
+                {formatReservationTimes(
+                  reservation.start_datetime,
+                  reservation.end_datetime,
+                )}
+              </span>
+              {reservation.title ? (
+                <span className="text-slate-500">{reservation.title}</span>
+              ) : null}
+              <span className="ml-auto flex items-center gap-3">
+                <StatusBadge
+                  tone={reservation.status === "booked" ? "success" : "warning"}
+                >
+                  {reservation.status === "booked" ? "Booked" : "Held"}
+                </StatusBadge>
+                <form action={updateRoomBookingStatusAction}>
+                  <input name="eventId" type="hidden" value={eventId} />
+                  <input
+                    name="reservationId"
+                    type="hidden"
+                    value={reservation.id}
+                  />
+                  <input
+                    name="status"
+                    type="hidden"
+                    value={reservation.status === "booked" ? "held" : "booked"}
+                  />
+                  <button
+                    className={buttonClasses(
+                      reservation.status === "booked" ? "secondary" : "primary",
+                      "sm",
+                    )}
+                    type="submit"
+                  >
+                    {reservation.status === "booked"
+                      ? "Revert to held"
+                      : "Mark booked"}
+                  </button>
+                </form>
+                <DeleteBookingButton reservationId={reservation.id} />
+              </span>
+            </li>
+          ))}
+          {reservations.length > 1 ? (
+            <li className="flex flex-wrap items-center gap-3 py-3">
+              <span className="text-sm font-semibold text-slate-500">
+                All bookings
+              </span>
+              <span className="ml-auto flex flex-wrap items-center gap-3">
+                {heldCount > 0 ? (
+                  <form action={updateRoomBookingStatusAction}>
+                    <input name="eventId" type="hidden" value={eventId} />
+                    <input name="status" type="hidden" value="booked" />
+                    <button className={buttonClasses("primary", "sm")} type="submit">
+                      Mark all booked
+                    </button>
+                  </form>
+                ) : null}
+                {bookedCount > 0 ? (
+                  <form action={updateRoomBookingStatusAction}>
+                    <input name="eventId" type="hidden" value={eventId} />
+                    <input name="status" type="hidden" value="held" />
+                    <button className={buttonClasses("secondary", "sm")} type="submit">
+                      Revert all to held
+                    </button>
+                  </form>
+                ) : null}
+              </span>
+            </li>
+          ) : null}
+        </ul>
+      ) : (
+        <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+          <p className="text-sm text-slate-700">
+            No room bookings are linked to this event yet. Use “Add room” above,
+            or create a reservation on the room calendar with this event
+            attached.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -891,14 +1113,28 @@ type DetailRowProps = {
   label: string;
   value: string | null;
   copyable?: boolean;
+  link?: boolean;
 };
 
-function DetailRow({ label, value, copyable }: DetailRowProps) {
+function DetailRow({ label, value, copyable, link }: DetailRowProps) {
   return (
     <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
       <dt className="font-semibold text-slate-500">{label}</dt>
       <dd className="break-words text-slate-800 sm:col-span-2">
-        {copyable && value ? <CopyableValue value={value} /> : value || "Not set"}
+        {copyable && value ? (
+          <CopyableValue value={value} />
+        ) : link && value ? (
+          <a
+            className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
+            href={value}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {value}
+          </a>
+        ) : (
+          value || "Not set"
+        )}
       </dd>
     </div>
   );
@@ -913,6 +1149,21 @@ function formatStatusLabel(value: string): string {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+// "Aug 12, 2026 · 9:00 AM – 11:30 AM", or full datetimes on both sides when
+// a reservation crosses midnight.
+function formatReservationTimes(start: string, end: string): string {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+  const timeFormat = new Intl.DateTimeFormat("en-US", { timeStyle: "short" });
+
+  if (dateFormat.format(startDate) === dateFormat.format(endDate)) {
+    return `${dateFormat.format(startDate)} · ${timeFormat.format(startDate)} – ${timeFormat.format(endDate)}`;
+  }
+
+  return `${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} – ${dateFormat.format(endDate)}, ${timeFormat.format(endDate)}`;
 }
 
 function formatNullableDateTime(date: string | null): string {

@@ -29,6 +29,9 @@ export type ClientPortalEvent = {
   arrivalTime: string | null;
   meetingLocation: string | null;
   numberOfGuests: number | null;
+  activityPassCount: number | null;
+  numberOfParkingPasses: number | null;
+  numberOfStorageBins: number | null;
   plannerName: string | null;
   plannerEmail: string | null;
   plannerPhone: string | null;
@@ -314,6 +317,9 @@ function mapEventToClientPortalEvent(
     arrivalTime: snapshot.arrivalTime ?? null,
     meetingLocation: snapshot.meetingLocation ?? null,
     numberOfGuests: snapshot.numberOfGuests ?? null,
+    activityPassCount: snapshot.activityPassCount ?? null,
+    numberOfParkingPasses: snapshot.numberOfParkingPasses ?? null,
+    numberOfStorageBins: snapshot.numberOfStorageBins ?? null,
     plannerName: snapshot.planner?.name ?? null,
     plannerEmail: snapshot.planner?.email ?? null,
     plannerPhone: snapshot.planner?.phone ?? null,
@@ -354,6 +360,9 @@ function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     arrivalTime: getString(raw.arrivalTime),
     meetingLocation: getString(raw.meetingLocation),
     numberOfGuests: getNumber(raw.numberOfGuests),
+    activityPassCount: getNumber(raw.activityPassCount),
+    numberOfParkingPasses: getNumber(raw.numberOfParkingPasses),
+    numberOfStorageBins: getNumber(raw.numberOfStorageBins),
     planner:
       planner && typeof planner === "object" && !Array.isArray(planner)
         ? {

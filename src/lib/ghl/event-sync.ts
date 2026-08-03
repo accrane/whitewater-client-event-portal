@@ -19,6 +19,10 @@ const FIELD_KEYS = {
   groupEventName: "opportunity.groupevent_name",
   inquiryType: "opportunity.inquiry_type",
   numberOfGuests: "opportunity.number_of_guests",
+  activityPassCount: "opportunity.activity_pass_count",
+  numberOfParkingPasses: "opportunity.number_of_parking_passes",
+  numberOfStorageBins: "opportunity.number_of_storage_bins",
+  proposalLink: "opportunity.proposal_link",
 } as const;
 
 // Refreshes an event's stored GHL snapshot from the live opportunity: event
@@ -63,6 +67,22 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
     opportunity.customFields,
     fieldId(FIELD_KEYS.numberOfGuests),
   );
+  const activityPassCount = findFieldNumber(
+    opportunity.customFields,
+    fieldId(FIELD_KEYS.activityPassCount),
+  );
+  const numberOfParkingPasses = findFieldNumber(
+    opportunity.customFields,
+    fieldId(FIELD_KEYS.numberOfParkingPasses),
+  );
+  const numberOfStorageBins = findFieldNumber(
+    opportunity.customFields,
+    fieldId(FIELD_KEYS.numberOfStorageBins),
+  );
+  const proposalLink = findFieldString(
+    opportunity.customFields,
+    fieldId(FIELD_KEYS.proposalLink),
+  );
   const assignedUser = opportunity.assignedTo
     ? users.find((user) => user.id === opportunity.assignedTo)
     : undefined;
@@ -74,6 +94,13 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
       ? (event.ghl_snapshot as Record<string, Json>)
       : {};
 
+  const existingLinks =
+    existingSnapshot.links &&
+    typeof existingSnapshot.links === "object" &&
+    !Array.isArray(existingSnapshot.links)
+      ? (existingSnapshot.links as Record<string, Json>)
+      : {};
+
   const snapshot: Record<string, Json> = {
     ...existingSnapshot,
     ...(eventName || opportunity.name
@@ -81,7 +108,7 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
       : {}),
     ...(eventType ? { eventType } : {}),
     ...(eventDate ? { eventDate } : {}),
-    // GHL owns these two: app edits write back to GHL, so the live opportunity
+    // GHL owns these: app edits write back to GHL, so the live opportunity
     // is authoritative here. GHL reports monetaryValue as 0 when unset (and the
     // app pushes 0 to clear it), so 0 renders as blank.
     value:
@@ -89,6 +116,12 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
         ? opportunity.monetaryValue
         : null,
     numberOfGuests,
+    activityPassCount,
+    numberOfParkingPasses,
+    numberOfStorageBins,
+    // PandaDoc (via GHL) owns the proposal link, so the live field is
+    // authoritative — blanking it in GHL blanks it here.
+    links: { ...existingLinks, proposal: proposalLink },
     ...(assignedUser
       ? {
           planner: {

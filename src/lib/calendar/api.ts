@@ -1,5 +1,6 @@
 import type {
   Room,
+  RoomFormData,
   Reservation,
   ReservationFormData,
   PortalEventOption,
@@ -26,6 +27,11 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 export const api = {
   rooms: {
     list: () => request<Room[]>("/rooms"),
+    create: (data: RoomFormData) =>
+      request<Room>("/rooms", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
   portalEvents: {
     list: () => request<PortalEventOption[]>("/portal-events"),

@@ -14,6 +14,7 @@ import {
   updateEventSummary,
 } from "@/lib/admin/events";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
+import { setEventReservationsStatus } from "@/lib/admin/room-calendar";
 import { getUserRole } from "@/lib/admin/users";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -70,15 +71,26 @@ export async function updateEventDetailsAction(formData: FormData) {
   const arrivalTime = String(formData.get("arrivalTime") || "").trim();
   const meetingLocation = String(formData.get("meetingLocation") || "").trim();
 
-  const rawGuests = String(formData.get("numberOfGuests") || "").trim();
-  const numberOfGuests = rawGuests ? Number.parseInt(rawGuests, 10) : null;
+  const parseCount = (name: string, label: string): number | null => {
+    const raw = String(formData.get(name) || "").trim();
+    const count = raw ? Number.parseInt(raw, 10) : null;
 
-  if (
-    numberOfGuests !== null &&
-    (!Number.isFinite(numberOfGuests) || numberOfGuests < 0)
-  ) {
-    throw new Error("Unable to update event details: enter a valid guest count");
-  }
+    if (count !== null && (!Number.isFinite(count) || count < 0)) {
+      throw new Error(`Unable to update event details: enter a valid ${label}`);
+    }
+    return count;
+  };
+
+  const numberOfGuests = parseCount("numberOfGuests", "guest count");
+  const activityPassCount = parseCount("activityPassCount", "activity pass count");
+  const numberOfParkingPasses = parseCount(
+    "numberOfParkingPasses",
+    "number of parking passes",
+  );
+  const numberOfStorageBins = parseCount(
+    "numberOfStorageBins",
+    "number of storage bins",
+  );
 
   const isAdmin = getUserRole(user) === "admin";
   let value: number | null | undefined;
@@ -96,6 +108,9 @@ export async function updateEventDetailsAction(formData: FormData) {
     arrivalTime: arrivalTime || null,
     meetingLocation: meetingLocation || null,
     numberOfGuests,
+    activityPassCount,
+    numberOfParkingPasses,
+    numberOfStorageBins,
     ...(value !== undefined ? { value } : {}),
   });
 
@@ -207,6 +222,43 @@ export async function updateChecklistItemAction(formData: FormData) {
   revalidatePath(`/admin/events/${eventId}`);
 
   redirect(`/admin/events/${eventId}?checklist=updated`);
+}
+
+// Flips one linked room reservation (or all of them, when no reservationId
+// is submitted) between held and booked.
+export async function updateRoomBookingStatusAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "").trim();
+  const reservationId = String(formData.get("reservationId") || "").trim();
+  const status = String(formData.get("status") || "").trim();
+
+  if (!eventId) {
+    throw new Error("Unable to update room booking: missing event ID");
+  }
+
+  if (status !== "held" && status !== "booked") {
+    throw new Error("Unable to update room booking: invalid status");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  await setEventReservationsStatus({
+    eventId,
+    status,
+    reservationId: reservationId || undefined,
+  });
+
+  revalidatePath("/admin/calendar");
+  revalidatePath("/admin/assignments");
+  revalidatePath(`/admin/events/${eventId}`);
+
+  redirect(`/admin/events/${eventId}?bookings=${status}`);
 }
 
 export async function reviewVendorSubmissionAction(formData: FormData) {

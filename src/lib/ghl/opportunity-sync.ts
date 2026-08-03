@@ -97,45 +97,48 @@ export async function writeEventIdBackToOpportunity(
   return { ok: true };
 }
 
+// Opportunity custom fields the Event summary form writes back, form field →
+// GHL field key. Each must exist in GHL (see docs/ghl-custom-fields.md).
+const SUMMARY_FIELD_KEYS = {
+  numberOfGuests: "opportunity.number_of_guests",
+  activityPassCount: "opportunity.activity_pass_count",
+  numberOfParkingPasses: "opportunity.number_of_parking_passes",
+  numberOfStorageBins: "opportunity.number_of_storage_bins",
+} as const;
+
 // Pushes app-edited Event summary numbers to the GHL opportunity in one PUT:
 // Value → the built-in monetaryValue (admins only, so it may be omitted) and
-// guest count → the opportunity.number_of_guests custom field. Never throws —
-// the app save is the primary action.
+// the counts → their opportunity custom fields (SUMMARY_FIELD_KEYS). Never
+// throws — the app save is the primary action.
 export async function writeOpportunityEventDetails(
   event: EventRow,
   updates: {
     monetaryValue?: number | null;
-    numberOfGuests: number | null;
-  },
+  } & Record<keyof typeof SUMMARY_FIELD_KEYS, number | null>,
 ): Promise<OpportunitySyncOutcome> {
   if (!event.ghl_opportunity_id) {
     return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
   }
 
   const fieldIndex = await fetchOpportunityFieldIndex();
-  const guestsFieldId = fieldIndex.get("opportunity.number_of_guests");
+  const customFields = Object.entries(SUMMARY_FIELD_KEYS).flatMap(
+    ([field, key]) => {
+      const fieldId = fieldIndex.get(key);
+      if (!fieldId) return [];
+      const value = updates[field as keyof typeof SUMMARY_FIELD_KEYS];
+      return [{ id: fieldId, field_value: value === null ? "" : String(value) }];
+    },
+  );
 
   const body: OpportunityUpdateBody = {
     ...(updates.monetaryValue !== undefined
       ? { monetaryValue: updates.monetaryValue ?? 0 }
       : {}),
-    ...(guestsFieldId
-      ? {
-          customFields: [
-            {
-              id: guestsFieldId,
-              field_value:
-                updates.numberOfGuests === null
-                  ? ""
-                  : String(updates.numberOfGuests),
-            },
-          ],
-        }
-      : {}),
+    ...(customFields.length > 0 ? { customFields } : {}),
   };
 
   if (Object.keys(body).length === 0) {
-    const error = "opportunity.number_of_guests custom field not found in GHL";
+    const error = "Event summary custom fields not found in GHL";
 
     await logIntegrationEvent({
       direction: "PORTAL_TO_GHL",
@@ -167,6 +170,9 @@ export async function writeOpportunityEventDetails(
         ? { monetary_value: updates.monetaryValue }
         : {}),
       number_of_guests: updates.numberOfGuests,
+      activity_pass_count: updates.activityPassCount,
+      number_of_parking_passes: updates.numberOfParkingPasses,
+      number_of_storage_bins: updates.numberOfStorageBins,
       ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
     },
   });
