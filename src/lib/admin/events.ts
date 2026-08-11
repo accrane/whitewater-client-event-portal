@@ -1,4 +1,6 @@
+import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
 import {
+  assignOpportunityCoordinator,
   clearEventIdFromOpportunity,
   writeOpportunityEventDetails,
 } from "@/lib/ghl/opportunity-sync";
@@ -53,6 +55,7 @@ export type AdminEventDetail = AdminEventListItem & {
   activityPassCount: number | null;
   numberOfParkingPasses: number | null;
   numberOfStorageBins: number | null;
+  plannerGhlUserId: string | null;
   plannerEmail: string | null;
   plannerPhone: string | null;
   proposalUrl: string | null;
@@ -377,6 +380,42 @@ export async function updateEventSummary(
   });
 }
 
+// Reassigns the event's planner. GHL stays the system of record (the planner
+// is the opportunity's assigned user, re-read on every page sync), so the GHL
+// writeback must succeed before the local snapshot updates — otherwise the
+// next sync would silently revert the change. Events with no linked
+// opportunity update locally only.
+export async function updateEventPlanner(
+  eventId: string,
+  ghlUserId: string,
+): Promise<void> {
+  const users = await listGhlPlannerUsers();
+  const planner = users.find((user) => user.id === ghlUserId);
+
+  if (!planner) {
+    throw new Error(
+      "Unable to update planner: user is not a staff planner in GoHighLevel",
+    );
+  }
+
+  const outcome = await assignOpportunityCoordinator(eventId, ghlUserId);
+
+  if (!outcome.ok && !outcome.skipped) {
+    throw new Error(
+      `Unable to update planner in GoHighLevel: ${outcome.error ?? "Unknown GHL error"}`,
+    );
+  }
+
+  await mergeEventSnapshot(eventId, {
+    planner: {
+      id: planner.id,
+      name: planner.name,
+      email: planner.email,
+      phone: null,
+    },
+  });
+}
+
 // Permanently deletes an event: linked calendar blocks are removed, database
 // rows cascade (checklist, vendors, uploads, schedule), and the GHL
 // opportunity's Event Planning App ID field is blanked so the inquiry flow
@@ -542,6 +581,7 @@ function mapEventRowToDetail(row: EventRow): AdminEventDetail {
     activityPassCount: snapshot.activityPassCount ?? null,
     numberOfParkingPasses: snapshot.numberOfParkingPasses ?? null,
     numberOfStorageBins: snapshot.numberOfStorageBins ?? null,
+    plannerGhlUserId: snapshot.planner?.id ?? null,
     plannerEmail: snapshot.planner?.email ?? null,
     plannerPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
@@ -645,6 +685,7 @@ export function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     planner:
       planner && typeof planner === "object" && !Array.isArray(planner)
         ? {
+            id: getString((planner as Record<string, Json | undefined>).id),
             name: getString((planner as Record<string, Json | undefined>).name),
             email: getString((planner as Record<string, Json | undefined>).email),
             phone:

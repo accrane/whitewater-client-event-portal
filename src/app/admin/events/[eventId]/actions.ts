@@ -11,6 +11,7 @@ import {
   deleteAdminEvent,
   markEventUploadReviewed,
   markEventVendorReviewed,
+  updateEventPlanner,
   updateEventSummary,
 } from "@/lib/admin/events";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
@@ -116,6 +117,38 @@ export async function updateEventDetailsAction(formData: FormData) {
 
   revalidatePath(`/admin/events/${eventId}`);
   redirect(`/admin/events/${eventId}?details=1`);
+}
+
+// Reassigns the planner (GHL assigned user) from the Event summary tile.
+export async function updateEventPlannerAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "").trim();
+  const ghlUserId = String(formData.get("ghlUserId") || "").trim();
+
+  if (!eventId) {
+    throw new Error("Unable to update planner: missing event ID");
+  }
+
+  if (!ghlUserId) {
+    throw new Error("Unable to update planner: select a planner");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  await updateEventPlanner(eventId, ghlUserId);
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/assignments");
+  revalidatePath(`/admin/events/${eventId}`);
+
+  redirect(`/admin/events/${eventId}?planner=updated`);
 }
 
 const deleteConfirmationValue = "delete-event-confirmed";

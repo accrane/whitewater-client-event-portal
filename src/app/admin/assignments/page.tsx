@@ -8,7 +8,7 @@ import {
   listUpcomingAssignments,
   type UpcomingAssignment,
 } from "@/lib/admin/room-calendar";
-import { listGhlUsers } from "@/lib/ghl/location-data";
+import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const UNASSIGNED = "Unassigned";
@@ -142,10 +142,12 @@ export default async function AdminAssignmentsPage({
   const to = parseDateParam(params.to);
   const hasRange = Boolean(from || to);
 
-  // Planner columns are the GHL location users — the same list the
-  // reservation modal's Event Coordinator dropdown offers.
+  // Planner columns are the GHL staff planners — the same list the
+  // reservation modal's Event Coordinator dropdown offers. Events assigned
+  // to someone outside that list still get their own column via
+  // groupByPlanner.
   const [ghlUsers, assignments] = await Promise.all([
-    listGhlUsers(),
+    listGhlPlannerUsers(),
     listUpcomingAssignments({ from, to }),
   ]);
 

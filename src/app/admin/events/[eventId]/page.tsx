@@ -54,6 +54,7 @@ import {
   type EventRoomReservation,
 } from "@/lib/admin/room-calendar";
 import { syncEventFromGhl } from "@/lib/ghl/event-sync";
+import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
 
 import {
   applyChecklistTemplateAction,
@@ -63,6 +64,7 @@ import {
   reviewVendorSubmissionAction,
   updateChecklistItemAction,
   updateEventDetailsAction,
+  updateEventPlannerAction,
   updateRoomBookingStatusAction,
 } from "./actions";
 
@@ -102,9 +104,13 @@ function getFlashMessage(params: {
   checklist?: string;
   details?: string;
   launched?: string;
+  planner?: string;
   upload?: string;
   vendor?: string;
 }): string | null {
+  if (params.planner === "updated") {
+    return "Planner updated. The GHL opportunity's assigned user was changed to match.";
+  }
   if (params.bookings === "booked" || params.bookings === "held") {
     return `Room booking status updated to ${params.bookings}. The room calendar reflects the change immediately.`;
   }
@@ -142,6 +148,7 @@ type AdminEventDetailPageProps = {
     checklist?: string;
     details?: string;
     launched?: string;
+    planner?: string;
     upload?: string;
     vendor?: string;
   }>;
@@ -162,14 +169,14 @@ export default async function AdminEventDetailPage({
 
   const isAdmin = getUserRole(user) === "admin";
   const { eventId } = await params;
-  const { bookings, checklist, details, launched, upload, vendor } =
+  const { bookings, checklist, details, launched, planner, upload, vendor } =
     await searchParams;
 
   // Pull current opportunity data (Date of Interest, assigned planner,
   // contact, event type) from GHL before rendering; degrades quietly.
   await syncEventFromGhl(eventId);
 
-  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms, roomReservations] =
+  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms, roomReservations, ghlUsers] =
     await Promise.all([
       getAdminEventById(eventId),
       listEventChecklistItems(eventId),
@@ -178,6 +185,7 @@ export default async function AdminEventDetailPage({
       listEventUploads(eventId),
       listRooms(),
       listEventReservations(eventId),
+      listGhlPlannerUsers(),
     ]);
 
   if (!event) {
@@ -196,6 +204,7 @@ export default async function AdminEventDetailPage({
     checklist,
     details,
     launched,
+    planner,
     upload,
     vendor,
   });
@@ -241,7 +250,41 @@ export default async function AdminEventDetailPage({
         <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
           <dt className="font-semibold text-slate-500">Planner</dt>
           <dd className="space-y-0.5 sm:col-span-2">
-            <p className="text-slate-800">{event.plannerName || "Not assigned"}</p>
+            {ghlUsers.length > 0 ? (
+              <form
+                action={updateEventPlannerAction}
+                className="flex flex-wrap items-center gap-2"
+              >
+                <input name="eventId" type="hidden" value={event.id} />
+                <select
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+                  defaultValue={event.plannerGhlUserId ?? ""}
+                  name="ghlUserId"
+                >
+                  {/* Shows the current planner when they aren't a pickable
+                      staff planner (legacy snapshot without an id, or an
+                      account admin assigned directly in GHL). */}
+                  <option disabled value="">
+                    {event.plannerName &&
+                    !ghlUsers.some(
+                      (ghlUser) => ghlUser.id === event.plannerGhlUserId,
+                    )
+                      ? `${event.plannerName} (current)`
+                      : "Not assigned"}
+                  </option>
+                  {ghlUsers.map((ghlUser) => (
+                    <option key={ghlUser.id} value={ghlUser.id}>
+                      {ghlUser.name}
+                    </option>
+                  ))}
+                </select>
+                <DirtySaveButton>Update planner</DirtySaveButton>
+              </form>
+            ) : (
+              <p className="text-slate-800">
+                {event.plannerName || "Not assigned"}
+              </p>
+            )}
             {event.plannerEmail ? (
               <p className="text-slate-600">{event.plannerEmail}</p>
             ) : null}

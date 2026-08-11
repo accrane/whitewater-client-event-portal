@@ -10,6 +10,8 @@ export type GhlUser = {
   id: string;
   name: string;
   email: string | null;
+  // GHL location role: "user" (ACCOUNT-USER) or "admin" (ACCOUNT-ADMIN).
+  role: string | null;
 };
 
 export async function listGhlUsers(): Promise<GhlUser[]> {
@@ -27,7 +29,14 @@ export async function listGhlUsers(): Promise<GhlUser[]> {
     }
 
     const data = (await response.json()) as {
-      users?: { id?: string; name?: string; firstName?: string; lastName?: string; email?: string }[];
+      users?: {
+        id?: string;
+        name?: string;
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        roles?: { type?: string; role?: string };
+      }[];
     };
 
     return (data.users ?? [])
@@ -40,11 +49,19 @@ export async function listGhlUsers(): Promise<GhlUser[]> {
           user.email ||
           (user.id as string),
         email: user.email ?? null,
+        role: user.roles?.role ?? null,
       }));
   } catch (error) {
     console.error("GHL users lookup failed", error);
     return [];
   }
+}
+
+// Planner pickers only offer staff planners (GHL ACCOUNT-USER); admins
+// (ACCOUNT-ADMIN) own the location but never work events themselves.
+export async function listGhlPlannerUsers(): Promise<GhlUser[]> {
+  const users = await listGhlUsers();
+  return users.filter((user) => user.role === "user");
 }
 
 export type GhlOpportunity = {
