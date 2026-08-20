@@ -55,6 +55,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["events"]["Insert"]>;
+        Relationships: [];
       };
       checklist_templates: {
         Row: {
@@ -76,6 +77,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["checklist_templates"]["Insert"]>;
+        Relationships: [];
       };
       checklist_template_items: {
         Row: {
@@ -109,6 +111,7 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["checklist_template_items"]["Insert"]>;
+        Relationships: [];
       };
       event_checklist_items: {
         Row: {
@@ -154,6 +157,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_checklist_items"]["Insert"]>;
+        Relationships: [];
       };
       vendors: {
         Row: {
@@ -183,6 +187,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["vendors"]["Insert"]>;
+        Relationships: [];
       };
       uploads: {
         Row: {
@@ -216,6 +221,7 @@ export type Database = {
           metadata?: Json;
         };
         Update: Partial<Database["public"]["Tables"]["uploads"]["Insert"]>;
+        Relationships: [];
       };
       rooms: {
         Row: {
@@ -239,6 +245,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["rooms"]["Insert"]>;
+        Relationships: [];
       };
       coordinators: {
         Row: {
@@ -252,6 +259,7 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["coordinators"]["Insert"]>;
+        Relationships: [];
       };
       reservations: {
         Row: {
@@ -291,6 +299,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["reservations"]["Insert"]>;
+        Relationships: [];
       };
       event_schedule_groups: {
         Row: {
@@ -310,6 +319,7 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_schedule_groups"]["Insert"]>;
+        Relationships: [];
       };
       event_schedule_blocks: {
         Row: {
@@ -333,6 +343,7 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_schedule_blocks"]["Insert"]>;
+        Relationships: [];
       };
       event_schedule_items: {
         Row: {
@@ -356,6 +367,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_schedule_items"]["Insert"]>;
+        Relationships: [];
       };
       schedule_template_items: {
         Row: {
@@ -377,6 +389,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["schedule_template_items"]["Insert"]>;
+        Relationships: [];
       };
       checklist_template_sections: {
         Row: {
@@ -396,6 +409,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["checklist_template_sections"]["Insert"]>;
+        Relationships: [];
       };
       event_checklist_sections: {
         Row: {
@@ -419,6 +433,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_checklist_sections"]["Insert"]>;
+        Relationships: [];
       };
       event_notes: {
         Row: {
@@ -440,6 +455,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["event_notes"]["Insert"]>;
+        Relationships: [];
       };
       integration_logs: {
         Row: {
@@ -467,9 +483,107 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["integration_logs"]["Insert"]>;
+        Relationships: [];
+      };
+      sf_contacts: {
+        Row: {
+          sf_id: string;
+          first_name: string | null;
+          last_name: string | null;
+          email: string | null;
+          phone: string | null;
+          title: string | null;
+          account_id: string | null;
+          account_name: string | null;
+          mailing_street: string | null;
+          mailing_city: string | null;
+          mailing_state: string | null;
+          mailing_postal_code: string | null;
+          mailing_country: string | null;
+          lead_source: string | null;
+          description: string | null;
+          owner_id: string | null;
+          owner_name: string | null;
+          sf_created_at: string | null;
+          sf_modified_at: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at: string;
+          pulled_at: string;
+          push_status: Database["public"]["Enums"]["sf_push_status"];
+          ghl_contact_id: string | null;
+          ghl_payload: Json | null;
+          pushed_at: string | null;
+          pushed_hash: string | null;
+          push_error: string | null;
+          excluded_reason: string | null;
+        };
+        Insert: {
+          sf_id: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          title?: string | null;
+          account_id?: string | null;
+          account_name?: string | null;
+          mailing_street?: string | null;
+          mailing_city?: string | null;
+          mailing_state?: string | null;
+          mailing_postal_code?: string | null;
+          mailing_country?: string | null;
+          lead_source?: string | null;
+          description?: string | null;
+          owner_id?: string | null;
+          owner_name?: string | null;
+          sf_created_at?: string | null;
+          sf_modified_at?: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at?: string;
+          pulled_at?: string;
+          push_status?: Database["public"]["Enums"]["sf_push_status"];
+          ghl_contact_id?: string | null;
+          ghl_payload?: Json | null;
+          pushed_at?: string | null;
+          pushed_hash?: string | null;
+          push_error?: string | null;
+          excluded_reason?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["sf_contacts"]["Insert"]>;
+        Relationships: [];
+      };
+      sf_pull_runs: {
+        Row: {
+          id: string;
+          started_at: string;
+          finished_at: string | null;
+          watermark: string | null;
+          contacts_seen: number;
+          contacts_upserted: number;
+          mode: "full" | "incremental";
+          error: string | null;
+        };
+        Insert: {
+          id?: string;
+          started_at?: string;
+          finished_at?: string | null;
+          watermark?: string | null;
+          contacts_seen?: number;
+          contacts_upserted?: number;
+          mode: "full" | "incremental";
+          error?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["sf_pull_runs"]["Insert"]>;
+        Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      sf_contact_duplicates: {
+        Row: Database["public"]["Tables"]["sf_contacts"]["Row"];
+        Relationships: [];
+      };
+    };
     Functions: Record<string, never>;
     Enums: {
       portal_event_status: "draft" | "launched" | "expired" | "archived";
@@ -486,6 +600,8 @@ export type Database = {
       schedule_block_color: "green" | "purple" | "yellow" | "blue" | "plain";
       integration_direction: "GHL_TO_PORTAL" | "PORTAL_TO_GHL";
       integration_status: "success" | "warning" | "error";
+      // Text column with a check constraint, typed here as an enum for safety.
+      sf_push_status: "staged" | "approved" | "excluded" | "pushed" | "error";
     };
   };
 };

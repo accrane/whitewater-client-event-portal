@@ -14,6 +14,9 @@ type EnvKey =
   | "GHL_PIPELINE_ID"
   | "GHL_PLANNING_STAGE_ID"
   | "PORTAL_BASE_URL"
+  | "SALESFORCE_DOMAIN"
+  | "SALESFORCE_CLIENT_ID"
+  | "SALESFORCE_CLIENT_SECRET"
   | "MAILGUN_API_KEY"
   | "MAILGUN_DOMAIN"
   | "MAILGUN_API_BASE_URL"
@@ -41,6 +44,12 @@ export const appConfig = {
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     storageBucket:
       process.env.SUPABASE_STORAGE_BUCKET || "event-uploads",
+  },
+  salesforce: {
+    // My Domain origin, e.g. https://usnwc.my.salesforce.com
+    domain: process.env.SALESFORCE_DOMAIN,
+    clientId: process.env.SALESFORCE_CLIENT_ID,
+    clientSecret: process.env.SALESFORCE_CLIENT_SECRET,
   },
   ghl: {
     locationId: process.env.GHL_LOCATION_ID,

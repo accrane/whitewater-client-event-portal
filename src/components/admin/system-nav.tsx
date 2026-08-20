@@ -7,6 +7,7 @@ const systemNavItems = [
   { href: "/admin/system/reports", label: "Reports" },
   { href: "/admin/system/users", label: "Users" },
   { href: "/admin/system/integration-logs", label: "Integration Logs" },
+  { href: "/admin/system/sf-migration", label: "SF Migration" },
 ];
 
 // Segmented subnavigation shared by every page under /admin/system.
