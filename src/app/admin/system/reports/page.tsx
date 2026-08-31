@@ -15,7 +15,11 @@ import { BarList } from "@/components/admin/reports/bar-list";
 import { ColumnChart } from "@/components/admin/reports/column-chart";
 import { StatusMixBar } from "@/components/admin/reports/status-mix-bar";
 import { SystemNav } from "@/components/admin/system-nav";
-import { getAdminReportData, type ReportRange } from "@/lib/admin/reports";
+import {
+  getAdminReportData,
+  getSfBookedBusinessReport,
+  type ReportRange,
+} from "@/lib/admin/reports";
 import { requireAdminUser } from "@/lib/admin/users";
 
 const presets = [
@@ -82,7 +86,10 @@ export default async function AdminReportsPage({
     ? { start: customFrom, end: customTo ? addDays(customTo, 1) : null }
     : presetRange(activePreset, new Date());
 
-  const data = await getAdminReportData(range);
+  const [data, booked] = await Promise.all([
+    getAdminReportData(range),
+    getSfBookedBusinessReport(range),
+  ]);
   const showUndatedHint =
     data.undatedCount > 0 && (isCustom || activePreset !== "all");
 
@@ -291,33 +298,118 @@ export default async function AdminReportsPage({
           subtitle="How clients are using their launched portals"
           title="Portal engagement"
         >
-          <dl className="grid gap-4 sm:grid-cols-2">
-            <EngagementStat
-              label="Launched portals"
-              value={formatNumber(engagement.launchedCount)}
-            />
-            <EngagementStat
-              hint={viewedPct === null ? undefined : `${viewedPct}% of launched`}
-              label="Viewed by client"
-              value={formatNumber(engagement.viewedCount)}
-            />
-            <EngagementStat
-              label="Total portal views"
-              value={formatNumber(engagement.totalViews)}
-            />
-            <EngagementStat
-              hint={
-                checklistPct === null
-                  ? undefined
-                  : `${engagement.checklistCompleted} of ${engagement.checklistTotal} items`
-              }
-              label="Checklist completion"
-              value={checklistPct === null ? "—" : `${checklistPct}%`}
-            />
-          </dl>
+          <PortalEngagement
+            checklistPct={checklistPct}
+            engagement={engagement}
+            viewedPct={viewedPct}
+          />
+        </ReportPanel>
+      </section>
+
+      <header className="border-b border-slate-200 pb-3 pt-2">
+        <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+          Booked business
+        </h2>
+        <p className="mt-0.5 text-sm text-slate-600">
+          Won events from the Salesforce archive, filtered by the same
+          timeframe. Dollar amounts left Salesforce when proposals moved to
+          PandaDoc (late 2024), so recent events report $0 —{" "}
+          {formatNumber(booked.valuedCount)} of {formatNumber(booked.wonCount)}{" "}
+          won events in this timeframe have a recorded value.
+        </p>
+      </header>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AdminStatCard
+          hint="Won opportunities dated in this timeframe"
+          label="Events won"
+          value={formatNumber(booked.wonCount)}
+        />
+        <AdminStatCard
+          hint="Sum of recorded won amounts"
+          label="Won value"
+          value={formatCurrency(booked.wonValue)}
+        />
+        <AdminStatCard
+          hint="Across won events with a recorded value"
+          label="Avg value / event"
+          value={
+            booked.valuedCount > 0
+              ? formatCurrency(booked.wonValue / booked.valuedCount)
+              : "—"
+          }
+        />
+        <AdminStatCard
+          hint="Companies with a won event in this timeframe"
+          href="/admin/companies?booked=1"
+          label="Top company"
+          value={booked.topCompanies[0]?.name ?? "—"}
+        />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ReportPanel
+          subtitle="Recorded won value by event month (by year on long ranges)"
+          title="Won value over time"
+        >
+          <ColumnChart
+            formatValue={formatCurrencyCompact}
+            points={booked.monthly}
+          />
+        </ReportPanel>
+        <ReportPanel
+          subtitle="Recorded won value by company in this timeframe"
+          title="Top companies"
+        >
+          <BarList
+            emptyMessage="No won events in this timeframe."
+            rows={booked.topCompanies.map((company) => ({
+              label: company.name,
+              value: company.value,
+              valueLabel: formatCurrency(company.value),
+              sublabel: `${formatNumber(company.count)} won event${company.count === 1 ? "" : "s"}`,
+            }))}
+          />
         </ReportPanel>
       </section>
     </AdminShell>
+  );
+}
+
+function PortalEngagement({
+  engagement,
+  viewedPct,
+  checklistPct,
+}: {
+  engagement: Awaited<ReturnType<typeof getAdminReportData>>["engagement"];
+  viewedPct: number | null;
+  checklistPct: number | null;
+}) {
+  return (
+    <dl className="grid gap-4 sm:grid-cols-2">
+      <EngagementStat
+        label="Launched portals"
+        value={formatNumber(engagement.launchedCount)}
+      />
+      <EngagementStat
+        hint={viewedPct === null ? undefined : `${viewedPct}% of launched`}
+        label="Viewed by client"
+        value={formatNumber(engagement.viewedCount)}
+      />
+      <EngagementStat
+        label="Total portal views"
+        value={formatNumber(engagement.totalViews)}
+      />
+      <EngagementStat
+        hint={
+          checklistPct === null
+            ? undefined
+            : `${engagement.checklistCompleted} of ${engagement.checklistTotal} items`
+        }
+        label="Checklist completion"
+        value={checklistPct === null ? "—" : `${checklistPct}%`}
+      />
+    </dl>
   );
 }
 

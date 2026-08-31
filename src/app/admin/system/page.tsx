@@ -16,12 +16,9 @@ export default async function AdminSystemPage() {
     >
       <SystemNav />
 
+      {/* Reports is deliberately not carded here — direct URL only for now
+          (see system-nav.tsx). */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <SystemCard
-          description="Event volume, value, guest counts, and portal engagement with timeframe filters."
-          href="/admin/system/reports"
-          title="Reports"
-        />
         <SystemCard
           description="Create and remove users, reset passwords, and assign the admin or planner role."
           href="/admin/system/users"

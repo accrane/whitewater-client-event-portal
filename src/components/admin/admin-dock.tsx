@@ -77,17 +77,34 @@ const workNavItems: NavItem[] = [
   },
 ];
 
-// Sales-side lens on the GHL location, kept apart from the daily event work
-// above by a rule in the nav.
-const opportunitiesNavItem: NavItem = {
-  href: "/admin/opportunities",
-  label: "Opportunities",
-  icon: (
-    <Icon>
-      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-    </Icon>
-  ),
-};
+// Sales-side lens: the GHL pipeline plus the company/booking-history
+// archive, kept apart from the daily event work above by a rule in the nav.
+const salesNavItems: NavItem[] = [
+  {
+    href: "/admin/opportunities",
+    label: "Opportunities",
+    icon: (
+      <Icon>
+        <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+      </Icon>
+    ),
+  },
+  {
+    href: "/admin/companies",
+    label: "Companies",
+    icon: (
+      <Icon>
+        <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+        <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+        <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+        <path d="M10 6h4" />
+        <path d="M10 10h4" />
+        <path d="M10 14h4" />
+        <path d="M10 18h4" />
+      </Icon>
+    ),
+  },
+];
 
 // Configuration lives at the bottom of the nav, away from daily work.
 const settingsNavItem: NavItem = {
@@ -348,7 +365,7 @@ function DockNav({
     >
       <div className="space-y-1">{workNavItems.map(navLink)}</div>
       <div aria-hidden className="my-3 border-t border-slate-200" />
-      <div className="space-y-1">{navLink(opportunitiesNavItem)}</div>
+      <div className="space-y-1">{salesNavItems.map(navLink)}</div>
       <div className="mt-auto space-y-1 pt-4">
         {navLink(settingsNavItem)}
         {showAdminNav ? navLink(adminOnlyNavItem) : null}

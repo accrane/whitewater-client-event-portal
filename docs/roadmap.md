@@ -1,9 +1,44 @@
 # Project Roadmap
 
-_Last updated: 2026-07-15_
+_Last updated: 2026-08-31_
 
 This file tracks planned work beyond the current milestone. For the preview-phase
 deferral list, see [client-event-portal-preview-handoff.md](client-event-portal-preview-handoff.md).
+
+## GHL cutover checklist (running list)
+
+Things to handle when Salesforce is retired and GHL becomes the system of
+record. Add items here as they come up — this is the working list Austin and
+the client review as the switch approaches.
+
+- **Owner labels by era** (Austin, 2026-08-31): company pages say
+  "Salesforce Owner" today. Companies/bookings that originate in GHL should
+  say "HighLevel Owner" instead — when GHL-era data joins the company
+  directory, source the label from the record's origin.
+- **GHL-era bookings on company timelines**: append won GHL opportunities /
+  portal events to the same company Booking history (match on normalized
+  company name via the contact's `companyName`), so "last event" and
+  "events booked" stay live after cutover. Same for the Reports "Booked
+  business" section: union GHL-era won value with the Salesforce archive.
+- **Account dedupe**: Salesforce has duplicate accounts (e.g. three
+  "Wells Fargo" rows splitting 36/7/1 booked opportunities). The company
+  pages flag them; decide merge/primary before any account-level data goes
+  to GHL or before dupes confuse rebooking outreach.
+- **Account Type is sparse**: most SF accounts have no Type. If the client
+  wants the type filter to be useful, backfill in Salesforce before the
+  final pull (or accept it as sparse historical data).
+- **Dollar values after ~Oct 2024 live outside Salesforce**: SF opportunity
+  amounts stop when proposals moved to PandaDoc/GHL — recent won events
+  report $0 in the archive. GHL-era value must come from GHL
+  `monetaryValue` / PandaDoc totals; historic revenue reporting is only
+  complete through ~2023.
+- **Campaign texting**: the SF org has no SMS capability (no Digital
+  Engagement, no SMS packages — checked 2026-08-31). Texting comes from
+  GHL's native SMS; needs a phone number + A2P 10DLC registration in the
+  GHL location if not already done.
+- **Final pull + credential retirement**: run a last full
+  `scripts/sf-pull.ts --full` right before SF access ends, then rotate or
+  decommission the "Contact Export" External Client App credentials.
 
 ## Client portal
 

@@ -66,7 +66,8 @@ export async function getLastSfPullRun(): Promise<SfPullRunSummary | null> {
 
   const { data } = await supabase
     .from("sf_pull_runs")
-    .select("started_at, finished_at, mode, contacts_seen, contacts_upserted, error")
+    .select("started_at, finished_at, mode, records_seen, records_upserted, error")
+    .eq("sf_object", "contact")
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -77,8 +78,8 @@ export async function getLastSfPullRun(): Promise<SfPullRunSummary | null> {
     startedAt: data.started_at,
     finishedAt: data.finished_at,
     mode: data.mode,
-    seen: data.contacts_seen,
-    upserted: data.contacts_upserted,
+    seen: data.records_seen,
+    upserted: data.records_upserted,
     error: data.error,
   };
 }

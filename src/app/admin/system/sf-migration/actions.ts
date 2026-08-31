@@ -10,8 +10,12 @@ import { pullSalesforceContacts } from "@/lib/salesforce/contacts";
 const SF_MIGRATION_PATH = "/admin/system/sf-migration";
 
 // Row actions carry the current filter query string so redirects land back
-// on the same filtered view.
+// on the same filtered view. Other screens that reuse these actions (the
+// company detail page's contact list) pass an admin-relative `returnTo`
+// path instead.
 function returnPath(formData: FormData): string {
+  const returnTo = String(formData.get("returnTo") || "");
+  if (returnTo.startsWith("/admin/")) return returnTo;
   const params = String(formData.get("returnParams") || "");
   return params ? `${SF_MIGRATION_PATH}?${params}` : SF_MIGRATION_PATH;
 }
@@ -23,7 +27,11 @@ function withMessage(path: string, key: "notice" | "error", message: string): st
 
 function done(formData: FormData, message: string): never {
   revalidatePath(SF_MIGRATION_PATH);
-  redirect(withMessage(returnPath(formData), "notice", message));
+  const target = returnPath(formData);
+  if (!target.startsWith(SF_MIGRATION_PATH)) {
+    revalidatePath(target.split("?")[0]);
+  }
+  redirect(withMessage(target, "notice", message));
 }
 
 function fail(formData: FormData, message: string): never {

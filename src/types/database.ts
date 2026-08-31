@@ -553,15 +553,124 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["sf_contacts"]["Insert"]>;
         Relationships: [];
       };
+      sf_accounts: {
+        Row: {
+          sf_id: string;
+          name: string | null;
+          type: string | null;
+          phone: string | null;
+          website: string | null;
+          industry: string | null;
+          account_source: string | null;
+          billing_street: string | null;
+          billing_city: string | null;
+          billing_state: string | null;
+          billing_postal_code: string | null;
+          billing_country: string | null;
+          description: string | null;
+          owner_id: string | null;
+          owner_name: string | null;
+          number_of_booked_opportunities: number | null;
+          last_booking_date: string | null;
+          sf_created_at: string | null;
+          sf_modified_at: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at: string;
+          pulled_at: string;
+        };
+        Insert: {
+          sf_id: string;
+          name?: string | null;
+          type?: string | null;
+          phone?: string | null;
+          website?: string | null;
+          industry?: string | null;
+          account_source?: string | null;
+          billing_street?: string | null;
+          billing_city?: string | null;
+          billing_state?: string | null;
+          billing_postal_code?: string | null;
+          billing_country?: string | null;
+          description?: string | null;
+          owner_id?: string | null;
+          owner_name?: string | null;
+          number_of_booked_opportunities?: number | null;
+          last_booking_date?: string | null;
+          sf_created_at?: string | null;
+          sf_modified_at?: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at?: string;
+          pulled_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["sf_accounts"]["Insert"]>;
+        Relationships: [];
+      };
+      sf_opportunities: {
+        Row: {
+          sf_id: string;
+          name: string | null;
+          account_id: string | null;
+          contact_id: string | null;
+          stage_name: string | null;
+          amount: number | null;
+          total_amount: number | null;
+          close_date: string | null;
+          event_date: string | null;
+          head_count: number | null;
+          opportunity_type: string | null;
+          lead_source: string | null;
+          is_closed: boolean | null;
+          is_won: boolean | null;
+          owner_id: string | null;
+          owner_name: string | null;
+          sf_created_at: string | null;
+          sf_modified_at: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at: string;
+          pulled_at: string;
+        };
+        Insert: {
+          sf_id: string;
+          name?: string | null;
+          account_id?: string | null;
+          contact_id?: string | null;
+          stage_name?: string | null;
+          amount?: number | null;
+          total_amount?: number | null;
+          close_date?: string | null;
+          event_date?: string | null;
+          head_count?: number | null;
+          opportunity_type?: string | null;
+          lead_source?: string | null;
+          is_closed?: boolean | null;
+          is_won?: boolean | null;
+          owner_id?: string | null;
+          owner_name?: string | null;
+          sf_created_at?: string | null;
+          sf_modified_at?: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at?: string;
+          pulled_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["sf_opportunities"]["Insert"]
+        >;
+        Relationships: [];
+      };
       sf_pull_runs: {
         Row: {
           id: string;
           started_at: string;
           finished_at: string | null;
           watermark: string | null;
-          contacts_seen: number;
-          contacts_upserted: number;
+          records_seen: number;
+          records_upserted: number;
           mode: "full" | "incremental";
+          sf_object: Database["public"]["Enums"]["sf_pull_object"];
           error: string | null;
         };
         Insert: {
@@ -569,9 +678,10 @@ export type Database = {
           started_at?: string;
           finished_at?: string | null;
           watermark?: string | null;
-          contacts_seen?: number;
-          contacts_upserted?: number;
+          records_seen?: number;
+          records_upserted?: number;
           mode: "full" | "incremental";
+          sf_object?: Database["public"]["Enums"]["sf_pull_object"];
           error?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["sf_pull_runs"]["Insert"]>;
@@ -583,8 +693,32 @@ export type Database = {
         Row: Database["public"]["Tables"]["sf_contacts"]["Row"];
         Relationships: [];
       };
+      sf_company_directory: {
+        Row: {
+          sf_id: string;
+          name: string | null;
+          type: string | null;
+          owner_name: string | null;
+          billing_city: string | null;
+          billing_state: string | null;
+          phone: string | null;
+          website: string | null;
+          contact_count: number;
+          opportunity_count: number;
+          won_count: number;
+          upcoming_booked_count: number;
+          last_event_date: string | null;
+          has_name_dupes: boolean;
+        };
+        Relationships: [];
+      };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      sf_booked_business_report: {
+        Args: { range_start?: string | null; range_end?: string | null };
+        Returns: Json;
+      };
+    };
     Enums: {
       portal_event_status: "draft" | "launched" | "expired" | "archived";
       checklist_item_status:
@@ -602,6 +736,8 @@ export type Database = {
       integration_status: "success" | "warning" | "error";
       // Text column with a check constraint, typed here as an enum for safety.
       sf_push_status: "staged" | "approved" | "excluded" | "pushed" | "error";
+      // Text column with a check constraint, typed here as an enum for safety.
+      sf_pull_object: "contact" | "account" | "opportunity";
     };
   };
 };

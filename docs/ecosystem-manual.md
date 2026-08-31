@@ -1,6 +1,6 @@
 # Whitewater Event Ecosystem Manual
 
-_Last updated: 2026-08-14. This is a **living training manual** for the whole
+_Last updated: 2026-08-31. This is a **living training manual** for the whole
 event ecosystem: this portal app, GoHighLevel (GHL), and PandaDoc. When a
 feature ships, update the relevant section and the changelog at the bottom —
 treat doc updates as part of the feature, not an afterthought._
@@ -190,9 +190,10 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Room Calendar | `/admin/calendar` | Reservation board; where events get rooms, coordinators, and Planning-stage pushes |
 | Planner Assignments | `/admin/assignments` | One column per staff planner with their upcoming events |
 | Opportunities | `/admin/opportunities` | GHL pipeline board (default tab) + Won contact list; below the nav rule |
+| Companies | `/admin/companies` | Company directory from the Salesforce archive: contacts, booking history, live booking stats; dollar values admin-only |
 | Settings | `/admin/settings` | Checklist + schedule templates |
 | Admin → Users | `/admin/system/users` | Create/delete portal users, set roles, reset passwords (Mailgun email) |
-| Admin → Reports | `/admin/system/reports` | Timeframe-filtered event stats and charts |
+| Admin → Reports | `/admin/system/reports` | Timeframe-filtered event stats and charts, plus Booked business from the Salesforce archive. **Unlisted** (2026-08-31): no nav entry — direct URL only, still admin-role-gated |
 | Admin → Integration Logs | `/admin/system/integration-logs` | Every GHL↔app exchange, success or failure |
 | Admin → SF Migration | `/admin/system/sf-migration` | Review staged Salesforce contacts: pull, search, dupe view, approve/exclude, GHL payload preview |
 
@@ -235,23 +236,37 @@ error because a silent failure would revert on the next sync. All exchanges
 land in **integration_logs** (`GHL_TO_PORTAL` / `PORTAL_TO_GHL`) — that page
 is the first stop when "something didn't sync."
 
-### Salesforce contact migration (staging)
+### Salesforce migration (staging)
 
 The sales team is migrating from Salesforce to GHL. The app is the
-**middleman**: contacts are pulled read-only from Salesforce into the
-`sf_contacts` staging table, reviewed/mapped there, then pushed to GHL —
+**middleman**: records are pulled read-only from Salesforce into staging
+tables, reviewed/mapped there, then (contacts only, so far) pushed to GHL —
 never Salesforce → GHL directly. One-way sync; Salesforce stays the source
-of truth until cutover.
+of truth until cutover. The staging tables are also the app's permanent
+archive of pre-GHL booking history — Salesforce goes away at cutover, these
+tables don't.
 
-- **Pull:** `npx tsx --env-file=.env.local scripts/sf-pull.ts` (incremental
-  from the last run's watermark; `--full` re-pulls everything). Unchanged
-  contacts are hash-skipped, so re-runs are cheap. Runs are logged in
-  `sf_pull_runs`.
-- **Scope:** Contacts only, with `Account.Name` and `Owner.Name` flattened
-  in. Auth is the client-credentials flow against the "Contact Export"
-  External Client App (read-only run-as user).
+- **Pull:** `npx tsx --env-file=.env.local scripts/sf-pull.ts` (incremental,
+  each object resumes from its own watermark; `--full` re-pulls everything,
+  `--only=contacts|accounts|opportunities` limits the run). Unchanged
+  records are hash-skipped, so re-runs are cheap. Runs are logged in
+  `sf_pull_runs` (one row per object per run). Shared engine:
+  `src/lib/salesforce/pull-engine.ts`.
+- **Scope:** `sf_contacts` (Contacts, `Account.Name`/`Owner.Name` flattened
+  in), `sf_accounts` (Accounts incl. `Type` and the
+  `Number_of_Booked_Opportunities__c` / `Last_Booking_Date__c` roll-up
+  snapshots — recompute live values from `sf_opportunities` instead of
+  trusting these), and `sf_opportunities` (Opportunities incl. stage,
+  amount, `Date__c` "Date of Event", head count, primary `ContactId`; the
+  event-detail custom fields — rentals, adventures, catering totals — ride
+  along in `raw`). Auth is the client-credentials flow against the
+  "Contact Export" External Client App (read-only run-as user).
 - **Push to GHL:** not built yet — `sf_contacts.push_status` tracks each
-  contact through `staged → approved/excluded → pushed`.
+  contact through `staged → approved/excluded → pushed`. Accounts and
+  opportunities are **not** planned for wholesale push: GHL has no real
+  account object and no roll-up fields, so company/booking history stays
+  in-app (Salesforce also has duplicate accounts — e.g. three "Wells
+  Fargo" rows — so any push would need account-level dedupe first).
 - **Review screen:** `/admin/system/sf-migration` (admin-only) — pulls,
   search/status/dupe filters, per-contact approve/exclude, and a preview of
   the exact GHL payload (`src/lib/salesforce/ghl-mapping.ts` is the single
@@ -312,3 +327,6 @@ When you ship a feature, ask:
 | --- | --- |
 | 2026-08-11 | Initial manual. Covers inquiry→launch lifecycle, planner reassignment on the event page, staff-planner-only pickers, and the new Opportunities page (pipeline board + Won tab). |
 | 2026-08-14 | Salesforce → GHL contact migration staging: read-only Salesforce pulls into `sf_contacts` via `scripts/sf-pull.ts`, new `SALESFORCE_*` env vars. Review screen and GHL push still to come. |
+| 2026-08-31 | Salesforce staging expanded to Accounts (`sf_accounts`) and Opportunities (`sf_opportunities`) per client request; `sf_pull_runs` is per-object (`sf_object`, `records_seen`/`records_upserted`). These tables double as the permanent pre-GHL booking-history archive; no plan to push them wholesale into GHL. |
+| 2026-08-31 | Reports gained a "Booked business" section: won events / won value / top companies from the Salesforce archive, on the same timeframe filter (`sf_booked_business_report` SQL function). Salesforce stopped carrying dollar amounts ~Oct 2024 (proposals moved to PandaDoc), so recent won events report $0 — the section says so. GHL cutover checklist started in roadmap.md. |
+| 2026-08-31 | New Companies directory (`/admin/companies`, in the sales nav group): searchable company list + per-company detail (contacts, full booking history, duplicate-name callout). Booking stats computed live from `sf_opportunities` via the `sf_company_directory` view — "Booked" stage = won/upcoming, "Event Occured" = won/past; the Salesforce roll-ups only counted "Booked". Won value and per-opportunity amounts are admin-only. |

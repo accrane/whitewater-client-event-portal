@@ -10,7 +10,8 @@ type AdminShellProps = {
   children: ReactNode;
   eyebrow?: string;
   title: string;
-  description?: string;
+  /** String or inline nodes; use `block`-display spans for multi-line. */
+  description?: ReactNode;
   userEmail?: string | null;
   /** Right-aligned page actions: one primary button, secondaries after it. */
   actions?: ReactNode;

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Reports (/admin/system/reports) is deliberately unlisted for now — Austin
+// wants it reachable by direct URL only until it's ready to share.
 const systemNavItems = [
-  { href: "/admin/system/reports", label: "Reports" },
   { href: "/admin/system/users", label: "Users" },
   { href: "/admin/system/integration-logs", label: "Integration Logs" },
   { href: "/admin/system/sf-migration", label: "SF Migration" },

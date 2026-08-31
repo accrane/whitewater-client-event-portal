@@ -373,3 +373,113 @@ function buildRoomBookings(
 function sum(values: number[]): number {
   return values.reduce((total, value) => total + value, 0);
 }
+
+export type SfBookedBusinessReport = {
+  wonCount: number;
+  wonValue: number;
+  /** Won opportunities with a dollar amount recorded (> 0). */
+  valuedCount: number;
+  /** Won opportunities with no event date; excluded from date filters. */
+  undatedWonCount: number;
+  monthly: MonthlyPoint[];
+  topCompanies: { sfId: string; name: string; count: number; value: number }[];
+};
+
+type SfBookedBusinessRaw = {
+  wonCount: number;
+  wonValue: number;
+  valuedCount: number;
+  undatedWonCount: number;
+  monthly: { month: string; count: number; value: number }[];
+  topCompanies: { sfId: string; name: string; count: number; value: number }[];
+};
+
+// Won business from the Salesforce archive (sf_opportunities), aggregated
+// in one round trip by the sf_booked_business_report SQL function. Window
+// semantics match the portal-event report: filtered by event date, undated
+// records only counted in the all-time view. Note the data's own limit:
+// Salesforce stopped carrying dollar amounts around late 2024 (proposal
+// totals moved to PandaDoc/GHL), so recent won events report $0.
+export async function getSfBookedBusinessReport(
+  range: ReportRange,
+): Promise<SfBookedBusinessReport> {
+  const supabase = createServiceRoleSupabaseClient();
+
+  const { data, error } = await supabase.rpc("sf_booked_business_report", {
+    range_start: range.start ? format(range.start, "yyyy-MM-dd") : null,
+    range_end: range.end ? format(range.end, "yyyy-MM-dd") : null,
+  });
+  if (error) {
+    throw new Error(`Unable to load booked business report: ${error.message}`);
+  }
+
+  const raw = data as SfBookedBusinessRaw;
+
+  return {
+    wonCount: raw.wonCount,
+    wonValue: raw.wonValue,
+    valuedCount: raw.valuedCount,
+    undatedWonCount: raw.undatedWonCount,
+    monthly: fillMonthlySeries(raw.monthly, range),
+    topCompanies: raw.topCompanies,
+  };
+}
+
+// Zero-fills the months the SQL aggregation skipped so the column chart has
+// a continuous axis. Windows longer than 24 months (notably All time over
+// the 2009+ archive) re-bucket by year instead of capping to the trailing
+// months, which for this data would chart only the $0-value recent years.
+function fillMonthlySeries(
+  rows: { month: string; count: number; value: number }[],
+  range: ReportRange,
+): MonthlyPoint[] {
+  if (rows.length === 0) return [];
+
+  const first = startOfMonth(
+    range.start ?? new Date(`${rows[0].month}-01T00:00:00`),
+  );
+  const last = startOfMonth(
+    range.end
+      ? addMonths(range.end, -1)
+      : new Date(`${rows[rows.length - 1].month}-01T00:00:00`),
+  );
+
+  if (differenceInCalendarMonths(last, first) > 23) {
+    const byYear = new Map<number, MonthBucket>();
+    for (
+      let year = first.getFullYear();
+      year <= last.getFullYear();
+      year += 1
+    ) {
+      byYear.set(year, { total: 0, count: 0 });
+    }
+    for (const row of rows) {
+      const bucket = byYear.get(Number(row.month.slice(0, 4)));
+      if (!bucket) continue;
+      bucket.total += row.value;
+      bucket.count += row.count;
+    }
+    return Array.from(byYear.entries()).map(([year, bucket]) => ({
+      label: String(year),
+      value: bucket.total,
+      detail: `${bucket.count.toLocaleString()} event${bucket.count === 1 ? "" : "s"}`,
+    }));
+  }
+
+  const byMonth = new Map(rows.map((row) => [row.month, row]));
+  const points: MonthlyPoint[] = [];
+  for (let month = first; month <= last; month = addMonths(month, 1)) {
+    const row = byMonth.get(format(month, "yyyy-MM"));
+    points.push({
+      label: "",
+      value: row?.value ?? 0,
+      detail: `${row?.count ?? 0} event${row?.count === 1 ? "" : "s"}`,
+    });
+  }
+  const monthFormat = points.length > 12 ? "MMM yy" : "MMM";
+  points.forEach((point, index) => {
+    point.label = format(addMonths(first, index), monthFormat);
+  });
+
+  return points;
+}
