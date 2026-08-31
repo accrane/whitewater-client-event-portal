@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import {
   completeClientChecklistItemForToken,
   markClientChecklistSectionReadyForToken,
+  submitClientFacilitatorForToken,
   submitClientVendorForToken,
   uploadClientFileForToken,
 } from "@/lib/client/portal";
@@ -67,6 +68,27 @@ export async function submitVendorAction(formData: FormData) {
 
   revalidatePath(`/e/${token}`);
   redirect(`/e/${encodeURIComponent(token)}?vendor=received`);
+}
+
+export async function submitFacilitatorAction(formData: FormData) {
+  const token = String(formData.get("token") || "").trim();
+
+  if (!token) {
+    throw new Error("Unable to submit facilitator: missing portal token");
+  }
+
+  await submitClientFacilitatorForToken({
+    token,
+    facilitator: {
+      name: String(formData.get("name") || ""),
+      email: String(formData.get("email") || ""),
+      phone: String(formData.get("phone") || ""),
+      sameAsContact: formData.get("sameAsContact") === "on",
+    },
+  });
+
+  revalidatePath(`/e/${token}`);
+  redirect(`/e/${encodeURIComponent(token)}?facilitator=received`);
 }
 
 export async function uploadFileAction(formData: FormData) {

@@ -25,6 +25,9 @@ export type MergeTagContext = {
   invoiceUrl?: string | null;
   paymentUrl?: string | null;
   clientPortalUrl?: string | null;
+  facilitatorName?: string | null;
+  facilitatorEmail?: string | null;
+  facilitatorPhone?: string | null;
 };
 
 // Shown when an event doesn't have the value yet, keeping the sentence
@@ -103,6 +106,26 @@ const TAG_GROUPS: MergeTagGroup[] = [
     ],
   },
   {
+    label: "Facilitator",
+    tags: [
+      {
+        token: "facilitator.name",
+        label: "Facilitator name",
+        resolve: (c) => c.facilitatorName,
+      },
+      {
+        token: "facilitator.email",
+        label: "Facilitator email",
+        resolve: (c) => c.facilitatorEmail,
+      },
+      {
+        token: "facilitator.phone",
+        label: "Facilitator phone",
+        resolve: (c) => c.facilitatorPhone,
+      },
+    ],
+  },
+  {
     label: "Links",
     tags: [
       {
@@ -173,6 +196,9 @@ export function buildMergeTagContext(event: MergeTagContext): MergeTagContext {
     invoiceUrl: event.invoiceUrl ?? null,
     paymentUrl: event.paymentUrl ?? null,
     clientPortalUrl: event.clientPortalUrl ?? null,
+    facilitatorName: event.facilitatorName ?? null,
+    facilitatorEmail: event.facilitatorEmail ?? null,
+    facilitatorPhone: event.facilitatorPhone ?? null,
   };
 }
 

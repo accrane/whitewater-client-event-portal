@@ -1,6 +1,6 @@
 # GHL custom fields the portal depends on
 
-_Last updated: 2026-07-28. Living log — add a row whenever the app starts
+_Last updated: 2026-08-31. Living log — add a row whenever the app starts
 reading or writing a GHL field, and create the field in GHL before shipping
 the feature that needs it._
 
@@ -21,6 +21,9 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | Activity Pass Count | `vFV0AVNqJTnzrO3miuHq` | `opportunity.activity_pass_count` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
 | Number of Parking Passes | `HfiRFH4P3jgBo0OCMw0F` | `opportunity.number_of_parking_passes` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
 | Number of Storage Bins | `qpNF4ub5ggXDcyhTnjkJ` | `opportunity.number_of_storage_bins` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
+| Facilitator Name | `hVsBHtTyqP0ZiWlBPoRe` | `opportunity.facilitator_name` | App **writes** (by key) when a facilitator is saved on the admin event page or submitted through the client portal. App-authoritative: never read back — edit facilitator info in the app, not GHL. |
+| Facilitator Email | `9Pxt6rSb9vQCAc16iDvf` | `opportunity.facilitator_email` | Same as Facilitator Name. |
+| Facilitator Phone | `fj7SjyBJZzRCjIPq9IsE` | `opportunity.facilitator_phone` | Same as Facilitator Name. |
 | Proposal Link | `98j901wnmkPtIVFTaSYs` | `opportunity.proposal_link` | **Read** (by key) on event-page auto-sync into `ghl_snapshot.links.proposal`. PandaDoc (integrated in GHL) populates it when a proposal is sent; shown as a clickable link on the admin event page and in the client portal's Documents section. GHL is authoritative — blanking the field there blanks it in the app. |
 
 The admin event detail page auto-syncs from GHL on load (`src/lib/ghl/event-sync.ts`),
@@ -35,6 +38,12 @@ page blanks its Event Planning App ID on the opportunity.
 | Opportunity `assignedTo` | App **writes** it when a planner picks an Event Coordinator on a reservation — the coordinator dropdown lists the location's GHL users, and the selected user is assigned to the opportunity. |
 | Opportunity `monetaryValue` | **Two-way**: read on event-page auto-sync into the admin-only "Value" field on the Event summary; written back when an admin edits it in the app. |
 | Location users | **Read** to populate the Event Coordinator dropdown (replaces the app's manual coordinator list). |
+| Contacts (`POST /contacts/upsert`) | App **upserts** a contact (tagged `facilitator`) whenever an event facilitator with an email or phone is saved, so staff can message facilitators from GHL Conversations and target them in workflows by tag. |
+| Contacts (`GET /contacts/:id`) | App **reads** the opportunity's contact on event-page sync into `ghl_snapshot.contact` (shown as the Primary contact on the event page), and to resolve "same as current contact" facilitator saves. |
+| Conversations (`GET /conversations/search`, `GET /conversations/:id/messages`) | App **reads** the primary contact's conversation history live for the event page's conversations drawer. Never stored locally. |
+| Conversations (`POST /conversations/messages`) | App **sends** email/SMS replies from the conversations drawer through GHL, threading into the contact's existing conversation. Requires the Private Integration's *write conversation messages* scope. |
+| Contact notes (`GET`/`POST /contacts/:id/notes`) | App **reads** the primary contact's notes live for the event page's notes drawer (count badges the notepad button) and **writes** new notes, attributed via `userId` to the GHL user whose email matches the signed-in planner. |
+| Contact tasks (`GET`/`POST /contacts/:id/tasks`, `PUT .../tasks/:taskId/completed`) | App **reads** the primary contact's tasks live for the event page's tasks drawer (open-task count badges the button), **creates** tasks (GHL requires a due date; assignee defaults to the planner's matching GHL user), and **toggles** completion. |
 
 ## Candidate fields (not created yet)
 

@@ -391,6 +391,22 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["schedule_template_items"]["Insert"]>;
         Relationships: [];
       };
+      ghl_contact_badges: {
+        Row: {
+          ghl_contact_id: string;
+          note_count: number;
+          open_task_count: number;
+          refreshed_at: string;
+        };
+        Insert: {
+          ghl_contact_id: string;
+          note_count?: number;
+          open_task_count?: number;
+          refreshed_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ghl_contact_badges"]["Insert"]>;
+        Relationships: [];
+      };
       checklist_template_sections: {
         Row: {
           id: string;
@@ -708,6 +724,7 @@ export type Database = {
           won_count: number;
           upcoming_booked_count: number;
           last_event_date: string | null;
+          next_event_date: string | null;
           has_name_dupes: boolean;
         };
         Relationships: [];

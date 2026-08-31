@@ -5,6 +5,25 @@ _Last updated: 2026-08-31_
 This file tracks planned work beyond the current milestone. For the preview-phase
 deferral list, see [client-event-portal-preview-handoff.md](client-event-portal-preview-handoff.md).
 
+## Expected volume (size features for this, not for today's data)
+
+Derived from the Salesforce archive (17,865 opportunities, 2014→2026; analysis
+2026-08-31). The GHL pipeline holds only a handful of opportunities today, but
+after cutover it inherits this volume — design any per-opportunity or
+per-contact feature against these numbers:
+
+- **~1,300–1,500 new opportunities per year** (2022: 1,324 · 2023: 1,551 ·
+  2024: 1,267 · 2025: 1,484).
+- **Strong seasonality**: ~150–185 new opportunities/month March–August,
+  falling to ~45–60/month November–December.
+- **Peak concurrent open opportunities: ~140–250** (per-year peaks of the
+  created→closed window, 2020–2026). The Opportunities board should be
+  expected to hold 100–250 open cards in season.
+- Practical implications: no per-card GHL API fan-out at view time (rate
+  limits: ~100 requests/10s burst, 200k/day per location); prefer locally
+  cached/stored data refreshed in paced background sweeps — the
+  `ghl_contact_badges` cache (2026-08-31) is the reference pattern.
+
 ## GHL cutover checklist (running list)
 
 Things to handle when Salesforce is retired and GHL becomes the system of

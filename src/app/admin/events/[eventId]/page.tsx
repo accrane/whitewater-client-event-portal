@@ -2,6 +2,9 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
+import { ContactConversationsButton } from "@/components/admin/contact-conversations";
+import { ContactNotesButton } from "@/components/admin/contact-notes";
+import { ContactTasksButton } from "@/components/admin/contact-tasks";
 import { CopyableValue } from "@/components/admin/copyable-value";
 import {
   AddRoomBookingButton,
@@ -60,10 +63,12 @@ import {
   applyChecklistTemplateAction,
   deleteEventAction,
   launchPortalAction,
+  reviewFacilitatorAction,
   reviewUploadAction,
   reviewVendorSubmissionAction,
   updateChecklistItemAction,
   updateEventDetailsAction,
+  updateEventFacilitatorAction,
   updateEventPlannerAction,
   updateRoomBookingStatusAction,
 } from "./actions";
@@ -103,6 +108,7 @@ function getFlashMessage(params: {
   bookings?: string;
   checklist?: string;
   details?: string;
+  facilitator?: string;
   launched?: string;
   planner?: string;
   upload?: string;
@@ -130,6 +136,14 @@ function getFlashMessage(params: {
     return "Checklist item updated. The client portal will reflect the latest client-visible item details after launch.";
   }
 
+  if (params.facilitator === "saved") {
+    return "Facilitator saved. The contact info was pushed to the GHL opportunity's Facilitator fields and upserted as a tagged GHL contact.";
+  }
+
+  if (params.facilitator === "reviewed") {
+    return "Facilitator marked reviewed. The contact info stays on the event and in GHL.";
+  }
+
   if (params.vendor === "reviewed") {
     return "Vendor submission marked reviewed. This app did not sync the vendor back to GoHighLevel or notify the client.";
   }
@@ -147,6 +161,7 @@ type AdminEventDetailPageProps = {
     bookings?: string;
     checklist?: string;
     details?: string;
+    facilitator?: string;
     launched?: string;
     planner?: string;
     upload?: string;
@@ -169,8 +184,16 @@ export default async function AdminEventDetailPage({
 
   const isAdmin = getUserRole(user) === "admin";
   const { eventId } = await params;
-  const { bookings, checklist, details, launched, planner, upload, vendor } =
-    await searchParams;
+  const {
+    bookings,
+    checklist,
+    details,
+    facilitator,
+    launched,
+    planner,
+    upload,
+    vendor,
+  } = await searchParams;
 
   // Pull current opportunity data (Date of Interest, assigned planner,
   // contact, event type) from GHL before rendering; degrades quietly.
@@ -203,6 +226,7 @@ export default async function AdminEventDetailPage({
     bookings,
     checklist,
     details,
+    facilitator,
     launched,
     planner,
     upload,
@@ -425,6 +449,19 @@ export default async function AdminEventDetailPage({
         </div>
       </DetailSection>
 
+      <FacilitatorSection
+        contactEmail={event.contactEmail}
+        contactName={event.contactName}
+        contactPhone={event.contactPhone}
+        eventId={event.id}
+        facilitatorEmail={event.facilitatorEmail}
+        facilitatorName={event.facilitatorName}
+        facilitatorPhone={event.facilitatorPhone}
+        facilitatorSameAsContact={event.facilitatorSameAsContact}
+        facilitatorStatus={event.facilitatorStatus}
+        ghlContactId={event.ghlContactId}
+      />
+
       <RoomBookingsSection
         eventDate={event.eventDate}
         eventId={event.id}
@@ -577,6 +614,165 @@ export default async function AdminEventDetailPage({
         </form>
       </section>
     </AdminShell>
+  );
+}
+
+type FacilitatorSectionProps = {
+  contactEmail: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  eventId: string;
+  facilitatorEmail: string | null;
+  facilitatorName: string | null;
+  facilitatorPhone: string | null;
+  facilitatorSameAsContact: boolean;
+  facilitatorStatus: string | null;
+  ghlContactId: string | null;
+};
+
+// The event's people: the primary contact who originally inquired (with the
+// conversations drawer trigger) above a divider, then the client-named
+// on-site facilitator. Facilitator saves push to the GHL opportunity's
+// Facilitator fields and upsert a tagged GHL contact; client portal
+// submissions land here as needs_review.
+function FacilitatorSection({
+  contactEmail,
+  contactName,
+  contactPhone,
+  eventId,
+  facilitatorEmail,
+  facilitatorName,
+  facilitatorPhone,
+  facilitatorSameAsContact,
+  facilitatorStatus,
+  ghlContactId,
+}: FacilitatorSectionProps) {
+  const needsReview = facilitatorStatus === "needs_review";
+  const hasFacilitator = Boolean(facilitatorName) || facilitatorSameAsContact;
+  const contactDetails = [contactEmail, contactPhone].filter(Boolean).join(" · ");
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Primary contact
+          </p>
+          <p className="mt-1 text-base font-semibold text-slate-950">
+            {contactName || (ghlContactId ? "Unnamed contact" : "No contact linked")}
+          </p>
+          {contactDetails ? (
+            <p className="mt-0.5 text-sm text-slate-600">{contactDetails}</p>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <ContactConversationsButton
+            contactId={ghlContactId}
+            contactName={contactName}
+            eventId={eventId}
+          />
+          <ContactNotesButton
+            contactId={ghlContactId}
+            contactName={contactName}
+            eventId={eventId}
+          />
+          <ContactTasksButton
+            contactId={ghlContactId}
+            contactName={contactName}
+            eventId={eventId}
+          />
+        </div>
+      </div>
+
+      <hr className="my-5 border-slate-200" />
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-slate-950">
+          Event facilitator
+        </h2>
+        {needsReview ? (
+          <StatusBadge tone="warning">Needs review</StatusBadge>
+        ) : hasFacilitator ? (
+          <StatusBadge tone="success">
+            {facilitatorSameAsContact ? "Same as contact" : "On file"}
+          </StatusBadge>
+        ) : null}
+      </div>
+      <p className="mt-1 text-sm text-slate-600">
+        The on-site contact who runs the event for the client (common on large
+        corporate events). Saved details sync to the GHL opportunity and a
+        tagged GHL contact so staff can message them from Conversations.
+      </p>
+
+      {needsReview ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p>
+            The client submitted this facilitator through the portal. Confirm
+            the details look right, then mark it reviewed.
+          </p>
+          <form action={reviewFacilitatorAction}>
+            <input name="eventId" type="hidden" value={eventId} />
+            <button className={buttonClasses("secondary")} type="submit">
+              Mark reviewed
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      <form action={updateEventFacilitatorAction} className="mt-4 space-y-4">
+        <input name="eventId" type="hidden" value={eventId} />
+        <label className="peer flex items-center gap-2 text-sm text-slate-700">
+          <input
+            className="h-4 w-4 rounded border-slate-300"
+            defaultChecked={facilitatorSameAsContact}
+            name="sameAsContact"
+            type="checkbox"
+          />
+          Same as the event&apos;s current contact (details are pulled from
+          the GHL contact on save)
+        </label>
+        <div className="hidden rounded-lg bg-slate-50 p-3 text-sm text-slate-700 peer-has-checked:block">
+          {facilitatorSameAsContact && facilitatorName
+            ? [facilitatorName, facilitatorEmail, facilitatorPhone]
+                .filter(Boolean)
+                .join(" · ")
+            : "The primary contact's name, email, and phone will be copied from GHL when you save."}
+        </div>
+        <div className="grid gap-3 peer-has-checked:hidden sm:grid-cols-3">
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">Name</span>
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              defaultValue={facilitatorName ?? ""}
+              name="facilitatorName"
+              placeholder="Not set"
+              type="text"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">Email</span>
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              defaultValue={facilitatorEmail ?? ""}
+              name="facilitatorEmail"
+              placeholder="Not set"
+              type="email"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-500">Phone</span>
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              defaultValue={facilitatorPhone ?? ""}
+              name="facilitatorPhone"
+              placeholder="Not set"
+              type="text"
+            />
+          </label>
+        </div>
+        <DirtySaveButton>Save facilitator</DirtySaveButton>
+      </form>
+    </section>
   );
 }
 

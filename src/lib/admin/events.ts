@@ -1,8 +1,10 @@
+import { fetchGhlContact, upsertFacilitatorContact } from "@/lib/ghl/contacts";
 import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
 import {
   assignOpportunityCoordinator,
   clearEventIdFromOpportunity,
   writeOpportunityEventDetails,
+  writeOpportunityFacilitator,
 } from "@/lib/ghl/opportunity-sync";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { GhlEventSnapshot } from "@/types/portal";
@@ -63,6 +65,14 @@ export type AdminEventDetail = AdminEventListItem & {
   invoiceUrl: string | null;
   paymentUrl: string | null;
   paymentStatus: string | null;
+  facilitatorName: string | null;
+  facilitatorEmail: string | null;
+  facilitatorPhone: string | null;
+  facilitatorStatus: string | null;
+  facilitatorSameAsContact: boolean;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
 };
 
 export type AdminEventVendor = {
@@ -380,6 +390,124 @@ export async function updateEventSummary(
   });
 }
 
+export type EventFacilitatorInput = {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  // "Same as current contact": the facilitator is the event's primary
+  // contact, so their details are resolved from the live GHL contact and the
+  // name/email/phone inputs are ignored.
+  sameAsContact?: boolean;
+};
+
+// Saves the event facilitator (the on-site contact for large corporate
+// events) and mirrors it to GHL: the opportunity's facilitator_* custom
+// fields plus an upserted, "facilitator"-tagged GHL contact so staff can
+// message them from Conversations. The app is authoritative — GHL never
+// writes these back. Both GHL calls are non-fatal; outcomes land in
+// integration_logs. Status: "needs_review" for client submissions,
+// "confirmed" for planner saves.
+export async function saveEventFacilitator(
+  eventId: string,
+  facilitator: EventFacilitatorInput,
+  status: "needs_review" | "confirmed",
+): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to save facilitator: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error("Unable to save facilitator: event not found");
+  }
+
+  const row = data as EventRow;
+  const existing = parseGhlSnapshot(row.ghl_snapshot).facilitator;
+  const sameAsContact = facilitator.sameAsContact === true;
+
+  let name = facilitator.name?.trim() || null;
+  let email = facilitator.email?.trim() || null;
+  let phone = facilitator.phone?.trim() || null;
+  let ghlContactId: string | null;
+
+  if (sameAsContact) {
+    // The facilitator IS the primary contact: copy their live GHL details
+    // (may resolve to nothing when GHL is unreachable — the flag still tells
+    // planners who to talk to) and skip the tagged-contact upsert, since
+    // their contact already exists and is linked to the opportunity.
+    const contact = row.ghl_contact_id
+      ? await fetchGhlContact(row.ghl_contact_id)
+      : null;
+    name = contact?.name ?? null;
+    email = contact?.email ?? null;
+    phone = contact?.phone ?? null;
+    ghlContactId = row.ghl_contact_id;
+  } else {
+    // Don't carry over the primary contact's id from a previous
+    // same-as-contact save — it isn't the facilitator's own contact.
+    const previousContactId = existing?.sameAsContact
+      ? null
+      : (existing?.ghlContactId ?? null);
+
+    ghlContactId =
+      (await upsertFacilitatorContact({
+        email,
+        ghlLocationId: row.ghl_location_id,
+        name,
+        phone,
+        portalEventId: eventId,
+      })) ?? previousContactId;
+  }
+
+  await mergeEventSnapshot(eventId, {
+    facilitator: { name, email, phone, status, ghlContactId, sameAsContact },
+  });
+
+  await writeOpportunityFacilitator(row, { name, email, phone });
+}
+
+// Planner "Mark reviewed" on a client-submitted facilitator: keeps the
+// contact info, flips the status so the review highlight clears.
+export async function markEventFacilitatorConfirmed(
+  eventId: string,
+): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("ghl_snapshot")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to review facilitator: ${error.message}`);
+  }
+
+  const facilitator = parseGhlSnapshot(
+    (data as Pick<EventRow, "ghl_snapshot"> | null)?.ghl_snapshot ?? null,
+  ).facilitator;
+
+  if (!facilitator) {
+    throw new Error("Unable to review facilitator: no facilitator on this event");
+  }
+
+  await mergeEventSnapshot(eventId, {
+    facilitator: {
+      name: facilitator.name ?? null,
+      email: facilitator.email ?? null,
+      phone: facilitator.phone ?? null,
+      status: "confirmed",
+      ghlContactId: facilitator.ghlContactId ?? null,
+      sameAsContact: facilitator.sameAsContact === true,
+    },
+  });
+}
+
 // Reassigns the event's planner. GHL stays the system of record (the planner
 // is the opportunity's assigned user, re-read on every page sync), so the GHL
 // writeback must succeed before the local snapshot updates — otherwise the
@@ -589,6 +717,14 @@ function mapEventRowToDetail(row: EventRow): AdminEventDetail {
     invoiceUrl: snapshot.links?.invoice ?? null,
     paymentUrl: snapshot.links?.payment ?? null,
     paymentStatus: snapshot.paymentStatus ?? null,
+    facilitatorName: snapshot.facilitator?.name ?? null,
+    facilitatorEmail: snapshot.facilitator?.email ?? null,
+    facilitatorPhone: snapshot.facilitator?.phone ?? null,
+    facilitatorStatus: snapshot.facilitator?.status ?? null,
+    facilitatorSameAsContact: snapshot.facilitator?.sameAsContact === true,
+    contactName: snapshot.contact?.name ?? null,
+    contactEmail: snapshot.contact?.email ?? null,
+    contactPhone: snapshot.contact?.phone ?? null,
   };
 }
 
@@ -692,8 +828,40 @@ export function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
               getString((planner as Record<string, Json | undefined>).phone) ?? null,
           }
         : undefined,
+    facilitator: parseFacilitator(raw.facilitator),
+    contact:
+      raw.contact && typeof raw.contact === "object" && !Array.isArray(raw.contact)
+        ? {
+            name: getString((raw.contact as Record<string, Json | undefined>).name),
+            email: getString(
+              (raw.contact as Record<string, Json | undefined>).email,
+            ),
+            phone:
+              getString((raw.contact as Record<string, Json | undefined>).phone) ??
+              null,
+          }
+        : undefined,
     links: parseLinks(raw.links),
     paymentStatus: getString(raw.paymentStatus),
+  };
+}
+
+export function parseFacilitator(
+  value: Json | undefined,
+): GhlEventSnapshot["facilitator"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const facilitator = value as Record<string, Json | undefined>;
+
+  return {
+    name: getString(facilitator.name),
+    email: getString(facilitator.email),
+    phone: getString(facilitator.phone) ?? null,
+    status: getString(facilitator.status),
+    ghlContactId: getString(facilitator.ghlContactId) ?? null,
+    sameAsContact: facilitator.sameAsContact === true,
   };
 }
 

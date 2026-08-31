@@ -10,6 +10,7 @@ import {
   validateClientUploadFile,
 } from "@/lib/client/uploads";
 import { buildClientVendorInsert, type ClientVendorSubmissionInput } from "@/lib/client/vendor-submissions";
+import { parseFacilitator, saveEventFacilitator } from "@/lib/admin/events";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sha256Hex } from "@/lib/tokens";
 import type { Database, Json } from "@/types/database";
@@ -41,6 +42,11 @@ export type ClientPortalEvent = {
   paymentUrl: string | null;
   paymentStatus: string | null;
   clientPortalUrl: string | null;
+  facilitatorName: string | null;
+  facilitatorEmail: string | null;
+  facilitatorPhone: string | null;
+  facilitatorStatus: string | null;
+  facilitatorSameAsContact: boolean;
   checklistItems: ClientChecklistItem[];
   vendors: ClientVendor[];
   uploads: ClientUpload[];
@@ -214,6 +220,59 @@ export async function submitClientVendorForToken({
   }
 }
 
+// Client "here's our facilitator" form. Saves through the shared admin-side
+// helper (local snapshot + GHL fields + tagged GHL contact) with the
+// needs_review status so planners spot the submission on the event page.
+export async function submitClientFacilitatorForToken({
+  facilitator,
+  token,
+}: {
+  facilitator: {
+    name: string;
+    email: string;
+    phone: string;
+    sameAsContact: boolean;
+  };
+  token: string;
+}): Promise<void> {
+  const event = await getLaunchedPortalEventByToken(token);
+
+  if (!event) {
+    throw new Error("Unable to submit facilitator: portal link is not active");
+  }
+
+  if (facilitator.sameAsContact) {
+    // Details come from the event's primary GHL contact; the inputs are
+    // ignored (they're hidden while the checkbox is ticked).
+    await saveEventFacilitator(
+      event.id,
+      { name: null, email: null, phone: null, sameAsContact: true },
+      "needs_review",
+    );
+    return;
+  }
+
+  const name = facilitator.name.trim();
+  const email = facilitator.email.trim();
+  const phone = facilitator.phone.trim();
+
+  if (!name) {
+    throw new Error("Unable to submit facilitator: enter the facilitator's name");
+  }
+
+  if (!email && !phone) {
+    throw new Error(
+      "Unable to submit facilitator: enter an email or phone number",
+    );
+  }
+
+  await saveEventFacilitator(
+    event.id,
+    { name, email: email || null, phone: phone || null },
+    "needs_review",
+  );
+}
+
 export async function uploadClientFileForToken({
   file,
   token,
@@ -329,6 +388,11 @@ function mapEventToClientPortalEvent(
     paymentUrl: snapshot.links?.payment ?? null,
     paymentStatus: snapshot.paymentStatus ?? null,
     clientPortalUrl: event.client_portal_url,
+    facilitatorName: snapshot.facilitator?.name ?? null,
+    facilitatorEmail: snapshot.facilitator?.email ?? null,
+    facilitatorPhone: snapshot.facilitator?.phone ?? null,
+    facilitatorStatus: snapshot.facilitator?.status ?? null,
+    facilitatorSameAsContact: snapshot.facilitator?.sameAsContact === true,
     checklistItems: buildClientChecklistDisplayItems(checklistItems),
     vendors: vendors.map((vendor) => ({
       id: vendor.id,
@@ -372,6 +436,7 @@ function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
               getString((planner as Record<string, Json | undefined>).phone) ?? null,
           }
         : undefined,
+    facilitator: parseFacilitator(raw.facilitator),
     links: parseLinks(raw.links),
     paymentStatus: getString(raw.paymentStatus),
   };

@@ -25,6 +25,21 @@ export type GhlEventSnapshot = {
     email?: string;
     phone?: string | null;
   };
+  // On-site event facilitator (large corporate events may have one besides
+  // the inquiry contact). App-authoritative: edits here mirror to the GHL
+  // opportunity facilitator_* fields and a tagged GHL contact, never back.
+  facilitator?: {
+    name?: string;
+    email?: string;
+    phone?: string | null;
+    // "needs_review" after a client portal submission; "confirmed" once a
+    // planner saves or reviews it.
+    status?: string;
+    ghlContactId?: string | null;
+    // True when the facilitator is the event's primary contact — contact
+    // details were copied from the live GHL contact on save.
+    sameAsContact?: boolean;
+  };
   links?: {
     proposal?: string;
     contract?: string;

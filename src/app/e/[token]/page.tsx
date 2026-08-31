@@ -12,6 +12,7 @@ import { buildMergeTagContext, resolveMergeTags } from "@/lib/merge-tags";
 
 import {
   markChecklistSectionReadyAction,
+  submitFacilitatorAction,
   submitVendorAction,
   uploadFileAction,
 } from "./actions";
@@ -20,7 +21,12 @@ type ClientPortalPlaceholderPageProps = {
   params: Promise<{
     token: string;
   }>;
-  searchParams: Promise<{ checklist?: string; upload?: string; vendor?: string }>;
+  searchParams: Promise<{
+    checklist?: string;
+    facilitator?: string;
+    upload?: string;
+    vendor?: string;
+  }>;
 };
 
 export default async function ClientPortalPlaceholderPage({
@@ -28,7 +34,7 @@ export default async function ClientPortalPlaceholderPage({
   searchParams,
 }: ClientPortalPlaceholderPageProps) {
   const { token } = await params;
-  const { checklist, upload, vendor } = await searchParams;
+  const { checklist, facilitator, upload, vendor } = await searchParams;
   const event = await getClientPortalEventByToken(token);
 
   if (!event) {
@@ -67,6 +73,13 @@ export default async function ClientPortalPlaceholderPage({
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
             Checklist update received. Your planner will review it before it is
             marked complete.
+          </div>
+        ) : null}
+
+        {facilitator === "received" ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+            Facilitator contact info received. Your planner will review it and
+            reach out to coordinate event details.
           </div>
         ) : null}
 
@@ -128,6 +141,85 @@ export default async function ClientPortalPlaceholderPage({
                 ["Payment", event.paymentUrl],
               ]}
             />
+          </ClientSectionCard>
+
+          <ClientSectionCard
+            description="If someone besides you will run point on event day, share their contact info so our team can coordinate with them directly."
+            title="Event facilitator"
+          >
+            <div className="space-y-4">
+              {event.facilitatorName || event.facilitatorSameAsContact ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-950">
+                    {event.facilitatorSameAsContact
+                      ? `Same as your main contact${
+                          event.facilitatorName
+                            ? ` (${event.facilitatorName})`
+                            : ""
+                        }`
+                      : event.facilitatorName}
+                  </p>
+                  {!event.facilitatorSameAsContact ? (
+                    <p className="mt-1 text-sm text-slate-600">
+                      {[event.facilitatorEmail, event.facilitatorPhone]
+                        .filter(Boolean)
+                        .join(" · ") || "No contact details on file"}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-slate-500">
+                    {event.facilitatorStatus === "needs_review"
+                      ? "Submitted — waiting on planner review."
+                      : "On file with your planner."}{" "}
+                    Submit the form again to update it.
+                  </p>
+                </div>
+              ) : null}
+              <form
+                action={submitFacilitatorAction}
+                className="grid gap-3 rounded-xl bg-slate-50 p-4"
+              >
+                <input name="token" type="hidden" value={token} />
+                <label className="peer flex items-start gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                    defaultChecked={event.facilitatorSameAsContact}
+                    name="sameAsContact"
+                    type="checkbox"
+                  />
+                  Same as our current contact — the person you&apos;ve been
+                  working with will also run the event day.
+                </label>
+                <div className="grid gap-3 peer-has-checked:hidden sm:grid-cols-2">
+                  <ClientInput
+                    defaultValue={event.facilitatorName}
+                    label="Name"
+                    name="name"
+                    placeholder="Facilitator's full name"
+                  />
+                  <ClientInput
+                    defaultValue={event.facilitatorEmail}
+                    label="Email"
+                    name="email"
+                    placeholder="facilitator@example.com"
+                    type="email"
+                  />
+                  <ClientInput
+                    defaultValue={event.facilitatorPhone}
+                    label="Phone"
+                    name="phone"
+                    placeholder="Phone number"
+                  />
+                </div>
+                <button
+                  className="justify-self-start rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  type="submit"
+                >
+                  {event.facilitatorName || event.facilitatorSameAsContact
+                    ? "Update facilitator info"
+                    : "Submit facilitator info"}
+                </button>
+              </form>
+            </div>
           </ClientSectionCard>
 
           <ClientSectionCard
@@ -316,11 +408,13 @@ function InvalidOrUnavailablePortal({ token }: { token: string }) {
 }
 
 function ClientInput({
+  defaultValue,
   label,
   name,
   placeholder,
   type = "text",
 }: {
+  defaultValue?: string | null;
   label: string;
   name: string;
   placeholder: string;
@@ -331,6 +425,7 @@ function ClientInput({
       {label}
       <input
         className="rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal text-slate-950"
+        defaultValue={defaultValue ?? undefined}
         name={name}
         placeholder={placeholder}
         type={type}

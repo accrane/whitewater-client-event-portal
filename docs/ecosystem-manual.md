@@ -105,8 +105,34 @@ reservation, and in the modal:
 - **Event summary** — set arrival time, meeting location, guest count,
   activity passes, parking passes, storage bins; admins also see/edit Value.
   The **Planner** can be reassigned here at any time (staff planners only).
+- **Primary contact + conversations** — the top of the Event facilitator
+  card shows the person who originally inquired (name/email/phone, synced
+  from the GHL contact on page load). The speech-bubble button opens a
+  right-side drawer with the contact's full GHL conversation history
+  (email/SMS, live from GHL) and a reply box — replies send **through GHL**
+  so they land in the same Conversations thread. Sending requires the
+  Private Integration's *write conversation messages* scope; without it the
+  drawer still shows history and the send reports a clear scope error.
+  Beside it, a notepad button (with a red badge showing the note count)
+  opens a matching drawer of the contact's **GHL notes**; notes added there
+  save to the GHL contact, attributed to the GHL user whose email matches
+  the signed-in planner. A third button opens the contact's **GHL tasks**
+  (badge counts open tasks): planners can create tasks (title, description,
+  due date, assignee — defaults to themselves) and check them off, exactly
+  like GHL's own task list; every change writes straight to GHL.
+- **Event facilitator** — record the client's on-site contact (name, email,
+  phone) when someone besides the inquiry contact runs the event day, common
+  on large corporate events. A **"Same as the event's current contact"**
+  checkbox covers the common case: it hides the fields and copies the primary
+  GHL contact's details on save. Saving pushes the info to the opportunity's
+  Facilitator fields and (for a separate facilitator) upserts a
+  `facilitator`-tagged GHL contact so staff can message them from
+  Conversations. Client portal submissions land here flagged **needs
+  review**.
 - **Checklist** — apply a checklist template, then tailor items per event
-  (client-visible vs internal, required vs optional).
+  (client-visible vs internal, required vs optional). The default template
+  includes a "Provide your event facilitator's contact info" section —
+  delete it per event when there's no separate facilitator.
 - **Schedule & Notes** — build the event-day schedule from the whitewater day
   template; WYSIWYG fields support merge tags that resolve live per event.
 - **Room bookings** — confirm held rooms as booked.
@@ -143,13 +169,17 @@ the planner-approval confirmation).
 - upload files (insurance, logos, rosters — stored privately in Supabase
   Storage);
 - submit vendors;
+- submit or update their **event facilitator's** contact info (synced to GHL
+  immediately, flagged needs review for the planner);
 - open proposal/contract/invoice/payment links ("Documents and payment");
 - view the event-day schedule at `/e/<token>/schedule`.
 
 **Automatic:**
 - Client submissions (checklist completions, uploads, vendors) are flagged
   **needs review** for planners and surface on the admin dashboard work
-  queue and the event page.
+  queue and the event page. Facilitator submissions are also flagged needs
+  review, shown on the event page's Facilitator card (not yet in the
+  dashboard queue).
 - Portal views are counted (first/last viewed, view count).
 
 ### Step 7 — Review and event day
@@ -189,7 +219,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | — Schedule & Notes | `/admin/events/<id>/schedule` | Event-day schedule grid + sectioned notes |
 | Room Calendar | `/admin/calendar` | Reservation board; where events get rooms, coordinators, and Planning-stage pushes |
 | Planner Assignments | `/admin/assignments` | One column per staff planner with their upcoming events |
-| Opportunities | `/admin/opportunities` | GHL pipeline board (default tab) + Won contact list; below the nav rule |
+| Opportunities | `/admin/opportunities` | GHL pipeline board (default tab) + Won contact list; below the nav rule. Each board card carries the conversations/notes/tasks buttons for its contact — same drawers as the event page. Note/open-task badges read from the local `ghl_contact_badges` cache (instant at 100–250 cards); stale rows refresh after each view via paced background sweeps, and opening a drawer freshens its contact's row exactly |
 | Companies | `/admin/companies` | Company directory from the Salesforce archive: contacts, booking history, live booking stats; dollar values admin-only |
 | Settings | `/admin/settings` | Checklist + schedule templates |
 | Admin → Users | `/admin/system/users` | Create/delete portal users, set roles, reset passwords (Mailgun email) |
@@ -201,7 +231,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 
 | Screen | Route | What it's for |
 | --- | --- | --- |
-| Portal overview | `/e/<token>` | Summary, arrival details, checklist, documents/payment, vendors, uploads, planner contact |
+| Portal overview | `/e/<token>` | Summary, arrival details, checklist, documents/payment, facilitator, vendors, uploads, planner contact |
 | Event schedule | `/e/<token>/schedule` | Event-day schedule and notes |
 
 ---
@@ -225,6 +255,14 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Inquiry webhook | GHL → app | Creates draft event; app writes event id back |
 | Admin event page load | GHL → app | Opportunity snapshot refresh (name, date, planner, links, counts, value) |
 | Event summary save | app → GHL | Guest/pass/bin counts, Value |
+| Facilitator save (admin or client portal) | app → GHL | Facilitator name/email/phone custom fields + `facilitator`-tagged contact upsert (one-way; GHL never writes back). "Same as current contact" saves instead read the primary GHL contact and skip the upsert |
+| Conversations drawer open | GHL → app | Contact's conversations + message history, read live (never stored) |
+| Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope) |
+| Notes drawer open | GHL → app | Contact's GHL notes, read live (never stored); count shown as a badge on the notepad button |
+| Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
+| Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
+| Opportunities board view | GHL → app | Badge counts read from the local `ghl_contact_badges` cache; stale rows (>5 min) re-swept from GHL after the response, paced (60 contacts/view, concurrency 5) for the 140–250-card in-season pipeline (see roadmap "Expected volume") |
+| Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in planner's GHL user) or completion toggled |
 | Planner reassign / coordinator pick | app → GHL | Opportunity `assignedTo` |
 | Reservation linked to event | app → GHL | Opportunity moved to Planning stage |
 | Portal launch | app → GHL | Portal Link field |
@@ -325,8 +363,11 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-08-31 | Primary contact on the event: page-load sync now also pulls the GHL contact's name/email/phone into `ghl_snapshot.contact`, shown at the top of the Event facilitator card. New conversations drawer (speech-bubble button): full GHL email/SMS history for the contact, read live via the Conversations API, with reply-from-the-app (sends through GHL, threads into the same conversation; needs the Private Integration's write-conversations scope). New `/api/events/[eventId]/conversations` route backs it. Notes drawer beside it (notepad button + red note-count badge): reads the contact's GHL notes live and adds new ones to GHL, attributed to the GHL user matching the planner's email (`/api/events/[eventId]/notes`). Tasks drawer completes the trio: read, create, and check off the contact's GHL tasks like GHL natively does; badge counts open tasks. The drawer trio also sits on every Opportunities board card, backed by contact-keyed routes (`/api/ghl/contacts/[contactId]/conversations`, `/notes`, `/tasks`) shared with the event page. |
 | 2026-08-11 | Initial manual. Covers inquiry→launch lifecycle, planner reassignment on the event page, staff-planner-only pickers, and the new Opportunities page (pipeline board + Won tab). |
 | 2026-08-14 | Salesforce → GHL contact migration staging: read-only Salesforce pulls into `sf_contacts` via `scripts/sf-pull.ts`, new `SALESFORCE_*` env vars. Review screen and GHL push still to come. |
 | 2026-08-31 | Salesforce staging expanded to Accounts (`sf_accounts`) and Opportunities (`sf_opportunities`) per client request; `sf_pull_runs` is per-object (`sf_object`, `records_seen`/`records_upserted`). These tables double as the permanent pre-GHL booking-history archive; no plan to push them wholesale into GHL. |
 | 2026-08-31 | Reports gained a "Booked business" section: won events / won value / top companies from the Salesforce archive, on the same timeframe filter (`sf_booked_business_report` SQL function). Salesforce stopped carrying dollar amounts ~Oct 2024 (proposals moved to PandaDoc), so recent won events report $0 — the section says so. GHL cutover checklist started in roadmap.md. |
+| 2026-08-31 | Event facilitator workflow: new Facilitator card on the admin event page and client portal (client submissions flagged needs review), synced to three new GHL opportunity fields (`facilitator_name/email/phone`) plus a `facilitator`-tagged GHL contact upsert so staff can message them from Conversations. App-authoritative — GHL never writes facilitator info back. Default checklist template gained a "Provide your event facilitator's contact info" section; `facilitator.*` merge tags added. Both cards have a "Same as current contact" checkbox that copies the primary GHL contact's details on save (no tagged-contact upsert in that case). |
+| 2026-08-31 | Companies "Last event" fixed to mean the most recent PAST won event — it previously took max over all won opportunities, so future bookings (real "Booked" 2027 events, not bad data) displayed as the last event. The view now also exposes `next_event_date` (soonest upcoming won event): shown as a "Next event" stat on company pages and as a green "Next …" fallback in the directory list when a company has no past events yet. |
 | 2026-08-31 | New Companies directory (`/admin/companies`, in the sales nav group): searchable company list + per-company detail (contacts, full booking history, duplicate-name callout). Booking stats computed live from `sf_opportunities` via the `sf_company_directory` view — "Booked" stage = won/upcoming, "Event Occured" = won/past; the Salesforce roll-ups only counted "Booked". Won value and per-opportunity amounts are admin-only. |

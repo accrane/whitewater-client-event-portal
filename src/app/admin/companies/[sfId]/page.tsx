@@ -131,7 +131,7 @@ export default async function CompanyDetailPage({
       ) : null}
 
       <section
-        className={`grid gap-4 md:grid-cols-2 ${isAdmin ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}
+        className={`grid gap-4 md:grid-cols-2 ${isAdmin ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}
       >
         <AdminStatCard
           hint="Won opportunities, all time"
@@ -144,10 +144,17 @@ export default async function CompanyDetailPage({
           value={(stats?.upcoming_booked_count ?? 0).toLocaleString()}
         />
         <AdminStatCard
-          hint="Latest event date across won opportunities"
+          hint="Most recent past event across won opportunities"
           label="Last event"
           value={
             stats?.last_event_date ? formatDate(stats.last_event_date) : "—"
+          }
+        />
+        <AdminStatCard
+          hint="Soonest upcoming booked event"
+          label="Next event"
+          value={
+            stats?.next_event_date ? formatDate(stats.next_event_date) : "—"
           }
         />
         <AdminStatCard

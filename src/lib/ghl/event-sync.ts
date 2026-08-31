@@ -1,3 +1,4 @@
+import { fetchGhlContact } from "@/lib/ghl/contacts";
 import {
   findDateOfInterest,
   findFieldNumber,
@@ -86,6 +87,11 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
   const assignedUser = opportunity.assignedTo
     ? users.find((user) => user.id === opportunity.assignedTo)
     : undefined;
+  // The person who originally inquired — shown on the admin event page and
+  // the anchor for the conversations drawer.
+  const contact = opportunity.contactId
+    ? await fetchGhlContact(opportunity.contactId)
+    : null;
 
   const existingSnapshot =
     event.ghl_snapshot &&
@@ -129,6 +135,15 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
             name: assignedUser.name,
             email: assignedUser.email,
             phone: null,
+          },
+        }
+      : {}),
+    ...(contact
+      ? {
+          contact: {
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone,
           },
         }
       : {}),

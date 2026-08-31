@@ -9,8 +9,10 @@ import {
 } from "@/lib/admin/checklist-templates";
 import {
   deleteAdminEvent,
+  markEventFacilitatorConfirmed,
   markEventUploadReviewed,
   markEventVendorReviewed,
+  saveEventFacilitator,
   updateEventPlanner,
   updateEventSummary,
 } from "@/lib/admin/events";
@@ -117,6 +119,67 @@ export async function updateEventDetailsAction(formData: FormData) {
 
   revalidatePath(`/admin/events/${eventId}`);
   redirect(`/admin/events/${eventId}?details=1`);
+}
+
+// Saves the event facilitator from the admin event page. A planner-entered
+// facilitator is trusted, so it lands as confirmed and mirrors straight to
+// GHL (custom fields + tagged contact).
+export async function updateEventFacilitatorAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "").trim();
+
+  if (!eventId) {
+    throw new Error("Unable to update facilitator: missing event ID");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  const name = String(formData.get("facilitatorName") || "").trim();
+  const email = String(formData.get("facilitatorEmail") || "").trim();
+  const phone = String(formData.get("facilitatorPhone") || "").trim();
+  const sameAsContact = formData.get("sameAsContact") === "on";
+
+  await saveEventFacilitator(
+    eventId,
+    {
+      name: name || null,
+      email: email || null,
+      phone: phone || null,
+      sameAsContact,
+    },
+    "confirmed",
+  );
+
+  revalidatePath(`/admin/events/${eventId}`);
+  redirect(`/admin/events/${eventId}?facilitator=saved`);
+}
+
+export async function reviewFacilitatorAction(formData: FormData) {
+  const eventId = String(formData.get("eventId") || "").trim();
+
+  if (!eventId) {
+    throw new Error("Unable to review facilitator: missing event ID");
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/admin/login");
+  }
+
+  await markEventFacilitatorConfirmed(eventId);
+
+  revalidatePath(`/admin/events/${eventId}`);
+  redirect(`/admin/events/${eventId}?facilitator=reviewed`);
 }
 
 // Reassigns the planner (GHL assigned user) from the Event summary tile.

@@ -14,8 +14,36 @@ export type SfContactRow = Database["public"]["Tables"]["sf_contacts"]["Row"];
 export type SfOpportunityRow =
   Database["public"]["Tables"]["sf_opportunities"]["Row"];
 
-export const COMPANY_SORTS = ["recent", "name", "bookings", "contacts"] as const;
+export const COMPANY_SORTS = [
+  "recent",
+  "name",
+  "type",
+  "bookings",
+  "contacts",
+  "upcoming",
+  "next",
+] as const;
 export type CompanySort = (typeof COMPANY_SORTS)[number];
+export type CompanySortDir = "asc" | "desc";
+
+// View column + the direction a fresh click on that column starts with:
+// text ascends, counts and event dates lead with the biggest/most recent.
+const SORT_COLUMNS: Record<
+  CompanySort,
+  { column: string; defaultDir: CompanySortDir }
+> = {
+  recent: { column: "last_event_date", defaultDir: "desc" },
+  name: { column: "name", defaultDir: "asc" },
+  type: { column: "type", defaultDir: "asc" },
+  bookings: { column: "won_count", defaultDir: "desc" },
+  contacts: { column: "contact_count", defaultDir: "desc" },
+  upcoming: { column: "upcoming_booked_count", defaultDir: "desc" },
+  next: { column: "next_event_date", defaultDir: "asc" },
+};
+
+export function defaultSortDir(sort: CompanySort): CompanySortDir {
+  return SORT_COLUMNS[sort].defaultDir;
+}
 
 const PAGE_SIZE = 25;
 
@@ -29,6 +57,7 @@ export type CompanyListFilters = {
   type?: string;
   bookedOnly?: boolean;
   sort?: CompanySort;
+  dir?: CompanySortDir;
   page?: number;
 };
 
@@ -44,6 +73,7 @@ export async function listCompanies({
   type,
   bookedOnly,
   sort = "recent",
+  dir,
   page = 1,
 }: CompanyListFilters): Promise<CompanyListPage> {
   const supabase = createServiceRoleSupabaseClient();
@@ -56,24 +86,13 @@ export async function listCompanies({
   if (type) query = query.eq("type", type);
   if (bookedOnly) query = query.gt("won_count", 0);
 
-  switch (sort) {
-    case "name":
-      query = query.order("name", { ascending: true });
-      break;
-    case "bookings":
-      query = query
-        .order("won_count", { ascending: false })
-        .order("name", { ascending: true });
-      break;
-    case "contacts":
-      query = query
-        .order("contact_count", { ascending: false })
-        .order("name", { ascending: true });
-      break;
-    default:
-      query = query
-        .order("last_event_date", { ascending: false, nullsFirst: false })
-        .order("name", { ascending: true });
+  const { column, defaultDir } = SORT_COLUMNS[sort];
+  const ascending = (dir ?? defaultDir) === "asc";
+  // Rows without a value (no events yet, no type, ...) always sink to the
+  // bottom regardless of direction.
+  query = query.order(column, { ascending, nullsFirst: false });
+  if (column !== "name") {
+    query = query.order("name", { ascending: true });
   }
 
   const from = (page - 1) * PAGE_SIZE;

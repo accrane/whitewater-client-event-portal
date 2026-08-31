@@ -182,6 +182,79 @@ export async function writeOpportunityEventDetails(
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
 }
 
+// Opportunity custom fields for the event facilitator (the on-site contact a
+// client may name for large corporate events), form field → GHL field key.
+// App-authoritative: the app only writes these, never reads them back.
+const FACILITATOR_FIELD_KEYS = {
+  name: "opportunity.facilitator_name",
+  email: "opportunity.facilitator_email",
+  phone: "opportunity.facilitator_phone",
+} as const;
+
+// Pushes the event facilitator's contact info to the GHL opportunity's
+// facilitator_* custom fields (FACILITATOR_FIELD_KEYS) in one PUT. Never
+// throws — the app save is the primary action.
+export async function writeOpportunityFacilitator(
+  event: EventRow,
+  facilitator: Record<keyof typeof FACILITATOR_FIELD_KEYS, string | null>,
+): Promise<OpportunitySyncOutcome> {
+  if (!event.ghl_opportunity_id) {
+    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+  }
+
+  const fieldIndex = await fetchOpportunityFieldIndex();
+  const customFields = Object.entries(FACILITATOR_FIELD_KEYS).flatMap(
+    ([field, key]) => {
+      const fieldId = fieldIndex.get(key);
+      if (!fieldId) return [];
+      const value = facilitator[field as keyof typeof FACILITATOR_FIELD_KEYS];
+      return [{ id: fieldId, field_value: value ?? "" }];
+    },
+  );
+
+  if (customFields.length === 0) {
+    const error = "Facilitator custom fields not found in GHL";
+
+    await logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType: "opportunity_facilitator_write_back",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: event.id,
+      status: "warning",
+      message: `Skipped writing the facilitator to GHL: ${error}.`,
+      details: { ghl_opportunity_id: event.ghl_opportunity_id },
+    });
+
+    return { ok: false, skipped: true, error };
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, {
+    customFields,
+  });
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_facilitator_write_back",
+    ghlLocationId: event.ghl_location_id,
+    portalEventId: event.id,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? "Event facilitator written to the GHL opportunity."
+      : "Failed writing the event facilitator to the GHL opportunity.",
+    details: {
+      ghl_opportunity_id: event.ghl_opportunity_id,
+      facilitator_name: facilitator.name,
+      facilitator_email: facilitator.email,
+      facilitator_phone: facilitator.phone,
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  return result.ok
+    ? { ok: true }
+    : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
 // Step in the launch workflow: when a planner publishes the portal, write the
 // client portal link onto the GHL opportunity so GHL workflows (email/SMS
 // templates) can use it. Never throws — the portal launch is the primary

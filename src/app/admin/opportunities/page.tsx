@@ -1,11 +1,21 @@
 import { format, subMonths } from "date-fns";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
+import { ContactBadgesProvider } from "@/components/admin/contact-badges";
+import { ContactConversationsButton } from "@/components/admin/contact-conversations";
+import { ContactNotesButton } from "@/components/admin/contact-notes";
+import { ContactTasksButton } from "@/components/admin/contact-tasks";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getUserRole } from "@/lib/admin/users";
 import { listGhlUsers, type GhlUser } from "@/lib/ghl/location-data";
+import {
+  findStaleContactIds,
+  getStoredContactBadges,
+  refreshContactBadges,
+} from "@/lib/ghl/badge-cache";
 import {
   fetchConfiguredPipeline,
   searchPipelineOpportunities,
@@ -156,7 +166,24 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
       : []),
   ];
 
+  // Card badges come from the local ghl_contact_badges cache — instant at
+  // any pipeline size (SF history says 140-250 open in season). Stale rows
+  // refresh after the response: a small backlog inline-ish via after() every
+  // view, so counts converge without ever blocking render or bursting GHL.
+  const boardContactIds = opportunities
+    .map((opportunity) => opportunity.contact?.id)
+    .filter((id): id is string => Boolean(id));
+  const badges = await getStoredContactBadges(boardContactIds);
+
+  after(async () => {
+    const staleIds = await findStaleContactIds(boardContactIds);
+    if (staleIds.length > 0) {
+      await refreshContactBadges(staleIds);
+    }
+  });
+
   return (
+    <ContactBadgesProvider badges={badges}>
     <div className="flex gap-4 overflow-x-auto pb-2">
       {columns.map((column) => {
         const total = column.items.reduce(
@@ -207,6 +234,7 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
         );
       })}
     </div>
+    </ContactBadgesProvider>
   );
 }
 
@@ -252,6 +280,25 @@ function OpportunityCard({
         ) : null}
         {plannerName ? <span>{plannerName}</span> : null}
       </div>
+      {opportunity.contact ? (
+        <div className="mt-2 flex items-center gap-1.5 border-t border-slate-200 pt-2">
+          <ContactConversationsButton
+            compact
+            contactId={opportunity.contact.id}
+            contactName={opportunity.contact.name}
+          />
+          <ContactNotesButton
+            compact
+            contactId={opportunity.contact.id}
+            contactName={opportunity.contact.name}
+          />
+          <ContactTasksButton
+            compact
+            contactId={opportunity.contact.id}
+            contactName={opportunity.contact.name}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
