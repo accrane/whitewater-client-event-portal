@@ -834,6 +834,18 @@ export async function syncContractFromPandaDoc(
 
   if (updated.status === "completed" && !updated.signed_actions_applied_at) {
     updated = await applySignedContractActions(updated);
+  } else if (updated.status === "completed" && !updated.signed_pdf_path) {
+    const archived = await archiveSignedPdf(updated);
+    if (archived.ok) {
+      updated = await updateContractRow(updated.id, {
+        signed_pdf_bucket: archived.bucket,
+        signed_pdf_path: archived.path,
+      });
+    } else {
+      updated = await updateContractRow(updated.id, {
+        last_error: `Signed PDF not archived yet: ${archived.error}`,
+      });
+    }
   }
 
   // A changed total (PandaDoc recomputed) or a status leaving/entering the
@@ -888,6 +900,34 @@ export async function syncContractByDocumentId(
   return syncContractFromPandaDoc(row);
 }
 
+// Copies the executed PDF from PandaDoc into Supabase storage. Called from
+// the signed actions and again on later syncs when a signed contract has
+// no archived PDF yet (a missing bucket or a PandaDoc hiccup shouldn't
+// leave the event without its contract).
+async function archiveSignedPdf(
+  row: ContractRow,
+): Promise<
+  { ok: true; bucket: string; path: string } | { ok: false; error: string }
+> {
+  if (!row.pandadoc_document_id)
+    return { ok: false, error: "No PandaDoc document" };
+  const pdf = await downloadPandaDocDocument(row.pandadoc_document_id);
+  if (!pdf.ok) return { ok: false, error: pdf.error };
+
+  const supabase = createServiceRoleSupabaseClient();
+  const bucket = appConfig.supabase.storageBucket;
+  const path = `contracts/${row.event_id}/${row.id}.pdf`;
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(path, new Uint8Array(pdf.data), {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+  if (error)
+    return { ok: false, error: `${error.message} (bucket "${bucket}")` };
+  return { ok: true, bucket, path };
+}
+
 // What "signed" sets in motion. Each step is independent and best-effort;
 // the applied timestamp is written once regardless so nothing re-runs, and
 // every outcome is in integration_logs for the admin to audit.
@@ -928,33 +968,15 @@ async function applySignedContractActions(
   }
 
   // 3. Archive the executed PDF in Supabase storage.
-  let signedPdf: { bucket: string; path: string } | null = null;
-  if (row.pandadoc_document_id) {
-    const pdf = await downloadPandaDocDocument(row.pandadoc_document_id);
-    if (pdf.ok) {
-      const bucket = appConfig.supabase.storageBucket;
-      const path = `contracts/${row.event_id}/${row.id}.pdf`;
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(path, new Uint8Array(pdf.data), {
-          contentType: "application/pdf",
-          upsert: true,
-        });
-      if (uploadError) {
-        outcomes.signed_pdf = `error: ${uploadError.message}`;
-      } else {
-        signedPdf = { bucket, path };
-        outcomes.signed_pdf = path;
-      }
-    } else {
-      outcomes.signed_pdf = `error: ${pdf.error}`;
-    }
-  }
+  const archived = await archiveSignedPdf(row);
+  outcomes.signed_pdf = archived.ok
+    ? archived.path
+    : `error: ${archived.error}`;
 
   const updated = await updateContractRow(row.id, {
     signed_actions_applied_at: new Date().toISOString(),
-    ...(signedPdf
-      ? { signed_pdf_bucket: signedPdf.bucket, signed_pdf_path: signedPdf.path }
+    ...(archived.ok
+      ? { signed_pdf_bucket: archived.bucket, signed_pdf_path: archived.path }
       : {}),
   });
 

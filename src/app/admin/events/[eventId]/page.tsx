@@ -266,7 +266,7 @@ export default async function AdminEventDetailPage({
           </ButtonLink>
           <ButtonLink
             href={`/admin/events/${event.id}/schedule`}
-            variant="primary"
+            variant="secondary"
           >
             Schedule &amp; Notes
           </ButtonLink>
