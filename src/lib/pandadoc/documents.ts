@@ -14,13 +14,30 @@ export type PandaDocTemplateSummary = {
   name: string;
 };
 
+// The standard row columns the app fills, keyed by PandaDoc's column name.
+export type PricingColumn = "Name" | "Description" | "Price" | "QTY";
+
+export type PandaDocTemplatePricingTable = {
+  name: string;
+  // What the template reports; PandaDoc has rejected tables flagged true,
+  // so treat it as a hint rather than a guarantee.
+  dataMergeEnabled: boolean;
+  // Menu-style tables ("choose one of the options below") hide Price/QTY;
+  // a table whose price column shows is the one meant for line items.
+  priceVisible: boolean;
+  // Row data keys are each column's merge name, which someone can rename
+  // in the template editor (one template has "Final Paymet" for Name).
+  columnKeys: Record<PricingColumn, string>;
+};
+
 export type PandaDocTemplateDetails = {
   id: string;
   name: string;
   // Recipient roles defined on the template; the client is assigned to
   // the first one unless a role named like "client" exists.
   roles: string[];
-  // Names of pricing tables in the template; line items go into the first.
+  pricingTables: PandaDocTemplatePricingTable[];
+  // Names of pricing tables in the template, in template order.
   pricingTableNames: string[];
   tokenNames: string[];
 };
@@ -68,12 +85,42 @@ export async function getPandaDocTemplateDetails(
     name?: string;
     roles?: { name?: string }[];
     tokens?: { name?: string }[];
-    pricing?: { tables?: { name?: string }[] };
+    pricing?: {
+      tables?: {
+        name?: string;
+        data_merge_enabled?: boolean;
+        columns?: {
+          name?: string;
+          merge_name?: string | null;
+          hidden?: boolean;
+        }[];
+      }[];
+    };
   }>(`/templates/${encodeURIComponent(templateId)}/details`);
 
   if (!result.ok) return result;
 
   const data = result.data;
+  const pricingTables: PandaDocTemplatePricingTable[] = [];
+  for (const table of data.pricing?.tables ?? []) {
+    if (!table.name) continue;
+    const columns = table.columns ?? [];
+    const column = (name: PricingColumn) =>
+      columns.find((col) => col.name === name);
+    const key = (name: PricingColumn) => column(name)?.merge_name || name;
+    pricingTables.push({
+      name: table.name,
+      dataMergeEnabled: table.data_merge_enabled !== false,
+      priceVisible: column("Price")?.hidden !== true,
+      columnKeys: {
+        Name: key("Name"),
+        Description: key("Description"),
+        Price: key("Price"),
+        QTY: key("QTY"),
+      },
+    });
+  }
+
   return {
     ok: true,
     data: {
@@ -82,14 +129,19 @@ export async function getPandaDocTemplateDetails(
       roles: (data.roles ?? [])
         .map((role) => role.name)
         .filter((name): name is string => Boolean(name)),
-      pricingTableNames: (data.pricing?.tables ?? [])
-        .map((table) => table.name)
-        .filter((name): name is string => Boolean(name)),
+      pricingTables,
+      pricingTableNames: pricingTables.map((table) => table.name),
       tokenNames: (data.tokens ?? [])
         .map((token) => token.name)
         .filter((name): name is string => Boolean(name)),
     },
   };
+}
+
+// True when PandaDoc refused the request because the named pricing table
+// can't be filled by API; callers try the template's next table.
+export function isPricingTableRejection(error: string): boolean {
+  return /data merge is disabled/i.test(error);
 }
 
 export type PandaDocPricingRow = {
@@ -98,6 +150,47 @@ export type PandaDocPricingRow = {
   price: number;
   qty: number;
 };
+
+export type PandaDocPricingTableInput = {
+  name: string;
+  rows: PandaDocPricingRow[];
+  // From the template's details; defaults to PandaDoc's standard names.
+  columnKeys?: Record<PricingColumn, string>;
+};
+
+function pricingTablesPayload(table: PandaDocPricingTableInput | null) {
+  if (!table) return {};
+  const keys = table.columnKeys ?? {
+    Name: "Name",
+    Description: "Description",
+    Price: "Price",
+    QTY: "QTY",
+  };
+  return {
+    pricing_tables: [
+      {
+        name: table.name,
+        data_merge: true,
+        options: { currency: "USD" },
+        sections: [
+          {
+            title: "Event services",
+            default: true,
+            rows: table.rows.map((row) => ({
+              options: { optional: false, qty_editable: false },
+              data: {
+                [keys.Name]: row.name,
+                [keys.Description]: row.description,
+                [keys.Price]: row.price,
+                [keys.QTY]: row.qty,
+              },
+            })),
+          },
+        ],
+      },
+    ],
+  };
+}
 
 export type CreatePandaDocDocumentInput = {
   name: string;
@@ -109,7 +202,7 @@ export type CreatePandaDocDocumentInput = {
     role: string;
   };
   tokens: Record<string, string>;
-  pricingTable: { name: string; rows: PandaDocPricingRow[] } | null;
+  pricingTable: PandaDocPricingTableInput | null;
   metadata: Record<string, string>;
 };
 
@@ -135,33 +228,7 @@ export async function createPandaDocDocument(
       value,
     })),
     metadata: input.metadata,
-    ...(input.pricingTable
-      ? {
-          pricing_tables: [
-            {
-              name: input.pricingTable.name,
-              data_merge: true,
-              options: { currency: "USD" },
-              sections: [
-                {
-                  title: "Event services",
-                  default: true,
-                  rows: input.pricingTable.rows.map((row) => ({
-                    options: { optional: false, qty_editable: false },
-                    // Column keys are the pricing table's own column names.
-                    data: {
-                      Name: row.name,
-                      Description: row.description,
-                      Price: row.price,
-                      QTY: row.qty,
-                    },
-                  })),
-                },
-              ],
-            },
-          ],
-        }
-      : {}),
+    ...pricingTablesPayload(input.pricingTable),
   };
 
   const result = await pandaDocRequest<{ id?: string }>("/documents", {
@@ -345,7 +412,7 @@ export async function movePandaDocDocumentToDraft(
 export type UpdatePandaDocDocumentInput = {
   name: string;
   tokens: Record<string, string>;
-  pricingTable: { name: string; rows: PandaDocPricingRow[] } | null;
+  pricingTable: PandaDocPricingTableInput | null;
   metadata: Record<string, string>;
 };
 
@@ -362,33 +429,7 @@ export async function updatePandaDocDocument(
       value,
     })),
     metadata: input.metadata,
-    ...(input.pricingTable
-      ? {
-          pricing_tables: [
-            {
-              name: input.pricingTable.name,
-              data_merge: true,
-              options: { currency: "USD" },
-              sections: [
-                {
-                  title: "Event services",
-                  default: true,
-                  rows: input.pricingTable.rows.map((row) => ({
-                    options: { optional: false, qty_editable: false },
-                    // Column keys are the pricing table's own column names.
-                    data: {
-                      Name: row.name,
-                      Description: row.description,
-                      Price: row.price,
-                      QTY: row.qty,
-                    },
-                  })),
-                },
-              ],
-            },
-          ],
-        }
-      : {}),
+    ...pricingTablesPayload(input.pricingTable),
   };
 
   const result = await pandaDocRequest<unknown>(

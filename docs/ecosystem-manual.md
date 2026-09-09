@@ -433,9 +433,13 @@ field, read-only in the app — see Step 2).
   `Client.LastName`, `Client.Email`, `Client.Phone`, `Account.Name`,
   `Date__c`. The app fills those names too (Account.Name blank — the event
   has no company field), so they work unchanged. Only the Client role is
-  assigned; PandaDoc gives that recipient every signature field. Pricing
-  table rows are sent with PandaDoc's column keys (`Name`, `Description`,
-  `Price`, `QTY`) — lowercase keys are rejected with a validation error.
+  assigned; PandaDoc gives that recipient every signature field. Line
+  items go into the template's pricing table whose Price column is visible
+  (EA Group's `PricingTable2` is a menu of class options with hidden
+  prices, and PandaDoc refuses to fill it); if PandaDoc rejects a table the
+  app tries the template's next one. Row keys are each column's *merge
+  name* (normally `Name`, `Description`, `Price`, `QTY`; the Final Payment
+  template has them renamed) — lowercase keys are rejected.
 - **Editing:** move-to-draft → update → send, all on the same document id
   (see Step 4b). PandaDoc refuses to update anything not in draft, and
   refuses a move-to-draft on a draft, which the app handles.

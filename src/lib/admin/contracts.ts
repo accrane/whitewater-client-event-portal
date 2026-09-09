@@ -11,6 +11,7 @@ import {
   downloadPandaDocDocument,
   getPandaDocDocumentDetails,
   getPandaDocTemplateDetails,
+  isPricingTableRejection,
   listPandaDocTemplates,
   movePandaDocDocumentToDraft,
   pandaDocDocumentUrl,
@@ -18,6 +19,8 @@ import {
   sendPandaDocDocument,
   updatePandaDocDocument,
   waitForPandaDocDraft,
+  type PandaDocPricingTableInput,
+  type PandaDocTemplateDetails,
   type PandaDocTemplateSummary,
 } from "@/lib/pandadoc/documents";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
@@ -294,6 +297,28 @@ function toLineItemsJson(items: ContractLineItem[]) {
   }));
 }
 
+// Pricing tables to try for the line items, best first: a table whose
+// price column is visible (menu-style option tables hide it) and that the
+// template says accepts data merge. PandaDoc's flag has been wrong, so the
+// callers fall through to the next candidate when a table is rejected.
+function pricingTableCandidates(
+  template: PandaDocTemplateDetails,
+  lineItems: ContractLineItem[],
+): PandaDocPricingTableInput[] {
+  if (lineItems.length === 0) return [];
+  const rows = lineItems.map((item) => ({
+    name: item.name,
+    description: item.description,
+    price: item.unitPrice,
+    qty: item.quantity,
+  }));
+  const score = (table: PandaDocTemplateDetails["pricingTables"][number]) =>
+    (table.priceVisible ? 2 : 0) + (table.dataMergeEnabled ? 1 : 0);
+  return [...template.pricingTables]
+    .sort((a, b) => score(b) - score(a))
+    .map((table) => ({ name: table.name, rows, columnKeys: table.columnKeys }));
+}
+
 function pickClientRole(roles: string[]): string {
   return (
     roles.find((role) => /client|customer|signer/i.test(role)) ??
@@ -396,9 +421,8 @@ export async function createEventContract(
   const template = await getPandaDocTemplateDetails(templateId);
   if (!template.ok) return fail(template.error);
 
-  const pricingTableName = template.data.pricingTableNames[0] ?? null;
   const recipient = { email: recipientEmail, ...splitName(recipientName) };
-  const created = await createPandaDocDocument({
+  const createInput = {
     name,
     templateId,
     recipient: { ...recipient, role: pickClientRole(template.data.roles) },
@@ -407,20 +431,20 @@ export async function createEventContract(
       { name, description: insert.description ?? null, subtotal },
       recipient,
     ),
-    pricingTable:
-      pricingTableName && lineItems.length > 0
-        ? {
-            name: pricingTableName,
-            rows: lineItems.map((item) => ({
-              name: item.name,
-              description: item.description,
-              price: item.unitPrice,
-              qty: item.quantity,
-            })),
-          }
-        : null,
     metadata: { portal_event_id: event.id, portal_contract_id: row.id },
+  };
+  const candidates = pricingTableCandidates(template.data, lineItems);
+  let created = await createPandaDocDocument({
+    ...createInput,
+    pricingTable: candidates[0] ?? null,
   });
+  for (let i = 1; i < candidates.length && !created.ok; i++) {
+    if (!isPricingTableRejection(created.error)) break;
+    created = await createPandaDocDocument({
+      ...createInput,
+      pricingTable: candidates[i],
+    });
+  }
   if (!created.ok) return fail(created.error);
 
   row = await updateContractRow(row.id, {
@@ -540,11 +564,11 @@ export async function updateEventContract(
   };
 
   // Where the line items go is decided by the template it was built from.
-  let pricingTableName: string | null = null;
+  let candidates: PandaDocPricingTableInput[] = [];
   if (row.pandadoc_template_id) {
     const template = await getPandaDocTemplateDetails(row.pandadoc_template_id);
     if (!template.ok) return fail(template.error);
-    pricingTableName = template.data.pricingTableNames[0] ?? null;
+    candidates = pricingTableCandidates(template.data, lineItems);
   }
 
   // A re-send that failed halfway leaves the document already in draft;
@@ -562,7 +586,7 @@ export async function updateEventContract(
     pandadoc_status: "document.draft",
   });
 
-  const updated = await updatePandaDocDocument(documentId, {
+  const updateInput = {
     name,
     tokens: buildContractTokens(
       event,
@@ -572,20 +596,19 @@ export async function updateEventContract(
         ...splitName(row.recipient_name ?? ""),
       },
     ),
-    pricingTable:
-      pricingTableName && lineItems.length > 0
-        ? {
-            name: pricingTableName,
-            rows: lineItems.map((item) => ({
-              name: item.name,
-              description: item.description,
-              price: item.unitPrice,
-              qty: item.quantity,
-            })),
-          }
-        : null,
     metadata: { portal_event_id: event.id, portal_contract_id: row.id },
+  };
+  let updated = await updatePandaDocDocument(documentId, {
+    ...updateInput,
+    pricingTable: candidates[0] ?? null,
   });
+  for (let i = 1; i < candidates.length && !updated.ok; i++) {
+    if (!isPricingTableRejection(updated.error)) break;
+    updated = await updatePandaDocDocument(documentId, {
+      ...updateInput,
+      pricingTable: candidates[i],
+    });
+  }
   if (!updated.ok) return fail(updated.error);
 
   // The app's record now matches what PandaDoc holds, even if the send
