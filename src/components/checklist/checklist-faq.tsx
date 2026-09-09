@@ -28,21 +28,21 @@ const STATUS_STYLES: Record<
   { card: string; divider: string; badge: string; badgeLabel: string }
 > = {
   open: {
-    card: "border-red-300 bg-red-50/40 hover:border-red-500",
+    card: "border-red-200 bg-white hover:border-red-400",
     divider: "border-red-200",
-    badge: "bg-white text-red-700 ring-1 ring-red-200",
+    badge: "border-red-200 bg-red-50 text-red-700",
     badgeLabel: "To do",
   },
   ready_for_review: {
-    card: "border-amber-300 bg-amber-50/40 hover:border-amber-500",
+    card: "border-amber-200 bg-white hover:border-amber-400",
     divider: "border-amber-200",
-    badge: "bg-white text-amber-700 ring-1 ring-amber-300",
+    badge: "border-amber-200 bg-amber-50 text-amber-900",
     badgeLabel: "Waiting on planner review",
   },
   complete: {
-    card: "border-emerald-300 bg-emerald-50/40 hover:border-emerald-500",
+    card: "border-emerald-200 bg-white hover:border-emerald-400",
     divider: "border-emerald-200",
-    badge: "bg-white text-emerald-700 ring-1 ring-emerald-300",
+    badge: "border-emerald-200 bg-emerald-50 text-emerald-800",
     badgeLabel: "Complete",
   },
 };
@@ -85,7 +85,7 @@ function FaqSection({
   const styles = STATUS_STYLES[section.status ?? "open"];
 
   return (
-    <div className={`rounded-2xl border-2 transition ${styles.card}`}>
+    <div className={`rounded-lg border transition ${styles.card}`}>
       <button
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left sm:px-5"
@@ -98,7 +98,7 @@ function FaqSection({
         <span className="flex shrink-0 items-center gap-2">
           {section.status && (
             <span
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${styles.badge}`}
+              className={`type-label rounded-sm border px-1.5 py-0.5 ${styles.badge}`}
             >
               {styles.badgeLabel}
             </span>
@@ -137,7 +137,7 @@ function FaqSection({
               <input name="token" type="hidden" value={token} />
               <input name="sectionId" type="hidden" value={section.id} />
               <button
-                className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)]"
                 type="submit"
               >
                 Mark ready for planner review

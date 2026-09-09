@@ -20,15 +20,42 @@ const statusCopy: Record<
   ClientContract["status"],
   { label: string; tone: string }
 > = {
-  draft: { label: "Preparing", tone: "bg-slate-100 text-slate-700" },
-  creating: { label: "Preparing", tone: "bg-slate-100 text-slate-700" },
-  approval: { label: "Being finalized", tone: "bg-slate-100 text-slate-700" },
-  sent: { label: "Ready to sign", tone: "bg-amber-100 text-amber-900" },
-  viewed: { label: "Ready to sign", tone: "bg-amber-100 text-amber-900" },
-  completed: { label: "Signed", tone: "bg-emerald-100 text-emerald-800" },
-  declined: { label: "Declined", tone: "bg-red-50 text-red-700" },
-  voided: { label: "Cancelled", tone: "bg-slate-100 text-slate-700" },
-  error: { label: "Unavailable", tone: "bg-slate-100 text-slate-700" },
+  draft: {
+    label: "Preparing",
+    tone: "border-slate-300 bg-slate-100 text-slate-700",
+  },
+  creating: {
+    label: "Preparing",
+    tone: "border-slate-300 bg-slate-100 text-slate-700",
+  },
+  approval: {
+    label: "Being finalized",
+    tone: "border-slate-300 bg-slate-100 text-slate-700",
+  },
+  sent: {
+    label: "Ready to sign",
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+  },
+  viewed: {
+    label: "Ready to sign",
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+  },
+  completed: {
+    label: "Signed",
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  },
+  declined: {
+    label: "Declined",
+    tone: "border-red-200 bg-red-50 text-red-700",
+  },
+  voided: {
+    label: "Cancelled",
+    tone: "border-slate-300 bg-slate-100 text-slate-700",
+  },
+  error: {
+    label: "Unavailable",
+    tone: "border-slate-300 bg-slate-100 text-slate-700",
+  },
 };
 
 function formatDate(iso: string | null): string {
@@ -161,7 +188,7 @@ export function ClientContractSigner({
   return (
     <div className="space-y-4">
       {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
         </p>
       ) : null}
@@ -192,7 +219,7 @@ export function ClientContractSigner({
                   {currency.format(contract.grandTotal ?? contract.subtotal)}
                 </span>
                 <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.tone}`}
+                  className={`type-label inline-flex items-center rounded-sm border px-1.5 py-0.5 ${status.tone}`}
                 >
                   {status.label}
                 </span>
@@ -233,7 +260,7 @@ export function ClientContractSigner({
             {contract.canSign && !isActive ? (
               <div className="mt-3">
                 <button
-                  className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)] disabled:opacity-50"
                   disabled={loading || Boolean(activeId)}
                   onClick={() => void openSigner(contract.id)}
                   type="button"

@@ -18,7 +18,9 @@ type ClientSchedulePageProps = {
   }>;
 };
 
-export default async function ClientSchedulePage({ params }: ClientSchedulePageProps) {
+export default async function ClientSchedulePage({
+  params,
+}: ClientSchedulePageProps) {
   const { token } = await params;
   const event = await getClientPortalEventByToken(token);
 
@@ -40,11 +42,11 @@ export default async function ClientSchedulePage({ params }: ClientSchedulePageP
   }));
 
   return (
-    <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
+    <main className="min-h-screen px-5 py-6 sm:px-8">
       <div className="mx-auto max-w-5xl space-y-6">
         <ClientPortalNav active="schedule" token={token} />
 
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <ClientHero
             description="Standalone schedule view for quick event-day reference."
             eyebrow="Event Schedule"
@@ -52,8 +54,14 @@ export default async function ClientSchedulePage({ params }: ClientSchedulePageP
           />
 
           <div className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8">
-            <SummaryItem label="Event date" value={formatNullableDate(event.eventDate)} />
-            <SummaryItem label="Arrival time" value={event.arrivalTime || "Not set"} />
+            <SummaryItem
+              label="Event date"
+              value={formatNullableDate(event.eventDate)}
+            />
+            <SummaryItem
+              label="Arrival time"
+              value={event.arrivalTime || "Not set"}
+            />
             <SummaryItem
               label="Meeting location"
               value={event.meetingLocation || "Not set"}
@@ -75,8 +83,8 @@ export default async function ClientSchedulePage({ params }: ClientSchedulePageP
 
 function InvalidOrUnavailableSchedule({ token }: { token: string }) {
   return (
-    <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
-      <section className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <main className="min-h-screen px-5 py-6 sm:px-8">
+      <section className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white">
         <ClientHero
           description="Schedule access remains locked until the planner launches the client portal."
           eyebrow="Event Schedule"
@@ -92,7 +100,7 @@ function InvalidOrUnavailableSchedule({ token }: { token: string }) {
           </div>
 
           <Link
-            className="inline-flex items-center justify-center rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
             href="/"
           >
             Back to home
@@ -105,9 +113,9 @@ function InvalidOrUnavailableSchedule({ token }: { token: string }) {
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-5">
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p className="type-label text-slate-500">{label}</p>
+      <p className="mt-1.5 text-base font-semibold text-slate-950">{value}</p>
     </div>
   );
 }

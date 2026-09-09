@@ -55,16 +55,22 @@ export default async function ClientPortalPlaceholderPage({
   );
 
   return (
-    <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
+    <main className="min-h-screen px-5 py-6 sm:px-8">
       <div className="mx-auto max-w-5xl space-y-6">
         <ClientPortalNav active="overview" token={token} />
 
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <ClientHero title={event.eventName} />
 
           <div className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8">
-            <SummaryItem label="Event date" value={formatNullableDate(event.eventDate)} />
-            <SummaryItem label="Arrival time" value={event.arrivalTime || "Not set"} />
+            <SummaryItem
+              label="Event date"
+              value={formatNullableDate(event.eventDate)}
+            />
+            <SummaryItem
+              label="Arrival time"
+              value={event.arrivalTime || "Not set"}
+            />
             <SummaryItem
               label="Meeting location"
               value={event.meetingLocation || "Not set"}
@@ -73,28 +79,28 @@ export default async function ClientPortalPlaceholderPage({
         </section>
 
         {checklist === "received" ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             Checklist update received. Your planner will review it before it is
             marked complete.
           </div>
         ) : null}
 
         {facilitator === "received" ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             Facilitator contact info received. Your planner will review it and
             reach out to coordinate event details.
           </div>
         ) : null}
 
         {vendor === "received" ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             Vendor information received. Your planner will review it before it
             appears in final event materials.
           </div>
         ) : null}
 
         {upload === "received" ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             File received. Your planner will review it before using it in final
             event materials.
           </div>
@@ -119,9 +125,18 @@ export default async function ClientPortalPlaceholderPage({
                 ["Event type", event.eventType],
                 ["Payment status", event.paymentStatus],
                 ["Event date", formatNullableDate(event.eventDate)],
-                ["Activity passes", formatNullableCount(event.activityPassCount)],
-                ["Parking passes", formatNullableCount(event.numberOfParkingPasses)],
-                ["Storage bins", formatNullableCount(event.numberOfStorageBins)],
+                [
+                  "Activity passes",
+                  formatNullableCount(event.activityPassCount),
+                ],
+                [
+                  "Parking passes",
+                  formatNullableCount(event.numberOfParkingPasses),
+                ],
+                [
+                  "Storage bins",
+                  formatNullableCount(event.numberOfStorageBins),
+                ],
               ]}
             />
           </ClientSectionCard>
@@ -221,7 +236,7 @@ export default async function ClientPortalPlaceholderPage({
                   />
                 </div>
                 <button
-                  className="justify-self-start rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="justify-self-start rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)]"
                   type="submit"
                 >
                   {event.facilitatorName || event.facilitatorSameAsContact
@@ -239,16 +254,43 @@ export default async function ClientPortalPlaceholderPage({
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <CountPill count={event.vendors.length} label="vendors" />
-                <CountPill count={event.uploads.length} label="recent uploads" />
+                <CountPill
+                  count={event.uploads.length}
+                  label="recent uploads"
+                />
               </div>
-              <form action={submitVendorAction} className="grid gap-3 rounded-xl bg-slate-50 p-4">
+              <form
+                action={submitVendorAction}
+                className="grid gap-3 rounded-xl bg-slate-50 p-4"
+              >
                 <input name="token" type="hidden" value={token} />
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <ClientInput label="Vendor type" name="vendorType" placeholder="Caterer, florist, DJ..." />
-                  <ClientInput label="Company name" name="companyName" placeholder="Vendor company" />
-                  <ClientInput label="Contact name" name="contactName" placeholder="Primary contact" />
-                  <ClientInput label="Email" name="email" placeholder="vendor@example.com" type="email" />
-                  <ClientInput label="Phone" name="phone" placeholder="Phone number" />
+                  <ClientInput
+                    label="Vendor type"
+                    name="vendorType"
+                    placeholder="Caterer, florist, DJ..."
+                  />
+                  <ClientInput
+                    label="Company name"
+                    name="companyName"
+                    placeholder="Vendor company"
+                  />
+                  <ClientInput
+                    label="Contact name"
+                    name="contactName"
+                    placeholder="Primary contact"
+                  />
+                  <ClientInput
+                    label="Email"
+                    name="email"
+                    placeholder="vendor@example.com"
+                    type="email"
+                  />
+                  <ClientInput
+                    label="Phone"
+                    name="phone"
+                    placeholder="Phone number"
+                  />
                 </div>
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
                   Notes
@@ -259,7 +301,7 @@ export default async function ClientPortalPlaceholderPage({
                   />
                 </label>
                 <button
-                  className="justify-self-start rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="justify-self-start rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)]"
                   type="submit"
                 >
                   Submit vendor info
@@ -285,7 +327,7 @@ export default async function ClientPortalPlaceholderPage({
                   Uploads are private and require planner review.
                 </p>
                 <button
-                  className="justify-self-start rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className="justify-self-start rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)]"
                   type="submit"
                 >
                   Upload file for review
@@ -332,12 +374,10 @@ function ClientChecklistAccordion({
   token: string;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-red-700">
-            Action checklist
-          </p>
+          <p className="type-label text-red-700">Action checklist</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
             Things to complete for your event
           </h2>
@@ -346,7 +386,7 @@ function ClientChecklistAccordion({
             ready for review once you&apos;ve completed it.
           </p>
         </div>
-        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
+        <span className="type-label rounded-sm border border-red-200 bg-red-50 px-1.5 py-0.5 text-red-700">
           {sections.length} item{sections.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -370,8 +410,8 @@ function ClientChecklistAccordion({
 
 function InvalidOrUnavailablePortal({ token }: { token: string }) {
   return (
-    <main className="min-h-screen bg-slate-100 px-5 py-6 sm:px-8">
-      <section className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <main className="min-h-screen px-5 py-6 sm:px-8">
+      <section className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white">
         <ClientHero
           description="Portal access remains locked until a planner launches the client portal and the secure token is connected to a launched event."
           eyebrow="Client Portal Preview"
@@ -406,7 +446,7 @@ function InvalidOrUnavailablePortal({ token }: { token: string }) {
           </div>
 
           <Link
-            className="inline-flex items-center justify-center rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
             href="/"
           >
             Back to home
@@ -446,9 +486,9 @@ function ClientInput({
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-5">
-      <p className="text-sm font-semibold text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p className="type-label text-slate-500">{label}</p>
+      <p className="mt-1.5 text-base font-semibold text-slate-950">{value}</p>
     </div>
   );
 }
@@ -458,7 +498,7 @@ function DetailList({ rows }: { rows: [string, string | null][] }) {
     <dl className="divide-y divide-slate-200">
       {rows.map(([label, value]) => (
         <div className="grid gap-1 py-3 text-sm sm:grid-cols-3" key={label}>
-          <dt className="font-semibold text-slate-500">{label}</dt>
+          <dt className="type-label text-slate-500">{label}</dt>
           <dd className="text-slate-800 sm:col-span-2">{value || "Not set"}</dd>
         </div>
       ))}
@@ -470,7 +510,11 @@ function LinkList({ links }: { links: [string, string | null][] }) {
   const availableLinks = links.filter(([, href]) => href);
 
   if (availableLinks.length === 0) {
-    return <p className="text-sm text-slate-600">No document links are connected yet.</p>;
+    return (
+      <p className="text-sm text-slate-600">
+        No document links are connected yet.
+      </p>
+    );
   }
 
   return (

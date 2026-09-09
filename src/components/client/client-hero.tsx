@@ -4,24 +4,16 @@ type ClientHeroProps = {
   description?: string;
 };
 
-// Dark branded header used across the client-facing portal pages.
+// Page header used across the client-facing portal pages.
 export function ClientHero({ eyebrow, title, description }: ClientHeroProps) {
   return (
-    <div className="bg-slate-950 px-6 py-8 text-white sm:px-8">
-      {eyebrow && (
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-300">
-          {eyebrow}
-        </p>
-      )}
-      <h1
-        className={`text-3xl font-semibold tracking-tight sm:text-4xl ${
-          eyebrow ? "mt-4" : ""
-        }`}
-      >
+    <div className="border-b border-slate-200 bg-white px-6 py-7 sm:px-8">
+      {eyebrow && <p className="type-label mb-2 text-slate-500">{eyebrow}</p>}
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
         {title}
       </h1>
       {description && (
-        <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
           {description}
         </p>
       )}

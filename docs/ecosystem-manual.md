@@ -19,6 +19,7 @@ Three systems, three jobs:
 
 | System | Job | Owns |
 | --- | --- | --- |
+| 2026-09-09 | Client portal restyled to match the admin's light look (same tokens via a `data-theme="light"` layout scope: neutral grays, green primary buttons, red Whitewater mark, small radii, no shadows, mono labels and bordered status chips). No workflow changes. |
 | 2026-09-09 | Dashboard rebuilt around daily work: vendor submissions needing approval, today's and this week's events, recently signed contracts, and a red "Needs attention" list of events within three weeks lacking a signed contract (two weeks for unpaid). The old attention/upcoming lists are gone; the metric tiles stay. |
 | 2026-09-09 | End-to-end sandbox signing verified from the portal. PandaDoc templates carry a payment step: signed-but-unpaid documents (`document.waiting_pay`) now count as **Signed** in the app so the signed side effects run on signature, not payment. |
 | 2026-09-09 | Event **Value** now equals the sum of the event's PandaDoc contracts (recomputed on contract create/edit/status change, mirrored to GHL `monetaryValue`). Contracts tab picks the template's pricing table with a visible Price column and uses each column's merge name (EA Group's option menu and Final Payment's renamed keys both broke the first attempt). Live check after Austin approved a doc in PandaDoc: it moved straight to *sent*. |
