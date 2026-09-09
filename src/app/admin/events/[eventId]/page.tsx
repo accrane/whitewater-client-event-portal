@@ -1227,7 +1227,10 @@ function VendorSubmissionsSection({
   const reviewSummary = buildVendorReviewSummary(vendors);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
+    <section
+      className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-5 sm:p-6"
+      id="vendors"
+    >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">

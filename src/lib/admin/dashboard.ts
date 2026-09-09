@@ -27,10 +27,7 @@ export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetrics>
       .from("integration_logs")
       .select("id", { count: "exact", head: true })
       .in("status", ["warning", "error"]),
-    supabase
-      .from("events")
-      .select("ghl_snapshot")
-      .eq("status", "launched"),
+    supabase.from("events").select("ghl_snapshot").eq("status", "launched"),
     supabase
       .from("event_checklist_items")
       .select("id", { count: "exact", head: true })
@@ -38,7 +35,9 @@ export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetrics>
   ]);
 
   if (draftResult.error) {
-    throw new Error(`Unable to count draft portals: ${draftResult.error.message}`);
+    throw new Error(
+      `Unable to count draft portals: ${draftResult.error.message}`,
+    );
   }
 
   if (launchedResult.error) {
@@ -85,9 +84,7 @@ function countEventsByStatus(status: EventStatus) {
     .eq("status", status);
 }
 
-function countUpcomingLaunchedEvents(
-  rows: { ghl_snapshot: Json }[],
-): number {
+function countUpcomingLaunchedEvents(rows: { ghl_snapshot: Json }[]): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -112,4 +109,178 @@ function getEventDate(snapshot: Json): Date | null {
   const date = new Date(`${value}T00:00:00`);
 
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// ---- Dashboard lists -------------------------------------------------------
+
+export type DashboardVendorSubmission = {
+  id: string;
+  eventId: string;
+  vendorType: string | null;
+  companyName: string | null;
+  contactName: string | null;
+  email: string | null;
+  submittedAt: string;
+};
+
+// Client-submitted vendors still waiting for a planner to review them,
+// oldest first so nothing sits forgotten at the bottom.
+export async function listVendorSubmissionsNeedingReview(): Promise<
+  DashboardVendorSubmission[]
+> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("vendors")
+    .select(
+      "id, event_id, vendor_type, company_name, contact_name, email, created_at",
+    )
+    .eq("metadata->>source", "client_portal")
+    .eq("metadata->>status", "needs_review")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Unable to load vendor submissions: ${error.message}`);
+  }
+
+  return (
+    (data ?? []) as {
+      id: string;
+      event_id: string;
+      vendor_type: string | null;
+      company_name: string | null;
+      contact_name: string | null;
+      email: string | null;
+      created_at: string;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    eventId: row.event_id,
+    vendorType: row.vendor_type,
+    companyName: row.company_name,
+    contactName: row.contact_name,
+    email: row.email,
+    submittedAt: row.created_at,
+  }));
+}
+
+export type DashboardContract = {
+  id: string;
+  eventId: string;
+  name: string;
+  status: Database["public"]["Enums"]["event_contract_status"];
+  pandadocStatus: string | null;
+  amount: number;
+  completedAt: string | null;
+};
+
+type ContractListRow = {
+  id: string;
+  event_id: string;
+  name: string;
+  status: Database["public"]["Enums"]["event_contract_status"];
+  pandadoc_status: string | null;
+  subtotal: number | string | null;
+  grand_total: number | string | null;
+  completed_at: string | null;
+};
+
+function mapContractListRow(row: ContractListRow): DashboardContract {
+  const amount = Number(row.grand_total ?? row.subtotal ?? 0);
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    name: row.name,
+    status: row.status,
+    pandadocStatus: row.pandadoc_status,
+    amount: Number.isFinite(amount) ? amount : 0,
+    completedAt: row.completed_at,
+  };
+}
+
+const CONTRACT_LIST_COLUMNS =
+  "id, event_id, name, status, pandadoc_status, subtotal, grand_total, completed_at";
+
+// Most recently signed contracts across every event.
+export async function listRecentlySignedContracts(
+  limit = 8,
+): Promise<DashboardContract[]> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("event_contracts")
+    .select(CONTRACT_LIST_COLUMNS)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Unable to load signed contracts: ${error.message}`);
+  }
+
+  return ((data ?? []) as ContractListRow[]).map(mapContractListRow);
+}
+
+// Every contract on the given events (any status), for the contract
+// deadline check on the dashboard.
+export async function listContractsForEvents(
+  eventIds: string[],
+): Promise<Map<string, DashboardContract[]>> {
+  const byEvent = new Map<string, DashboardContract[]>();
+  if (eventIds.length === 0) return byEvent;
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("event_contracts")
+    .select(CONTRACT_LIST_COLUMNS)
+    .in("event_id", eventIds);
+
+  if (error) {
+    throw new Error(`Unable to load event contracts: ${error.message}`);
+  }
+
+  for (const row of (data ?? []) as ContractListRow[]) {
+    const contract = mapContractListRow(row);
+    byEvent.set(contract.eventId, [
+      ...(byEvent.get(contract.eventId) ?? []),
+      contract,
+    ]);
+  }
+  return byEvent;
+}
+
+export type ContractDeadlineState =
+  "no_contract" | "awaiting_approval" | "awaiting_signature" | "unpaid";
+
+// Whitewater needs contracts signed and paid two weeks before the event.
+// From three weeks out, an event whose contracts aren't signed shows on the
+// dashboard; from two weeks out, one that is signed but not yet paid in
+// PandaDoc does too. Returns null when the event is in the clear.
+export function contractDeadlineState(
+  contracts: DashboardContract[],
+  daysOut: number,
+): ContractDeadlineState | null {
+  const live = contracts.filter(
+    (contract) =>
+      !["declined", "voided", "error", "creating"].includes(contract.status),
+  );
+  const signed = live.filter((contract) => contract.status === "completed");
+
+  if (signed.length === 0) {
+    if (live.length === 0) return "no_contract";
+    return live.some((contract) => contract.status === "approval")
+      ? "awaiting_approval"
+      : "awaiting_signature";
+  }
+
+  // Signed all round; payment matters inside two weeks.
+  const unsigned = live.filter((contract) => contract.status !== "completed");
+  if (unsigned.length > 0) return "awaiting_signature";
+  if (
+    daysOut <= 14 &&
+    signed.some(
+      (contract) => contract.pandadocStatus === "document.waiting_pay",
+    )
+  ) {
+    return "unpaid";
+  }
+  return null;
 }

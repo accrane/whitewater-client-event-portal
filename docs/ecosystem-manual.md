@@ -19,6 +19,7 @@ Three systems, three jobs:
 
 | System | Job | Owns |
 | --- | --- | --- |
+| 2026-09-09 | Dashboard rebuilt around daily work: vendor submissions needing approval, today's and this week's events, recently signed contracts, and a red "Needs attention" list of events within three weeks lacking a signed contract (two weeks for unpaid). The old attention/upcoming lists are gone; the metric tiles stay. |
 | 2026-09-09 | End-to-end sandbox signing verified from the portal. PandaDoc templates carry a payment step: signed-but-unpaid documents (`document.waiting_pay`) now count as **Signed** in the app so the signed side effects run on signature, not payment. |
 | 2026-09-09 | Event **Value** now equals the sum of the event's PandaDoc contracts (recomputed on contract create/edit/status change, mirrored to GHL `monetaryValue`). Contracts tab picks the template's pricing table with a visible Price column and uses each column's merge name (EA Group's option menu and Final Payment's renamed keys both broke the first attempt). Live check after Austin approved a doc in PandaDoc: it moved straight to *sent*. |
 | 2026-09-09 | Contracts: **Edit** for unsigned contracts (same PandaDoc document moved to draft, updated, re-sent; `revision`, `revised_at`, `revised_by` columns; `contract_update` log; portal shows "Updated …" and handles a session ended by an edit). New **approval** status for templates with a PandaDoc approval workflow — portal shows *Being finalized* without a sign button; after approval in PandaDoc the sync sends it automatically (`contract_approved` log). First live verification against the sandbox API key: create/update/re-send work; pricing table rows now use PandaDoc's `Name`/`Description`/`Price`/`QTY` keys (lowercase was rejected); Salesforce-style tokens (`Client.*`, `Account.Name`, `Date__c`) filled so the existing Whitewater templates work; sandbox can only send to workspace members. Webhook and end-to-end signing still unverified (needs an approved doc + public URL). |
@@ -293,7 +294,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 
 | Screen | Route | What it's for |
 | --- | --- | --- |
-| Dashboard | `/admin` | Work queue: items needing review, quick stats |
+| Dashboard | `/admin` | Four metric tiles, then: **Vendor submissions** awaiting planner approval (links to the event's vendors section); **Upcoming events** split into *Today's events* and *This week's events* (next seven days); **Contracts** with *Recently signed* and a red *Needs attention* list — launched events within three weeks with no signed contract (no contract sent / awaiting PandaDoc approval / awaiting signature) and, inside two weeks, signed-but-unpaid ones (PandaDoc `waiting_pay`) |
 | Events | `/admin/events` | All portal events; open one to work it |
 | Event detail | `/admin/events/<id>` | Summary (incl. contracts list under Portal URL), planner, room bookings, launch, review queues |
 | Contracts | `/admin/events/<id>/contracts` | PandaDoc contracts for the event: create (template, terms, line items, recipient), edit unsigned ones in place (re-sent as a new revision), history with status/totals/links, signed PDF, refresh status |
