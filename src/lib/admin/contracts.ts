@@ -43,7 +43,7 @@ import {
   type ContractStatus,
   type EventContract,
 } from "@/lib/contracts/shared";
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 
 export {
   calculateContractSubtotal,
@@ -716,6 +716,20 @@ export async function syncEventValueFromContracts(
       ) * 100,
     ) / 100;
 
+  // Cheap when nothing moved: page-load syncs call this too, and a GHL
+  // write per page view would be wasteful.
+  const { data: current } = await supabase
+    .from("events")
+    .select("ghl_snapshot")
+    .eq("id", eventId)
+    .maybeSingle();
+  const snapshot = (current as { ghl_snapshot?: Json } | null)?.ghl_snapshot;
+  const existing =
+    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
+      ? toNumber((snapshot as Record<string, Json | undefined>).value)
+      : null;
+  if (existing === total) return;
+
   const event = await mergeEventSnapshot(eventId, { value: total });
   await writeOpportunityValue(event, total);
 }
@@ -852,6 +866,11 @@ export async function syncEventContracts(eventId: string): Promise<void> {
     } catch (syncError) {
       console.error("Contract sync failed", row.id, syncError);
     }
+  }
+  try {
+    await syncEventValueFromContracts(eventId);
+  } catch (valueError) {
+    console.error("Event value sync failed", eventId, valueError);
   }
 }
 
