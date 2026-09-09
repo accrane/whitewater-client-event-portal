@@ -59,6 +59,58 @@ the client review as the switch approaches.
   `scripts/sf-pull.ts --full` right before SF access ends, then rotate or
   decommission the "Contact Export" External Client App credentials.
 
+## PandaDoc go-live (contracts)
+
+Everything the app needs from PandaDoc works against the sandbox key as of
+2026-09-09 (create, edit/re-send, approval, embedded signing, status
+readback, PDF download). Only the production key is required to go live; the
+webhook is a later add-on. Questions for the Whitewater PandaDoc meeting
+(2026-09-10) and the steps that follow.
+
+### Ask the client / PandaDoc
+
+- **Plan and API allowance**: which plan is the Whitewater workspace on
+  (API access needs Business or Enterprise), how many API usage credits
+  are included, what is the per-document rate past that, and whether
+  first-year-only credits apply. Each *New contract* uses one credit; edits
+  re-use the same document. Expected volume: 140–250 open opportunities at
+  peak, often 2+ contracts per event (additions, final payment).
+- **Production API key**: who owns it, and which workspace member's account
+  it is issued under (documents show as created by that user).
+- **Approval workflow**: the standard templates (EA Group, Group w/
+  Catering, Final Payment, weddings) hold every sent document in *waiting
+  approval* until a manager approves in PandaDoc. Keep it? If yes, who
+  approves, and do they want an alert when a contract is waiting.
+- **Payment step**: the same templates ask the client to pay in PandaDoc
+  right after signing. The app treats "signed, awaiting payment" as
+  signed. Decide whether clients pay through PandaDoc or elsewhere; if
+  elsewhere, turn payments off in the templates so the portal's signer
+  finishes at the signature.
+- **Countersignature**: templates have an *Event Coordinator* role that the
+  app doesn't assign (client signs only). Confirm that is acceptable, or
+  whether a USNWC countersign is required.
+- **Template hygiene**: `Account.Name` is never filled (the app has no
+  company field); the Final Payment template's pricing columns were
+  renamed ("Final Paymet"). Ask whether templates should be tidied or
+  purpose-built for the portal (one Client role, one pricing table,
+  `event.*`/`contract.*` tokens from the manual §5).
+- **Webhook shared key**: whether they are comfortable registering an
+  outbound webhook to the app once it has a public URL.
+
+### After the answers
+
+1. Put the production key in `PANDADOC_API_KEY` (optionally a default
+   template in `PANDADOC_TEMPLATE_ID`).
+2. Deploy to a public URL, register
+   `https://<app>/api/pandadoc/webhook` in PandaDoc for
+   *document_state_changed* + *recipient_completed*, set
+   `PANDADOC_WEBHOOK_KEY`, and verify one delivery in the integration logs
+   (`contract_signed` should fire without anyone opening the event).
+3. Planner notification on signature (email via Mailgun and/or a GHL task)
+   — nothing alerts staff today beyond the Contracts tab and integration
+   log.
+4. Decide on a *Void* action for superseded unsigned contracts.
+
 ## Client portal
 
 ### Shipped
