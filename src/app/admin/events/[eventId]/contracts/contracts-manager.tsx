@@ -267,6 +267,9 @@ function ContractCard({
           Signed {formatDateTime(contract.completedAt)}. Room reservations were
           marked booked and the GHL opportunity moved to Booked. Details are in
           the integration logs.
+          {contract.pandadocStatus === "document.waiting_pay"
+            ? " PandaDoc is still waiting on the payment step this template collects; the signature itself is on file."
+            : ""}
         </p>
       ) : null}
 

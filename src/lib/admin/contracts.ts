@@ -743,6 +743,10 @@ function mapPandaDocStatus(raw: string): ContractStatus {
       return "approval";
     case "document.viewed":
       return "viewed";
+    // waiting_pay = every recipient signed and PandaDoc is now collecting
+    // the payment the template asks for. The signature is what books the
+    // event, so it counts as signed here; payment status stays GHL's field.
+    case "document.waiting_pay":
     case "document.completed":
     case "document.paid":
       return "completed";
