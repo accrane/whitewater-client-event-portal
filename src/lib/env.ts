@@ -76,12 +76,12 @@ export const appConfig = {
   },
   pandadoc: {
     // Sandbox and production keys both talk to the same API host.
-    apiKey: process.env.PANDADOC_API_KEY,
+    apiKey: process.env.PANDADOC_API_KEY || undefined,
     apiBaseUrl:
       process.env.PANDADOC_API_BASE_URL || "https://api.pandadoc.com/public/v1",
     // Shared key from PandaDoc's webhook settings; signs webhook payloads.
-    webhookKey: process.env.PANDADOC_WEBHOOK_KEY,
+    webhookKey: process.env.PANDADOC_WEBHOOK_KEY || undefined,
     // Default document template for new contracts (planners can pick another).
-    defaultTemplateId: process.env.PANDADOC_TEMPLATE_ID,
+    defaultTemplateId: process.env.PANDADOC_TEMPLATE_ID || undefined,
   },
 } as const;

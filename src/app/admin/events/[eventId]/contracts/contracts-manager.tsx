@@ -480,13 +480,18 @@ function ContractForm(props: ContractFormProps) {
   const [name, setName] = useState(
     editing ? props.contract.name : `${props.eventName} — Event Contract`,
   );
-  const [templateId, setTemplateId] = useState(
-    editing
-      ? (props.contract.pandadocTemplateId ?? "")
-      : (templateOptions?.defaultTemplateId ??
-          templateOptions?.templates[0]?.id ??
-          ""),
-  );
+  // The configured default only counts if PandaDoc actually lists it;
+  // otherwise the first template is selected so the picker never shows a
+  // name the form isn't holding.
+  const [templateId, setTemplateId] = useState(() => {
+    if (editing) return props.contract.pandadocTemplateId ?? "";
+    const list = templateOptions?.templates ?? [];
+    const preferred = templateOptions?.defaultTemplateId;
+    if (preferred && list.some((template) => template.id === preferred)) {
+      return preferred;
+    }
+    return list[0]?.id ?? preferred ?? "";
+  });
   const [description, setDescription] = useState(
     editing ? (props.contract.description ?? "") : "",
   );
