@@ -1,9 +1,16 @@
 import { setEventReservationsStatus } from "@/lib/admin/room-calendar";
-import { getAdminEventById, type AdminEventDetail } from "@/lib/admin/events";
+import {
+  getAdminEventById,
+  mergeEventSnapshot,
+  type AdminEventDetail,
+} from "@/lib/admin/events";
 import { formatDisplayDate } from "@/lib/dates";
 import { appConfig } from "@/lib/env";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
-import { moveOpportunityToBooked } from "@/lib/ghl/opportunity-sync";
+import {
+  moveOpportunityToBooked,
+  writeOpportunityValue,
+} from "@/lib/ghl/opportunity-sync";
 import { isPandaDocConfigured } from "@/lib/pandadoc/client";
 import {
   createPandaDocDocument,
@@ -487,6 +494,7 @@ export async function createEventContract(
 
   // Pull PandaDoc's computed total right away so the tab shows it.
   const synced = await syncContractFromPandaDoc(row);
+  await syncEventValueFromContracts(event.id);
   return { ok: true, contract: mapContractRow(synced ?? row, null) };
 }
 
@@ -660,7 +668,56 @@ export async function updateEventContract(
   });
 
   const synced = await syncContractFromPandaDoc(row);
+  await syncEventValueFromContracts(event.id);
   return { ok: true, contract: mapContractRow(synced ?? row, null) };
+}
+
+// Contracts that represent money on the table: everything with a live
+// PandaDoc document that wasn't declined, voided, or never created.
+const VALUE_CONTRACT_STATUSES: ContractStatus[] = [
+  "draft",
+  "approval",
+  "sent",
+  "viewed",
+  "completed",
+];
+
+// The event's Value is the sum of its contracts (PandaDoc's total where
+// known, else the app subtotal). Recomputed after every contract change and
+// mirrored to the GHL opportunity's monetaryValue, which the event page
+// reads back as authoritative. With no counted contracts the value is left
+// alone so a manually entered figure survives until the first contract.
+export async function syncEventValueFromContracts(
+  eventId: string,
+): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("event_contracts")
+    .select("status, subtotal, grand_total, pandadoc_document_id")
+    .eq("event_id", eventId)
+    .in("status", VALUE_CONTRACT_STATUSES)
+    .not("pandadoc_document_id", "is", null);
+  if (error) {
+    console.error("Unable to total contracts for event value", error.message);
+    return;
+  }
+  const rows = (data ?? []) as Pick<
+    ContractRow,
+    "status" | "subtotal" | "grand_total" | "pandadoc_document_id"
+  >[];
+  if (rows.length === 0) return;
+
+  const total =
+    Math.round(
+      rows.reduce(
+        (sum, row) =>
+          sum + (toNumber(row.grand_total) ?? toNumber(row.subtotal) ?? 0),
+        0,
+      ) * 100,
+    ) / 100;
+
+  const event = await mergeEventSnapshot(eventId, { value: total });
+  await writeOpportunityValue(event, total);
 }
 
 function mapPandaDocStatus(raw: string): ContractStatus {
@@ -759,6 +816,16 @@ export async function syncContractFromPandaDoc(
 
   if (updated.status === "completed" && !updated.signed_actions_applied_at) {
     updated = await applySignedContractActions(updated);
+  }
+
+  // A changed total (PandaDoc recomputed) or a status leaving/entering the
+  // counted set moves the event value.
+  if (
+    toNumber(updated.grand_total) !== toNumber(row.grand_total) ||
+    VALUE_CONTRACT_STATUSES.includes(updated.status) !==
+      VALUE_CONTRACT_STATUSES.includes(row.status)
+  ) {
+    await syncEventValueFromContracts(updated.event_id);
   }
 
   return updated;

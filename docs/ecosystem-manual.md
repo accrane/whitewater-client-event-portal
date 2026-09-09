@@ -19,6 +19,7 @@ Three systems, three jobs:
 
 | System | Job | Owns |
 | --- | --- | --- |
+| 2026-09-09 | Event **Value** now equals the sum of the event's PandaDoc contracts (recomputed on contract create/edit/status change, mirrored to GHL `monetaryValue`). Contracts tab picks the template's pricing table with a visible Price column and uses each column's merge name (EA Group's option menu and Final Payment's renamed keys both broke the first attempt). Live check after Austin approved a doc in PandaDoc: it moved straight to *sent*. |
 | 2026-09-09 | Contracts: **Edit** for unsigned contracts (same PandaDoc document moved to draft, updated, re-sent; `revision`, `revised_at`, `revised_by` columns; `contract_update` log; portal shows "Updated …" and handles a session ended by an edit). New **approval** status for templates with a PandaDoc approval workflow — portal shows *Being finalized* without a sign button; after approval in PandaDoc the sync sends it automatically (`contract_approved` log). First live verification against the sandbox API key: create/update/re-send work; pricing table rows now use PandaDoc's `Name`/`Description`/`Price`/`QTY` keys (lowercase was rejected); Salesforce-style tokens (`Client.*`, `Account.Name`, `Date__c`) filled so the existing Whitewater templates work; sandbox can only send to workspace members. Webhook and end-to-end signing still unverified (needs an approved doc + public URL). |
 | 2026-09-09 | Admin restyle toward a developer-tool look (Supabase-inspired): neutral gray palette in all three themes with one green brand accent for primary actions and positive status, 4–8px radii, hairline borders and no panel shadows, and a mono uppercase label style (`type-label`) for eyebrows, table headers, metric labels and status chips. The sidebar is now a rail (icons-only when collapsed) and a new desktop top bar carries the breadcrumb, a `development` tag on local builds, the theme switch, the signed-in email and sign out (they left the sidebar footer; the mobile drawer still has them). Dashboard metric tiles gained icons. Login and reset-password screens follow the admin theme. Client portal untouched apart from the shared button/badge shapes. Tokens live in `src/app/globals.css`. |
 | **GoHighLevel** | CRM and system of record | Contacts, opportunities, the Event Sales pipeline, client email/SMS notifications, calendars of record |
@@ -211,6 +212,12 @@ the portal** (see Step 6). Nothing goes through GHL.
   finalized* without a sign button. Once someone approves it in PandaDoc,
   the next refresh (page load, Refresh status, or webhook) sends it to the
   client automatically (`contract_approved` integration log).
+- **Event value = contracts combined.** After every contract create, edit,
+  or status change the event's **Value** becomes the sum of its live
+  contracts (PandaDoc's total where known, else the app subtotal;
+  declined, voided and failed ones don't count) and is written to the GHL
+  opportunity's monetary value (`opportunity_value_write_back` log). Until
+  the first contract exists the manually entered value stands.
 - Failed creations stay listed as *Failed* with PandaDoc's error so the
   planner can fix the template/key and retry; only those can be removed.
 

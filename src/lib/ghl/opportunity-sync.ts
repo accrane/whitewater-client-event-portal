@@ -14,8 +14,7 @@ import type { Database, Json } from "@/types/database";
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 
 export type OpportunitySyncOutcome =
-  | { ok: true }
-  | { ok: false; skipped: boolean; error: string };
+  { ok: true } | { ok: false; skipped: boolean; error: string };
 
 async function updateGhlOpportunity(
   opportunityId: string,
@@ -117,7 +116,11 @@ export async function writeOpportunityEventDetails(
   } & Record<keyof typeof SUMMARY_FIELD_KEYS, number | null>,
 ): Promise<OpportunitySyncOutcome> {
   if (!event.ghl_opportunity_id) {
-    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+    return {
+      ok: false,
+      skipped: true,
+      error: "Event has no GHL opportunity id",
+    };
   }
 
   const fieldIndex = await fetchOpportunityFieldIndex();
@@ -126,7 +129,9 @@ export async function writeOpportunityEventDetails(
       const fieldId = fieldIndex.get(key);
       if (!fieldId) return [];
       const value = updates[field as keyof typeof SUMMARY_FIELD_KEYS];
-      return [{ id: fieldId, field_value: value === null ? "" : String(value) }];
+      return [
+        { id: fieldId, field_value: value === null ? "" : String(value) },
+      ];
     },
   );
 
@@ -182,6 +187,45 @@ export async function writeOpportunityEventDetails(
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
 }
 
+// Pushes the contract-driven event value to the opportunity's built-in
+// monetaryValue on its own (no custom fields touched). Never throws.
+export async function writeOpportunityValue(
+  event: EventRow,
+  monetaryValue: number,
+): Promise<OpportunitySyncOutcome> {
+  if (!event.ghl_opportunity_id) {
+    return {
+      ok: false,
+      skipped: true,
+      error: "Event has no GHL opportunity id",
+    };
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, {
+    monetaryValue,
+  });
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_value_write_back",
+    ghlLocationId: event.ghl_location_id,
+    portalEventId: event.id,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? "Event value (sum of contracts) written to the GHL opportunity."
+      : "Failed writing the event value to the GHL opportunity.",
+    details: {
+      ghl_opportunity_id: event.ghl_opportunity_id,
+      monetary_value: monetaryValue,
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  return result.ok
+    ? { ok: true }
+    : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
 // Opportunity custom fields for the event facilitator (the on-site contact a
 // client may name for large corporate events), form field → GHL field key.
 // App-authoritative: the app only writes these, never reads them back.
@@ -199,7 +243,11 @@ export async function writeOpportunityFacilitator(
   facilitator: Record<keyof typeof FACILITATOR_FIELD_KEYS, string | null>,
 ): Promise<OpportunitySyncOutcome> {
   if (!event.ghl_opportunity_id) {
-    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+    return {
+      ok: false,
+      skipped: true,
+      error: "Event has no GHL opportunity id",
+    };
   }
 
   const fieldIndex = await fetchOpportunityFieldIndex();
@@ -349,7 +397,11 @@ async function moveOpportunityToStage(
   const { pipelineId } = appConfig.ghl;
 
   if (!event.ghl_opportunity_id) {
-    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+    return {
+      ok: false,
+      skipped: true,
+      error: "Event has no GHL opportunity id",
+    };
   }
 
   if (!pipelineId || !target.stageId) {
@@ -387,7 +439,11 @@ async function moveOpportunityToStage(
       },
     });
 
-    return { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+    return {
+      ok: false,
+      skipped: false,
+      error: result.error ?? "Unknown GHL error",
+    };
   }
 
   await logIntegrationEvent({
@@ -426,7 +482,11 @@ export async function assignOpportunityCoordinator(
   }
 
   if (!event.ghl_opportunity_id) {
-    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+    return {
+      ok: false,
+      skipped: true,
+      error: "Event has no GHL opportunity id",
+    };
   }
 
   const result = await updateGhlOpportunity(event.ghl_opportunity_id, {

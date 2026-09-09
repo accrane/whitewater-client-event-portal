@@ -204,18 +204,27 @@ export default async function AdminEventDetailPage({
   // contact, event type) from GHL before rendering; degrades quietly.
   await Promise.all([syncEventFromGhl(eventId), syncEventContracts(eventId)]);
 
-  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms, roomReservations, ghlUsers, contracts] =
-    await Promise.all([
-      getAdminEventById(eventId),
-      listEventChecklistItems(eventId),
-      listActiveChecklistTemplates(),
-      listEventVendors(eventId),
-      listEventUploads(eventId),
-      listRooms(),
-      listEventReservations(eventId),
-      listGhlPlannerUsers(),
-      listEventContracts(eventId),
-    ]);
+  const [
+    event,
+    checklistItems,
+    checklistTemplates,
+    vendors,
+    uploads,
+    rooms,
+    roomReservations,
+    ghlUsers,
+    contracts,
+  ] = await Promise.all([
+    getAdminEventById(eventId),
+    listEventChecklistItems(eventId),
+    listActiveChecklistTemplates(),
+    listEventVendors(eventId),
+    listEventUploads(eventId),
+    listRooms(),
+    listEventReservations(eventId),
+    listGhlPlannerUsers(),
+    listEventContracts(eventId),
+  ]);
 
   if (!event) {
     notFound();
@@ -345,7 +354,10 @@ export default async function AdminEventDetailPage({
               </span>
             ) : (
               contracts.map((contract) => (
-                <p className="flex flex-wrap items-center gap-2" key={contract.id}>
+                <p
+                  className="flex flex-wrap items-center gap-2"
+                  key={contract.id}
+                >
                   {contract.pandadocUrl ? (
                     <a
                       className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
@@ -362,7 +374,8 @@ export default async function AdminEventDetailPage({
                     tone={
                       contract.status === "completed"
                         ? "success"
-                        : contract.status === "error" || contract.status === "declined"
+                        : contract.status === "error" ||
+                            contract.status === "declined"
                           ? "danger"
                           : contract.status === "voided"
                             ? "neutral"
@@ -381,9 +394,7 @@ export default async function AdminEventDetailPage({
             <input name="eventId" type="hidden" value={event.id} />
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="type-label text-slate-500">
-                  Arrival time
-                </span>
+                <span className="type-label text-slate-500">Arrival time</span>
                 <select
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
                   defaultValue={event.arrivalTime ?? ""}
@@ -499,6 +510,20 @@ export default async function AdminEventDetailPage({
                       type="number"
                     />
                   </div>
+                  {contracts.some((contract) =>
+                    [
+                      "draft",
+                      "approval",
+                      "sent",
+                      "viewed",
+                      "completed",
+                    ].includes(contract.status),
+                  ) ? (
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Kept equal to the event&apos;s contracts combined; edits
+                      here are overwritten by the next contract change.
+                    </span>
+                  ) : null}
                 </label>
               ) : null}
             </div>
@@ -538,10 +563,15 @@ export default async function AdminEventDetailPage({
         <DetailRow label="Launch readiness" value={getLaunchReadiness(event)} />
         <DetailRow
           label="Portal access prepared"
-          value={event.hasPortalTokenHash || event.clientPortalUrl ? "Yes" : "No"}
+          value={
+            event.hasPortalTokenHash || event.clientPortalUrl ? "Yes" : "No"
+          }
         />
         <DetailRow label="Stored portal path" value={storedPortalPath} />
-        <DetailRow label="Launched" value={formatNullableDateTime(event.launchedAt)} />
+        <DetailRow
+          label="Launched"
+          value={formatNullableDateTime(event.launchedAt)}
+        />
         <DetailRow
           label="Client notification"
           value="Not sent by this app. GoHighLevel remains responsible for client email/SMS after planner approval."
@@ -577,10 +607,7 @@ export default async function AdminEventDetailPage({
                     portal link.
                   </span>
                 </label>
-                <button
-                  className={buttonClasses("primary")}
-                  type="submit"
-                >
+                <button className={buttonClasses("primary")} type="submit">
                   Prepare portal launch
                 </button>
               </form>
@@ -602,12 +629,18 @@ export default async function AdminEventDetailPage({
 
       <section className="grid gap-6 xl:grid-cols-2">
         <DetailSection title="Portal activity">
-          <DetailRow label="Launched" value={formatNullableDateTime(event.launchedAt)} />
+          <DetailRow
+            label="Launched"
+            value={formatNullableDateTime(event.launchedAt)}
+          />
           <DetailRow
             label="Public expires"
             value={formatNullableDateTime(event.publicExpiresAt)}
           />
-          <DetailRow label="Expired" value={formatNullableDateTime(event.expiredAt)} />
+          <DetailRow
+            label="Expired"
+            value={formatNullableDateTime(event.expiredAt)}
+          />
           <DetailRow
             label="First viewed"
             value={formatNullableDateTime(event.firstViewedAt)}
@@ -636,8 +669,14 @@ export default async function AdminEventDetailPage({
           value={formatNullableDateTime(event.lastSyncedAt)}
         />
         <DetailRow label="Last sync error" value={event.lastSyncError} />
-        <DetailRow label="Created" value={formatNullableDateTime(event.createdAt)} />
-        <DetailRow label="Updated" value={formatNullableDateTime(event.updatedAt)} />
+        <DetailRow
+          label="Created"
+          value={formatNullableDateTime(event.createdAt)}
+        />
+        <DetailRow
+          label="Updated"
+          value={formatNullableDateTime(event.updatedAt)}
+        />
       </DetailSection>
 
       <section className="rounded-xl border border-red-200 bg-red-50/40 p-5 sm:p-6">
@@ -663,10 +702,7 @@ export default async function AdminEventDetailPage({
               data.
             </span>
           </label>
-          <button
-            className={buttonClasses("destructive")}
-            type="submit"
-          >
+          <button className={buttonClasses("destructive")} type="submit">
             Delete event
           </button>
         </form>
@@ -707,17 +743,18 @@ function FacilitatorSection({
 }: FacilitatorSectionProps) {
   const needsReview = facilitatorStatus === "needs_review";
   const hasFacilitator = Boolean(facilitatorName) || facilitatorSameAsContact;
-  const contactDetails = [contactEmail, contactPhone].filter(Boolean).join(" · ");
+  const contactDetails = [contactEmail, contactPhone]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="type-label text-slate-500">
-            Primary contact
-          </p>
+          <p className="type-label text-slate-500">Primary contact</p>
           <p className="mt-1 text-base font-semibold text-slate-950">
-            {contactName || (ghlContactId ? "Unnamed contact" : "No contact linked")}
+            {contactName ||
+              (ghlContactId ? "Unnamed contact" : "No contact linked")}
           </p>
           {contactDetails ? (
             <p className="mt-0.5 text-sm text-slate-600">{contactDetails}</p>
@@ -786,8 +823,8 @@ function FacilitatorSection({
             name="sameAsContact"
             type="checkbox"
           />
-          Same as the event&apos;s current contact (details are pulled from
-          the GHL contact on save)
+          Same as the event&apos;s current contact (details are pulled from the
+          GHL contact on save)
         </label>
         <div className="hidden rounded-lg bg-slate-50 p-3 text-sm text-slate-700 peer-has-checked:block">
           {facilitatorSameAsContact && facilitatorName
@@ -856,7 +893,9 @@ function RoomBookingsSection({
     <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Room bookings</h2>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Room bookings
+          </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Calendar reservations linked to this event. Add rooms and confirm
             holds as booked here, or use the{" "}
@@ -894,7 +933,9 @@ function RoomBookingsSection({
                 <span
                   aria-hidden
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: reservation.rooms?.color ?? "#94A3B8" }}
+                  style={{
+                    backgroundColor: reservation.rooms?.color ?? "#94A3B8",
+                  }}
                 />
                 {reservation.rooms?.name ?? "Unknown room"}
               </span>
@@ -951,7 +992,10 @@ function RoomBookingsSection({
                   <form action={updateRoomBookingStatusAction}>
                     <input name="eventId" type="hidden" value={eventId} />
                     <input name="status" type="hidden" value="booked" />
-                    <button className={buttonClasses("primary", "sm")} type="submit">
+                    <button
+                      className={buttonClasses("primary", "sm")}
+                      type="submit"
+                    >
                       Mark all booked
                     </button>
                   </form>
@@ -960,7 +1004,10 @@ function RoomBookingsSection({
                   <form action={updateRoomBookingStatusAction}>
                     <input name="eventId" type="hidden" value={eventId} />
                     <input name="status" type="hidden" value="held" />
-                    <button className={buttonClasses("secondary", "sm")} type="submit">
+                    <button
+                      className={buttonClasses("secondary", "sm")}
+                      type="submit"
+                    >
                       Revert all to held
                     </button>
                   </form>
@@ -1002,7 +1049,9 @@ function ChecklistSetupSection({
     <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Checklist setup</h2>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Checklist setup
+          </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Apply one seeded template, then make event-specific planner edits to
             item status, title, description, and visibility. Reordering and full
@@ -1115,10 +1164,7 @@ function ChecklistSetupSection({
                   />
                 </dl>
                 <div>
-                  <button
-                    className={buttonClasses("primary")}
-                    type="submit"
-                  >
+                  <button className={buttonClasses("primary")} type="submit">
                     Save checklist item
                   </button>
                 </div>
@@ -1156,17 +1202,14 @@ function ChecklistSetupSection({
                 ))}
               </select>
             </label>
-            <button
-              className={buttonClasses("primary")}
-              type="submit"
-            >
+            <button className={buttonClasses("primary")} type="submit">
               Apply template
             </button>
           </form>
         ) : (
           <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            No active checklist templates are available yet. Apply the local seed
-            or add real templates before setting up this event checklist.
+            No active checklist templates are available yet. Apply the local
+            seed or add real templates before setting up this event checklist.
           </p>
         )
       ) : null}
@@ -1187,11 +1230,13 @@ function VendorSubmissionsSection({
     <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Vendor submissions</h2>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Vendor submissions
+          </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Review vendor details submitted through the client portal. This view is
-            read-only for now; planner approval, editing, GHL writeback, and file
-            uploads remain separate future workflows.
+            Review vendor details submitted through the client portal. This view
+            is read-only for now; planner approval, editing, GHL writeback, and
+            file uploads remain separate future workflows.
           </p>
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
@@ -1220,7 +1265,10 @@ function VendorSubmissionsSection({
       {vendors.length > 0 ? (
         <ul className="mt-5 grid gap-4 xl:grid-cols-2">
           {vendors.map((vendor) => (
-            <li className={getVendorReviewClassName(vendor.metadata)} key={vendor.id}>
+            <li
+              className={getVendorReviewClassName(vendor.metadata)}
+              key={vendor.id}
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-semibold text-slate-950">
                   {vendor.companyName || vendor.contactName || "Unnamed vendor"}
@@ -1230,11 +1278,26 @@ function VendorSubmissionsSection({
                 </span>
               </div>
               <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                <ChecklistMeta label="Vendor type" value={vendor.vendorType || "Not set"} />
-                <ChecklistMeta label="Contact" value={vendor.contactName || "Not set"} />
-                <ChecklistMeta label="Email" value={vendor.email || "Not set"} />
-                <ChecklistMeta label="Phone" value={vendor.phone || "Not set"} />
-                <ChecklistMeta label="Submitted" value={formatNullableDateTime(vendor.createdAt)} />
+                <ChecklistMeta
+                  label="Vendor type"
+                  value={vendor.vendorType || "Not set"}
+                />
+                <ChecklistMeta
+                  label="Contact"
+                  value={vendor.contactName || "Not set"}
+                />
+                <ChecklistMeta
+                  label="Email"
+                  value={vendor.email || "Not set"}
+                />
+                <ChecklistMeta
+                  label="Phone"
+                  value={vendor.phone || "Not set"}
+                />
+                <ChecklistMeta
+                  label="Submitted"
+                  value={formatNullableDateTime(vendor.createdAt)}
+                />
               </dl>
               {vendor.notes ? (
                 <div className="mt-4 rounded-xl bg-white/70 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
@@ -1246,10 +1309,7 @@ function VendorSubmissionsSection({
                 <form action={reviewVendorSubmissionAction} className="mt-4">
                   <input name="eventId" type="hidden" value={eventId} />
                   <input name="vendorId" type="hidden" value={vendor.id} />
-                  <button
-                    className={buttonClasses("primary")}
-                    type="submit"
-                  >
+                  <button className={buttonClasses("primary")} type="submit">
                     Mark vendor reviewed
                   </button>
                 </form>
@@ -1282,7 +1342,9 @@ function UploadReviewSection({
     <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Upload review</h2>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Upload review
+          </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Review files submitted through the client portal. Download links are
             temporary signed URLs for planner review only.
@@ -1320,7 +1382,9 @@ function UploadReviewSection({
                   {upload.fileName}
                 </h3>
                 <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
-                  {isClientUploadNeedingReview(upload) ? "Needs review" : "Reviewed"}
+                  {isClientUploadNeedingReview(upload)
+                    ? "Needs review"
+                    : "Reviewed"}
                 </span>
               </div>
               <dl className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
@@ -1354,10 +1418,7 @@ function UploadReviewSection({
                   <form action={reviewUploadAction}>
                     <input name="eventId" type="hidden" value={eventId} />
                     <input name="uploadId" type="hidden" value={upload.id} />
-                    <button
-                      className={buttonClasses("primary")}
-                      type="submit"
-                    >
+                    <button className={buttonClasses("primary")} type="submit">
                       Mark upload reviewed
                     </button>
                   </form>
@@ -1500,15 +1561,24 @@ function canShowLaunchForm(event: {
   status: keyof typeof statusLabels;
 }): boolean {
   return (
-    event.status === "draft" && !event.clientPortalUrl && !event.hasPortalTokenHash
+    event.status === "draft" &&
+    !event.clientPortalUrl &&
+    !event.hasPortalTokenHash
   );
 }
 
 function getRequestOrigin(headersList: Headers): string {
-  const forwardedHost = headersList.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedHost = headersList
+    .get("x-forwarded-host")
+    ?.split(",")[0]
+    ?.trim();
   const host = forwardedHost || headersList.get("host")?.split(",")[0]?.trim();
-  const forwardedProto = headersList.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const proto = forwardedProto || (host?.startsWith("localhost") ? "http" : "https");
+  const forwardedProto = headersList
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
+  const proto =
+    forwardedProto || (host?.startsWith("localhost") ? "http" : "https");
 
   return host ? `${proto}://${host}` : "http://localhost:3000";
 }

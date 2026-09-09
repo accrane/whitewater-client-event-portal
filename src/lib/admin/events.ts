@@ -313,7 +313,7 @@ export async function markEventVendorReviewed({
 
 // Merges keys into an event's ghl_snapshot and returns the (pre-merge) event
 // row so callers can follow up with a GHL writeback.
-async function mergeEventSnapshot(
+export async function mergeEventSnapshot(
   eventId: string,
   patch: Record<string, Json>,
 ): Promise<EventRow> {
