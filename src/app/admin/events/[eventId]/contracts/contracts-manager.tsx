@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import type { ContractTemplateOptions } from "@/lib/admin/contracts";
 import {
+  EDITABLE_CONTRACT_STATUSES,
   calculateContractSubtotal,
   contractStatusLabels,
   type ContractLineItem,
@@ -17,12 +18,15 @@ import {
   createContractAction,
   deleteFailedContractAction,
   refreshContractAction,
+  updateContractAction,
 } from "./actions";
 
 // Contracts tab body: the event's contract history (newest first) and the
-// "New contract" form — name, template, terms, line items with prices, and
-// the recipient. Creating one builds and sends the PandaDoc document
-// server-side; the client then signs it from their portal.
+// contract form — name, template, terms, line items with prices, and the
+// recipient. Creating one builds and sends the PandaDoc document
+// server-side; the client then signs it from their portal. Unsigned
+// contracts can be edited in place: same form, prefilled, and the document
+// is updated and re-sent.
 
 type ContractsManagerProps = {
   eventId: string;
@@ -36,6 +40,7 @@ type ContractsManagerProps = {
 const statusTones: Record<EventContract["status"], BadgeTone> = {
   draft: "neutral",
   creating: "info",
+  approval: "info",
   sent: "warning",
   viewed: "info",
   completed: "success",
@@ -67,7 +72,13 @@ type DraftLineItem = {
 
 let nextKey = 1;
 function blankItem(): DraftLineItem {
-  return { key: nextKey++, name: "", description: "", quantity: "1", unitPrice: "" };
+  return {
+    key: nextKey++,
+    name: "",
+    description: "",
+    quantity: "1",
+    unitPrice: "",
+  };
 }
 
 function toLineItems(drafts: DraftLineItem[]): ContractLineItem[] {
@@ -77,7 +88,9 @@ function toLineItems(drafts: DraftLineItem[]): ContractLineItem[] {
       name: item.name.trim(),
       description: item.description.trim(),
       quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
-      unitPrice: Number.isFinite(Number(item.unitPrice)) ? Number(item.unitPrice) : 0,
+      unitPrice: Number.isFinite(Number(item.unitPrice))
+        ? Number(item.unitPrice)
+        : 0,
     }));
 }
 
@@ -95,9 +108,9 @@ export function ContractsManager({
     <div className="space-y-6">
       {!portalLaunched ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          The client portal isn&apos;t launched yet. Contracts can be created now,
-          but the client can only sign once the portal is live (or if you tick
-          &ldquo;also email from PandaDoc&rdquo;).
+          The client portal isn&apos;t launched yet. Contracts can be created
+          now, but the client can only sign once the portal is live (or if you
+          tick &ldquo;also email from PandaDoc&rdquo;).
         </p>
       ) : null}
 
@@ -113,7 +126,7 @@ export function ContractsManager({
       </div>
 
       {showForm ? (
-        <NewContractForm
+        <ContractForm
           contacts={contacts}
           eventId={eventId}
           eventName={eventName}
@@ -135,7 +148,11 @@ export function ContractsManager({
       ) : (
         <ul className="space-y-4">
           {contracts.map((contract) => (
-            <ContractCard contract={contract} eventId={eventId} key={contract.id} />
+            <ContractCard
+              contract={contract}
+              eventId={eventId}
+              key={contract.id}
+            />
           ))}
         </ul>
       )}
@@ -153,17 +170,35 @@ function ContractCard({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const removable =
     ["draft", "creating", "error"].includes(contract.status) &&
     !contract.pandadocDocumentId;
+  const editable =
+    EDITABLE_CONTRACT_STATUSES.includes(contract.status) &&
+    Boolean(contract.pandadocDocumentId);
+
+  if (editing) {
+    return (
+      <li>
+        <ContractForm
+          contract={contract}
+          eventId={eventId}
+          onDone={() => setEditing(false)}
+        />
+      </li>
+    );
+  }
 
   return (
     <li className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-950">{contract.name}</h3>
+            <h3 className="text-base font-semibold text-slate-950">
+              {contract.name}
+            </h3>
             <StatusBadge tone={statusTones[contract.status]}>
               {contractStatusLabels[contract.status]}
             </StatusBadge>
@@ -176,6 +211,11 @@ function ContractCard({
               : ""}
             Created {formatDateTime(contract.createdAt)}
             {contract.createdBy ? ` by ${contract.createdBy}` : ""}
+            {contract.revisedAt
+              ? ` · Revised ${formatDateTime(contract.revisedAt)}${
+                  contract.revisedBy ? ` by ${contract.revisedBy}` : ""
+                } (revision ${contract.revision})`
+              : ""}
           </p>
         </div>
         <p className="text-right">
@@ -214,6 +254,14 @@ function ContractCard({
         </p>
       ) : null}
 
+      {contract.status === "approval" ? (
+        <p className="mt-3 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-xs text-sky-900">
+          This template has an approval workflow in PandaDoc. Once it&apos;s
+          approved there, the app sends it to the client on the next refresh and
+          the portal offers signing.
+        </p>
+      ) : null}
+
       {contract.status === "completed" && contract.signedActionsAppliedAt ? (
         <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
           Signed {formatDateTime(contract.completedAt)}. Room reservations were
@@ -223,6 +271,19 @@ function ContractCard({
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        {editable ? (
+          <button
+            className={buttonClasses("secondary", "sm")}
+            disabled={pending}
+            onClick={() => {
+              setError(null);
+              setEditing(true);
+            }}
+            type="button"
+          >
+            Edit
+          </button>
+        ) : null}
         {contract.lineItems.length > 0 || contract.description ? (
           <button
             className={buttonClasses("ghost", "sm")}
@@ -284,7 +345,10 @@ function ContractCard({
               if (!window.confirm("Remove this failed contract?")) return;
               setError(null);
               startTransition(async () => {
-                const result = await deleteFailedContractAction(eventId, contract.id);
+                const result = await deleteFailedContractAction(
+                  eventId,
+                  contract.id,
+                );
                 if (!result.ok) setError(result.error);
               });
             }}
@@ -299,16 +363,17 @@ function ContractCard({
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
           {contract.description ? (
             <div>
-              <p className="type-label text-slate-500">
-                Description / terms
-              </p>
+              <p className="type-label text-slate-500">Description / terms</p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
                 {contract.description}
               </p>
             </div>
           ) : null}
           {contract.lineItems.length > 0 ? (
-            <LineItemsTable items={contract.lineItems} subtotal={contract.subtotal} />
+            <LineItemsTable
+              items={contract.lineItems}
+              subtotal={contract.subtotal}
+            />
           ) : null}
         </div>
       ) : null}
@@ -340,10 +405,14 @@ function LineItemsTable({
               <td className="py-2 pr-3">
                 <span className="font-medium text-slate-800">{item.name}</span>
                 {item.description ? (
-                  <span className="block text-xs text-slate-500">{item.description}</span>
+                  <span className="block text-xs text-slate-500">
+                    {item.description}
+                  </span>
                 ) : null}
               </td>
-              <td className="py-2 pr-3 text-right text-slate-700">{item.quantity}</td>
+              <td className="py-2 pr-3 text-right text-slate-700">
+                {item.quantity}
+              </td>
               <td className="py-2 pr-3 text-right text-slate-700">
                 {currency.format(item.unitPrice)}
               </td>
@@ -355,7 +424,10 @@ function LineItemsTable({
         </tbody>
         <tfoot>
           <tr>
-            <td className="pt-2 text-right type-label text-slate-500" colSpan={3}>
+            <td
+              className="pt-2 text-right type-label text-slate-500"
+              colSpan={3}
+            >
               Subtotal
             </td>
             <td className="pt-2 text-right font-semibold text-slate-950">
@@ -368,27 +440,69 @@ function LineItemsTable({
   );
 }
 
-function NewContractForm({
-  eventId,
-  eventName,
-  templateOptions,
-  contacts,
-  onDone,
-}: {
+type ContractFormProps = {
   eventId: string;
-  eventName: string;
-  templateOptions: ContractTemplateOptions;
-  contacts: { name: string | null; email: string | null };
   onDone: () => void;
-}) {
-  const [name, setName] = useState(`${eventName} — Event Contract`);
-  const [templateId, setTemplateId] = useState(
-    templateOptions.defaultTemplateId ?? templateOptions.templates[0]?.id ?? "",
+} & (
+  | {
+      // Create: template picker and recipient are editable.
+      contract?: undefined;
+      eventName: string;
+      templateOptions: ContractTemplateOptions;
+      contacts: { name: string | null; email: string | null };
+    }
+  | {
+      // Edit: prefilled from the contract; template and recipient are fixed
+      // because the PandaDoc document already exists for that recipient.
+      contract: EventContract;
+      eventName?: undefined;
+      templateOptions?: undefined;
+      contacts?: undefined;
+    }
+);
+
+function toDraftItems(items: ContractLineItem[]): DraftLineItem[] {
+  if (items.length === 0) return [blankItem()];
+  return items.map((item) => ({
+    key: nextKey++,
+    name: item.name,
+    description: item.description,
+    quantity: String(item.quantity),
+    unitPrice: String(item.unitPrice),
+  }));
+}
+
+function ContractForm(props: ContractFormProps) {
+  const { eventId, onDone } = props;
+  const editing = props.contract !== undefined;
+  const templateOptions = props.templateOptions;
+
+  const [name, setName] = useState(
+    editing ? props.contract.name : `${props.eventName} — Event Contract`,
   );
-  const [description, setDescription] = useState("");
-  const [items, setItems] = useState<DraftLineItem[]>([blankItem()]);
-  const [recipientName, setRecipientName] = useState(contacts.name ?? "");
-  const [recipientEmail, setRecipientEmail] = useState(contacts.email ?? "");
+  const [templateId, setTemplateId] = useState(
+    editing
+      ? (props.contract.pandadocTemplateId ?? "")
+      : (templateOptions?.defaultTemplateId ??
+          templateOptions?.templates[0]?.id ??
+          ""),
+  );
+  const [description, setDescription] = useState(
+    editing ? (props.contract.description ?? "") : "",
+  );
+  const [items, setItems] = useState<DraftLineItem[]>(() =>
+    editing ? toDraftItems(props.contract.lineItems) : [blankItem()],
+  );
+  const [recipientName, setRecipientName] = useState(
+    editing
+      ? (props.contract.recipientName ?? "")
+      : (props.contacts.name ?? ""),
+  );
+  const [recipientEmail, setRecipientEmail] = useState(
+    editing
+      ? (props.contract.recipientEmail ?? "")
+      : (props.contacts.email ?? ""),
+  );
   const [notifyByEmail, setNotifyByEmail] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -396,6 +510,8 @@ function NewContractForm({
   const subtotal = calculateContractSubtotal(toLineItems(items));
   const inputClass =
     "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800";
+  const readOnlyClass =
+    "w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600";
 
   const updateItem = (key: number, patch: Partial<DraftLineItem>) =>
     setItems((current) =>
@@ -405,15 +521,22 @@ function NewContractForm({
   const submit = () => {
     setError(null);
     startTransition(async () => {
-      const outcome = await createContractAction(eventId, {
-        name,
-        description,
-        templateId,
-        recipientName,
-        recipientEmail,
-        notifyByEmail,
-        lineItems: toLineItems(items),
-      });
+      const outcome = editing
+        ? await updateContractAction(eventId, props.contract.id, {
+            name,
+            description,
+            notifyByEmail,
+            lineItems: toLineItems(items),
+          })
+        : await createContractAction(eventId, {
+            name,
+            description,
+            templateId,
+            recipientName,
+            recipientEmail,
+            notifyByEmail,
+            lineItems: toLineItems(items),
+          });
       if (outcome.ok) {
         onDone();
       } else {
@@ -432,10 +555,13 @@ function NewContractForm({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-slate-950">New contract</h3>
+          <h3 className="text-base font-semibold text-slate-950">
+            {editing ? `Edit ${props.contract.name}` : "New contract"}
+          </h3>
           <p className="mt-1 text-sm text-slate-600">
-            Builds the document in PandaDoc from the chosen template, with these
-            line items as its pricing table and the description as its terms.
+            {editing
+              ? "Updates the same PandaDoc document and re-sends it. Anything the client already filled in stays; signature fields are cleared and their earlier signing link stops working."
+              : "Builds the document in PandaDoc from the chosen template, with these line items as its pricing table and the description as its terms."}
           </p>
         </div>
         <button
@@ -447,7 +573,7 @@ function NewContractForm({
         </button>
       </div>
 
-      {templateOptions.error ? (
+      {templateOptions?.error ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           {templateOptions.error}
         </p>
@@ -465,8 +591,16 @@ function NewContractForm({
           />
         </label>
         <label className="block text-sm">
-          <span className="font-semibold text-slate-700">PandaDoc template</span>
-          {templateOptions.templates.length > 0 ? (
+          <span className="font-semibold text-slate-700">
+            PandaDoc template
+          </span>
+          {editing ? (
+            <input
+              className={`mt-1 ${readOnlyClass}`}
+              readOnly
+              value={templateId || "—"}
+            />
+          ) : templateOptions && templateOptions.templates.length > 0 ? (
             <select
               className={`mt-1 ${inputClass}`}
               onChange={(event) => setTemplateId(event.target.value)}
@@ -486,11 +620,18 @@ function NewContractForm({
               value={templateId}
             />
           )}
+          {editing ? (
+            <span className="mt-1 block text-xs text-slate-500">
+              The template can&apos;t change once the document exists.
+            </span>
+          ) : null}
         </label>
       </div>
 
       <label className="block text-sm">
-        <span className="font-semibold text-slate-700">Description / terms</span>
+        <span className="font-semibold text-slate-700">
+          Description / terms
+        </span>
         <textarea
           className={`mt-1 min-h-24 ${inputClass}`}
           onChange={(event) => setDescription(event.target.value)}
@@ -504,7 +645,9 @@ function NewContractForm({
 
       <div>
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-700">Items and prices</span>
+          <span className="text-sm font-semibold text-slate-700">
+            Items and prices
+          </span>
           <button
             className={buttonClasses("secondary", "sm")}
             onClick={() => setItems((current) => [...current, blankItem()])}
@@ -522,7 +665,9 @@ function NewContractForm({
               <input
                 aria-label="Item name"
                 className={inputClass}
-                onChange={(event) => updateItem(item.key, { name: event.target.value })}
+                onChange={(event) =>
+                  updateItem(item.key, { name: event.target.value })
+                }
                 placeholder="Item (e.g. Team building session)"
                 value={item.name}
               />
@@ -540,7 +685,9 @@ function NewContractForm({
                 className={inputClass}
                 inputMode="decimal"
                 min="0"
-                onChange={(event) => updateItem(item.key, { quantity: event.target.value })}
+                onChange={(event) =>
+                  updateItem(item.key, { quantity: event.target.value })
+                }
                 placeholder="Qty"
                 step="any"
                 type="number"
@@ -551,7 +698,9 @@ function NewContractForm({
                 className={inputClass}
                 inputMode="decimal"
                 min="0"
-                onChange={(event) => updateItem(item.key, { unitPrice: event.target.value })}
+                onChange={(event) =>
+                  updateItem(item.key, { unitPrice: event.target.value })
+                }
                 placeholder="Price"
                 step="0.01"
                 type="number"
@@ -564,7 +713,9 @@ function NewContractForm({
                   setItems((current) =>
                     current.length === 1
                       ? [blankItem()]
-                      : current.filter((candidate) => candidate.key !== item.key),
+                      : current.filter(
+                          (candidate) => candidate.key !== item.key,
+                        ),
                   )
                 }
                 type="button"
@@ -576,7 +727,9 @@ function NewContractForm({
         </div>
         <p className="mt-2 text-right text-sm text-slate-700">
           Subtotal{" "}
-          <span className="font-semibold text-slate-950">{currency.format(subtotal)}</span>
+          <span className="font-semibold text-slate-950">
+            {currency.format(subtotal)}
+          </span>
         </p>
       </div>
 
@@ -584,22 +737,26 @@ function NewContractForm({
         <label className="block text-sm">
           <span className="font-semibold text-slate-700">Recipient name</span>
           <input
-            className={`mt-1 ${inputClass}`}
+            className={`mt-1 ${editing ? readOnlyClass : inputClass}`}
             onChange={(event) => setRecipientName(event.target.value)}
+            readOnly={editing}
             value={recipientName}
           />
         </label>
         <label className="block text-sm">
           <span className="font-semibold text-slate-700">Recipient email</span>
           <input
-            className={`mt-1 ${inputClass}`}
+            className={`mt-1 ${editing ? readOnlyClass : inputClass}`}
             onChange={(event) => setRecipientEmail(event.target.value)}
+            readOnly={editing}
             required
             type="email"
             value={recipientEmail}
           />
           <span className="mt-1 block text-xs text-slate-500">
-            Prefilled from the event&apos;s GHL contact.
+            {editing
+              ? "To send to someone else, create a new contract."
+              : "Prefilled from the event\u2019s GHL contact."}
           </span>
         </label>
       </div>
@@ -612,7 +769,9 @@ function NewContractForm({
           type="checkbox"
         />
         <span>
-          Also email the signing invite from PandaDoc.{" "}
+          {editing
+            ? "Also email the updated contract from PandaDoc."
+            : "Also email the signing invite from PandaDoc."}{" "}
           <span className="text-slate-500">
             Off by default: the client signs from the portal, so share the
             portal link (or a conversations message) instead.
@@ -627,8 +786,17 @@ function NewContractForm({
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Button disabled={pending || !name.trim() || !recipientEmail.trim()} type="submit">
-          {pending ? "Creating in PandaDoc…" : "Create and send contract"}
+        <Button
+          disabled={pending || !name.trim() || !recipientEmail.trim()}
+          type="submit"
+        >
+          {pending
+            ? editing
+              ? "Updating in PandaDoc…"
+              : "Creating in PandaDoc…"
+            : editing
+              ? "Save and re-send"
+              : "Create and send contract"}
         </Button>
       </div>
     </form>

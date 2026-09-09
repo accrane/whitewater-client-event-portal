@@ -35,6 +35,9 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          revision: number;
+          revised_at: string | null;
+          revised_by: string | null;
         };
         Insert: {
           id?: string;
@@ -61,6 +64,9 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          revision?: number;
+          revised_at?: string | null;
+          revised_by?: string | null;
         };
         Update: {
           id?: string;
@@ -87,6 +93,9 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          revision?: number;
+          revised_at?: string | null;
+          revised_by?: string | null;
         };
         Relationships: [];
       };
@@ -107,7 +116,8 @@ export type Database = {
           last_viewed_at: string | null;
           view_count: number;
           last_synced_at: string | null;
-          last_sync_status: Database["public"]["Enums"]["integration_status"] | null;
+          last_sync_status:
+            Database["public"]["Enums"]["integration_status"] | null;
           last_sync_error: string | null;
           ghl_snapshot: Json;
           created_at: string;
@@ -129,7 +139,8 @@ export type Database = {
           last_viewed_at?: string | null;
           view_count?: number;
           last_synced_at?: string | null;
-          last_sync_status?: Database["public"]["Enums"]["integration_status"] | null;
+          last_sync_status?:
+            Database["public"]["Enums"]["integration_status"] | null;
           last_sync_error?: string | null;
           ghl_snapshot?: Json;
           created_at?: string;
@@ -157,7 +168,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["checklist_templates"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["checklist_templates"]["Insert"]
+        >;
         Relationships: [];
       };
       checklist_template_items: {
@@ -191,7 +204,9 @@ export type Database = {
           metadata?: Json;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["checklist_template_items"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["checklist_template_items"]["Insert"]
+        >;
         Relationships: [];
       };
       event_checklist_items: {
@@ -237,7 +252,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["event_checklist_items"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["event_checklist_items"]["Insert"]
+        >;
         Relationships: [];
       };
       vendors: {
@@ -399,7 +416,9 @@ export type Database = {
           sort_order?: number;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["event_schedule_groups"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["event_schedule_groups"]["Insert"]
+        >;
         Relationships: [];
       };
       event_schedule_blocks: {
@@ -423,7 +442,9 @@ export type Database = {
           color?: Database["public"]["Enums"]["schedule_block_color"];
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["event_schedule_blocks"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["event_schedule_blocks"]["Insert"]
+        >;
         Relationships: [];
       };
       event_schedule_items: {
@@ -447,7 +468,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["event_schedule_items"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["event_schedule_items"]["Insert"]
+        >;
         Relationships: [];
       };
       schedule_template_items: {
@@ -469,7 +492,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["schedule_template_items"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["schedule_template_items"]["Insert"]
+        >;
         Relationships: [];
       };
       ghl_contact_badges: {
@@ -485,7 +510,9 @@ export type Database = {
           open_task_count?: number;
           refreshed_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["ghl_contact_badges"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["ghl_contact_badges"]["Insert"]
+        >;
         Relationships: [];
       };
       checklist_template_sections: {
@@ -505,7 +532,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["checklist_template_sections"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["checklist_template_sections"]["Insert"]
+        >;
         Relationships: [];
       };
       event_checklist_sections: {
@@ -529,7 +558,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["event_checklist_sections"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["event_checklist_sections"]["Insert"]
+        >;
         Relationships: [];
       };
       event_notes: {
@@ -579,7 +610,9 @@ export type Database = {
           details?: Json;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["integration_logs"]["Insert"]>;
+        Update: Partial<
+          Database["public"]["Tables"]["integration_logs"]["Insert"]
+        >;
         Relationships: [];
       };
       sf_contacts: {
@@ -820,10 +853,7 @@ export type Database = {
     Enums: {
       portal_event_status: "draft" | "launched" | "expired" | "archived";
       checklist_item_status:
-        | "not_completed"
-        | "needs_review"
-        | "completed"
-        | "not_applicable";
+        "not_completed" | "needs_review" | "completed" | "not_applicable";
       checklist_section_status: "open" | "ready_for_review" | "complete";
       upload_status: "uploaded" | "needs_review";
       reservation_status: "held" | "booked";
@@ -839,6 +869,7 @@ export type Database = {
       event_contract_status:
         | "draft"
         | "creating"
+        | "approval"
         | "sent"
         | "viewed"
         | "completed"

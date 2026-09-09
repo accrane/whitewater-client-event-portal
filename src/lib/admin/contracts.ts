@@ -12,15 +12,19 @@ import {
   getPandaDocDocumentDetails,
   getPandaDocTemplateDetails,
   listPandaDocTemplates,
+  movePandaDocDocumentToDraft,
   pandaDocDocumentUrl,
   pandaDocSigningUrl,
   sendPandaDocDocument,
+  updatePandaDocDocument,
   waitForPandaDocDraft,
   type PandaDocTemplateSummary,
 } from "@/lib/pandadoc/documents";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import {
+  EDITABLE_CONTRACT_STATUSES,
   OPEN_CONTRACT_STATUSES,
+  SIGNABLE_CONTRACT_STATUSES,
   calculateContractSubtotal,
   parseContractLineItems,
   toNumber,
@@ -55,7 +59,10 @@ type ContractInsert = Database["public"]["Tables"]["event_contracts"]["Insert"];
 type ContractUpdate = Database["public"]["Tables"]["event_contracts"]["Update"];
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 
-function mapContractRow(row: ContractRow, signedPdfUrl: string | null): EventContract {
+function mapContractRow(
+  row: ContractRow,
+  signedPdfUrl: string | null,
+): EventContract {
   return {
     id: row.id,
     eventId: row.event_id,
@@ -80,6 +87,9 @@ function mapContractRow(row: ContractRow, signedPdfUrl: string | null): EventCon
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    revision: row.revision,
+    revisedAt: row.revised_at,
+    revisedBy: row.revised_by,
   };
 }
 
@@ -109,7 +119,10 @@ export async function listEventContracts(
   const rows = (data ?? []) as ContractRow[];
   return Promise.all(
     rows.map(async (row) =>
-      mapContractRow(row, options.withSignedUrls ? await signedPdfUrlFor(row) : null),
+      mapContractRow(
+        row,
+        options.withSignedUrls ? await signedPdfUrlFor(row) : null,
+      ),
     ),
   );
 }
@@ -188,11 +201,15 @@ export async function getContractTemplateOptions(): Promise<ContractTemplateOpti
 export function buildContractTokens(
   event: AdminEventDetail,
   contract: { name: string; description: string | null; subtotal: number },
+  recipient: { firstName: string; lastName: string; email: string },
 ): Record<string, string> {
   const text = (value: string | number | null | undefined) =>
     value === null || value === undefined ? "" : String(value);
   const money = (value: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(value);
 
   return {
     "event.name": text(event.eventName),
@@ -216,6 +233,16 @@ export function buildContractTokens(
     "contract.name": contract.name,
     "contract.description": text(contract.description),
     "contract.subtotal": money(contract.subtotal),
+    // The existing Whitewater templates were built for PandaDoc's Salesforce
+    // integration and use these names; fill them so those templates work
+    // unchanged.
+    "Client.FirstName": recipient.firstName,
+    "Client.LastName": recipient.lastName,
+    "Client.Email": recipient.email,
+    "Client.Phone": text(event.contactPhone),
+    // The event has no company field yet; blank keeps the template tidy.
+    "Account.Name": "",
+    Date__c: event.eventDate ? formatDisplayDate(event.eventDate) : "",
   };
 }
 
@@ -243,8 +270,36 @@ function splitName(name: string): { firstName: string; lastName: string } {
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
+// Trims, drops nameless rows, and rounds prices to cents.
+function normalizeLineItems(items: ContractLineItem[]): ContractLineItem[] {
+  return items
+    .map((item) => ({
+      name: item.name.trim(),
+      description: item.description.trim(),
+      quantity:
+        Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1,
+      unitPrice: Number.isFinite(item.unitPrice)
+        ? Math.round(item.unitPrice * 100) / 100
+        : 0,
+    }))
+    .filter((item) => item.name);
+}
+
+function toLineItemsJson(items: ContractLineItem[]) {
+  return items.map((item) => ({
+    name: item.name,
+    description: item.description,
+    quantity: item.quantity,
+    unit_price: item.unitPrice,
+  }));
+}
+
 function pickClientRole(roles: string[]): string {
-  return roles.find((role) => /client|customer|signer/i.test(role)) ?? roles[0] ?? "Client";
+  return (
+    roles.find((role) => /client|customer|signer/i.test(role)) ??
+    roles[0] ??
+    "Client"
+  );
 }
 
 // Creates the contract record, then the PandaDoc document from the chosen
@@ -261,14 +316,7 @@ export async function createEventContract(
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Give the contract a name." };
 
-  const lineItems = input.lineItems
-    .map((item) => ({
-      name: item.name.trim(),
-      description: item.description.trim(),
-      quantity: Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1,
-      unitPrice: Number.isFinite(item.unitPrice) ? Math.round(item.unitPrice * 100) / 100 : 0,
-    }))
-    .filter((item) => item.name);
+  const lineItems = normalizeLineItems(input.lineItems);
   const subtotal = calculateContractSubtotal(lineItems);
 
   const recipientName = (input.recipientName ?? event.contactName ?? "").trim();
@@ -283,11 +331,16 @@ export async function createEventContract(
     };
   }
 
-  const templateId = (input.templateId ?? appConfig.pandadoc.defaultTemplateId ?? "").trim();
+  const templateId = (
+    input.templateId ??
+    appConfig.pandadoc.defaultTemplateId ??
+    ""
+  ).trim();
   if (!templateId) {
     return {
       ok: false,
-      error: "Pick a PandaDoc template (or set PANDADOC_TEMPLATE_ID as the default).",
+      error:
+        "Pick a PandaDoc template (or set PANDADOC_TEMPLATE_ID as the default).",
     };
   }
 
@@ -296,12 +349,7 @@ export async function createEventContract(
     event_id: event.id,
     name,
     description: input.description?.trim() || null,
-    line_items: lineItems.map((item) => ({
-      name: item.name,
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unitPrice,
-    })),
+    line_items: toLineItemsJson(lineItems),
     subtotal,
     status: "creating",
     pandadoc_template_id: templateId,
@@ -316,12 +364,18 @@ export async function createEventContract(
     .select("*")
     .single();
   if (insertError) {
-    return { ok: false, error: `Unable to save the contract: ${insertError.message}` };
+    return {
+      ok: false,
+      error: `Unable to save the contract: ${insertError.message}`,
+    };
   }
   let row = inserted as ContractRow;
 
   const fail = async (error: string): Promise<CreateEventContractOutcome> => {
-    row = await updateContractRow(row.id, { status: "error", last_error: error });
+    row = await updateContractRow(row.id, {
+      status: "error",
+      last_error: error,
+    });
     await logIntegrationEvent({
       direction: "PORTAL_TO_PANDADOC",
       eventType: "contract_create",
@@ -343,19 +397,16 @@ export async function createEventContract(
   if (!template.ok) return fail(template.error);
 
   const pricingTableName = template.data.pricingTableNames[0] ?? null;
+  const recipient = { email: recipientEmail, ...splitName(recipientName) };
   const created = await createPandaDocDocument({
     name,
     templateId,
-    recipient: {
-      email: recipientEmail,
-      ...splitName(recipientName),
-      role: pickClientRole(template.data.roles),
-    },
-    tokens: buildContractTokens(event, {
-      name,
-      description: insert.description ?? null,
-      subtotal,
-    }),
+    recipient: { ...recipient, role: pickClientRole(template.data.roles) },
+    tokens: buildContractTokens(
+      event,
+      { name, description: insert.description ?? null, subtotal },
+      recipient,
+    ),
     pricingTable:
       pricingTableName && lineItems.length > 0
         ? {
@@ -415,11 +466,187 @@ export async function createEventContract(
   return { ok: true, contract: mapContractRow(synced ?? row, null) };
 }
 
+export type UpdateEventContractInput = {
+  eventId: string;
+  contractId: string;
+  name: string;
+  description: string | null;
+  lineItems: ContractLineItem[];
+  notifyByEmail: boolean;
+  updatedBy: string | null;
+};
+
+// Edits an unsigned contract in place: the PandaDoc document goes back to
+// draft (signature fields clear, nothing is emailed), gets the new name,
+// terms and line items, and is sent again. The client's earlier signing
+// link stops working and the portal shows the revised contract. Signed
+// contracts are refused — changes after signing are a new contract.
+export async function updateEventContract(
+  input: UpdateEventContractInput,
+): Promise<CreateEventContractOutcome> {
+  const event = await getAdminEventById(input.eventId);
+  if (!event) return { ok: false, error: "Event not found." };
+
+  const found = await getContractRow(input.contractId);
+  if (!found || found.event_id !== event.id || !found.pandadoc_document_id) {
+    return { ok: false, error: "Contract not found." };
+  }
+  let row: ContractRow = found;
+  const documentId = found.pandadoc_document_id;
+
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Give the contract a name." };
+  const description = input.description?.trim() || null;
+  const lineItems = normalizeLineItems(input.lineItems);
+  const subtotal = calculateContractSubtotal(lineItems);
+
+  if (!isPandaDocConfigured()) {
+    return {
+      ok: false,
+      error: "PandaDoc isn't connected yet (PANDADOC_API_KEY is empty).",
+    };
+  }
+
+  // Re-read PandaDoc first so a contract the client signed a moment ago is
+  // never reopened underneath them.
+  row = (await syncContractFromPandaDoc(row)) ?? row;
+  if (!EDITABLE_CONTRACT_STATUSES.includes(row.status)) {
+    return {
+      ok: false,
+      error:
+        row.status === "completed"
+          ? `This contract was signed${
+              row.completed_at
+                ? ` on ${formatDisplayDate(row.completed_at.slice(0, 10))}`
+                : ""
+            } and can't be changed. Create a new contract for the changes.`
+          : "This contract is no longer open and can't be edited.",
+      contract: mapContractRow(row, null),
+    };
+  }
+
+  const fail = async (error: string): Promise<CreateEventContractOutcome> => {
+    row = await updateContractRow(row.id, { last_error: error });
+    await logIntegrationEvent({
+      direction: "PORTAL_TO_PANDADOC",
+      eventType: "contract_update",
+      ghlLocationId: appConfig.ghl.locationId ?? null,
+      portalEventId: event.id,
+      status: "error",
+      message: "Failed updating the PandaDoc contract.",
+      details: { contract_id: row.id, pandadoc_document_id: documentId, error },
+    });
+    return { ok: false, error, contract: mapContractRow(row, null) };
+  };
+
+  // Where the line items go is decided by the template it was built from.
+  let pricingTableName: string | null = null;
+  if (row.pandadoc_template_id) {
+    const template = await getPandaDocTemplateDetails(row.pandadoc_template_id);
+    if (!template.ok) return fail(template.error);
+    pricingTableName = template.data.pricingTableNames[0] ?? null;
+  }
+
+  // A re-send that failed halfway leaves the document already in draft;
+  // PandaDoc rejects moving a draft to draft, so only move when needed.
+  if (row.pandadoc_status !== "document.draft") {
+    const toDraft = await movePandaDocDocumentToDraft(documentId);
+    if (!toDraft.ok) return fail(toDraft.error);
+  }
+
+  // From here the PandaDoc document is a draft: mirror that so a failure in
+  // a later step leaves the contract editable (and hidden from the portal)
+  // rather than looking signable.
+  row = await updateContractRow(row.id, {
+    status: "draft",
+    pandadoc_status: "document.draft",
+  });
+
+  const updated = await updatePandaDocDocument(documentId, {
+    name,
+    tokens: buildContractTokens(
+      event,
+      { name, description, subtotal },
+      {
+        email: row.recipient_email ?? "",
+        ...splitName(row.recipient_name ?? ""),
+      },
+    ),
+    pricingTable:
+      pricingTableName && lineItems.length > 0
+        ? {
+            name: pricingTableName,
+            rows: lineItems.map((item) => ({
+              name: item.name,
+              description: item.description,
+              price: item.unitPrice,
+              qty: item.quantity,
+            })),
+          }
+        : null,
+    metadata: { portal_event_id: event.id, portal_contract_id: row.id },
+  });
+  if (!updated.ok) return fail(updated.error);
+
+  // The app's record now matches what PandaDoc holds, even if the send
+  // below fails and the planner has to retry.
+  row = await updateContractRow(row.id, {
+    name,
+    description,
+    line_items: toLineItemsJson(lineItems),
+    subtotal,
+  });
+
+  const ready = await waitForPandaDocDraft(documentId);
+  if (!ready.ok) return fail(ready.error);
+
+  const sent = await sendPandaDocDocument(documentId, {
+    subject: `${name} — ${event.eventName} (updated)`,
+    message: `The contract for ${event.eventName} was updated. Please review and sign the latest version.`,
+    silent: !input.notifyByEmail,
+  });
+  if (!sent.ok) return fail(sent.error);
+
+  const now = new Date().toISOString();
+  row = await updateContractRow(row.id, {
+    status: "sent",
+    pandadoc_status: "document.sent",
+    sent_at: now,
+    viewed_at: null,
+    revision: row.revision + 1,
+    revised_at: now,
+    revised_by: input.updatedBy,
+    last_error: null,
+  });
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_PANDADOC",
+    eventType: "contract_update",
+    portalEventId: event.id,
+    status: "success",
+    message: input.notifyByEmail
+      ? `Contract updated (revision ${row.revision}) and re-emailed to the client.`
+      : `Contract updated (revision ${row.revision}); client re-signs from the portal.`,
+    details: {
+      contract_id: row.id,
+      pandadoc_document_id: documentId,
+      revision: row.revision,
+      subtotal,
+      line_item_count: lineItems.length,
+    },
+  });
+
+  const synced = await syncContractFromPandaDoc(row);
+  return { ok: true, contract: mapContractRow(synced ?? row, null) };
+}
+
 function mapPandaDocStatus(raw: string): ContractStatus {
   switch (raw) {
     case "document.uploaded":
     case "document.draft":
       return "draft";
+    case "document.waiting_approval":
+      return "approval";
     case "document.viewed":
       return "viewed";
     case "document.completed":
@@ -442,12 +669,42 @@ function mapPandaDocStatus(raw: string): ContractStatus {
 export async function syncContractFromPandaDoc(
   contract: ContractRow | string,
 ): Promise<ContractRow | null> {
-  const row = typeof contract === "string" ? await getContractRow(contract) : contract;
+  const row =
+    typeof contract === "string" ? await getContractRow(contract) : contract;
   if (!row?.pandadoc_document_id) return row ?? null;
 
-  const details = await getPandaDocDocumentDetails(row.pandadoc_document_id);
+  let details = await getPandaDocDocumentDetails(row.pandadoc_document_id);
   if (!details.ok) {
     return updateContractRow(row.id, { last_error: details.error });
+  }
+
+  // Approval workflow: once someone approves in PandaDoc the document sits
+  // in document.approved until it is sent again. Do that here so the
+  // client can sign without the planner having to touch PandaDoc.
+  if (details.data.status === "document.approved") {
+    const sent = await sendPandaDocDocument(row.pandadoc_document_id, {
+      subject: row.name,
+      message: "Please review and sign the contract.",
+      silent: true,
+    });
+    if (sent.ok) {
+      await logIntegrationEvent({
+        direction: "PORTAL_TO_PANDADOC",
+        eventType: "contract_approved",
+        portalEventId: row.event_id,
+        status: "success",
+        message:
+          "Contract approved in PandaDoc; sent to the client for signature.",
+        details: {
+          contract_id: row.id,
+          pandadoc_document_id: row.pandadoc_document_id,
+        },
+      });
+      const reread = await getPandaDocDocumentDetails(row.pandadoc_document_id);
+      if (reread.ok) details = reread;
+    } else {
+      await updateContractRow(row.id, { last_error: sent.error });
+    }
   }
 
   const status = mapPandaDocStatus(details.data.status);
@@ -468,7 +725,10 @@ export async function syncContractFromPandaDoc(
   if (status === "completed" && !row.completed_at) {
     patch.completed_at = details.data.dateCompleted ?? now;
   }
-  if (["sent", "viewed", "completed"].includes(status) && !row.sent_at) {
+  if (
+    ["approval", "sent", "viewed", "completed"].includes(status) &&
+    !row.sent_at
+  ) {
     patch.sent_at = now;
   }
 
@@ -518,7 +778,9 @@ export async function syncContractByDocumentId(
 // What "signed" sets in motion. Each step is independent and best-effort;
 // the applied timestamp is written once regardless so nothing re-runs, and
 // every outcome is in integration_logs for the admin to audit.
-async function applySignedContractActions(row: ContractRow): Promise<ContractRow> {
+async function applySignedContractActions(
+  row: ContractRow,
+): Promise<ContractRow> {
   const supabase = createServiceRoleSupabaseClient();
   const { data: eventData } = await supabase
     .from("events")
@@ -531,7 +793,10 @@ async function applySignedContractActions(row: ContractRow): Promise<ContractRow
 
   // 1. Rooms: every held reservation on the event becomes booked.
   try {
-    await setEventReservationsStatus({ eventId: row.event_id, status: "booked" });
+    await setEventReservationsStatus({
+      eventId: row.event_id,
+      status: "booked",
+    });
     outcomes.reservations = "booked";
   } catch (error) {
     outcomes.reservations = `error: ${error instanceof Error ? error.message : String(error)}`;
@@ -580,7 +845,9 @@ async function applySignedContractActions(row: ContractRow): Promise<ContractRow
       : {}),
   });
 
-  const anyError = Object.values(outcomes).some((value) => value.startsWith("error"));
+  const anyError = Object.values(outcomes).some((value) =>
+    value.startsWith("error"),
+  );
   await logIntegrationEvent({
     direction: "PANDADOC_TO_PORTAL",
     eventType: "contract_signed",
@@ -619,23 +886,38 @@ export async function deleteFailedEventContract(
 ): Promise<void> {
   const row = await getContractRow(contractId);
   if (!row || row.event_id !== eventId) throw new Error("Contract not found.");
-  if (!["draft", "creating", "error"].includes(row.status) && row.pandadoc_document_id) {
+  if (
+    !["draft", "creating", "error"].includes(row.status) &&
+    row.pandadoc_document_id
+  ) {
     throw new Error("Only contracts that failed to send can be removed.");
   }
   const supabase = createServiceRoleSupabaseClient();
-  const { error } = await supabase.from("event_contracts").delete().eq("id", contractId);
+  const { error } = await supabase
+    .from("event_contracts")
+    .delete()
+    .eq("id", contractId);
   if (error) throw new Error(`Unable to remove the contract: ${error.message}`);
 }
 
 // ---- Client portal ---------------------------------------------------------
 
-export async function listClientContracts(eventId: string): Promise<ClientContract[]> {
+export async function listClientContracts(
+  eventId: string,
+): Promise<ClientContract[]> {
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("event_contracts")
     .select("*")
     .eq("event_id", eventId)
-    .in("status", ["sent", "viewed", "completed", "declined", "voided"])
+    .in("status", [
+      "approval",
+      "sent",
+      "viewed",
+      "completed",
+      "declined",
+      "voided",
+    ])
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Unable to load contracts: ${error.message}`);
 
@@ -649,7 +931,10 @@ export async function listClientContracts(eventId: string): Promise<ClientContra
     status: row.status,
     sentAt: row.sent_at,
     completedAt: row.completed_at,
-    canSign: OPEN_CONTRACT_STATUSES.includes(row.status) && Boolean(row.pandadoc_document_id),
+    revisedAt: row.revised_at,
+    canSign:
+      SIGNABLE_CONTRACT_STATUSES.includes(row.status) &&
+      Boolean(row.pandadoc_document_id),
   }));
 }
 
@@ -672,13 +957,15 @@ export async function createContractSigningSession(
   }
 
   const synced = (await syncContractFromPandaDoc(row)) ?? row;
-  if (!OPEN_CONTRACT_STATUSES.includes(synced.status)) {
+  if (!SIGNABLE_CONTRACT_STATUSES.includes(synced.status)) {
     return {
       ok: false,
       error:
         synced.status === "completed"
           ? "This contract is already signed."
-          : "This contract is no longer open for signing.",
+          : synced.status === "draft" || synced.status === "approval"
+            ? "Your planner is finalizing this contract. Please check back a little later."
+            : "This contract is no longer open for signing.",
     };
   }
 
@@ -707,7 +994,11 @@ export async function completeContractSigningFromPortal(
 
   // PandaDoc can lag a beat behind the signer's completion event.
   let synced = await syncContractFromPandaDoc(row);
-  for (let attempt = 0; attempt < 4 && synced && synced.status !== "completed"; attempt++) {
+  for (
+    let attempt = 0;
+    attempt < 4 && synced && synced.status !== "completed";
+    attempt++
+  ) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     synced = await syncContractFromPandaDoc(synced);
   }

@@ -4,7 +4,8 @@ import type { Database, Json } from "@/types/database";
 // components (the Contracts tab form, the portal signer). No Supabase or
 // PandaDoc imports here — src/lib/admin/contracts.ts holds the server side.
 
-export type ContractStatus = Database["public"]["Enums"]["event_contract_status"];
+export type ContractStatus =
+  Database["public"]["Enums"]["event_contract_status"];
 
 export type ContractLineItem = {
   name: string;
@@ -38,14 +39,36 @@ export type EventContract = {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  // 1 for the original send; +1 each time it is edited and re-sent.
+  revision: number;
+  revisedAt: string | null;
+  revisedBy: string | null;
 };
 
 // Statuses where PandaDoc can still change its mind; others are final.
-export const OPEN_CONTRACT_STATUSES: ContractStatus[] = ["sent", "viewed"];
+export const OPEN_CONTRACT_STATUSES: ContractStatus[] = [
+  "approval",
+  "sent",
+  "viewed",
+];
+
+// Statuses where the client can sign right now. "approval" is open but not
+// signable: the template's approval workflow is holding it in PandaDoc.
+export const SIGNABLE_CONTRACT_STATUSES: ContractStatus[] = ["sent", "viewed"];
+
+// Statuses a planner can still edit (the PandaDoc document exists and no one
+// has signed). "draft" covers a re-send that failed halfway.
+export const EDITABLE_CONTRACT_STATUSES: ContractStatus[] = [
+  "draft",
+  "approval",
+  "sent",
+  "viewed",
+];
 
 export const contractStatusLabels: Record<ContractStatus, string> = {
   draft: "Draft",
   creating: "Creating in PandaDoc…",
+  approval: "Awaiting PandaDoc approval",
   sent: "Awaiting signature",
   viewed: "Viewed by client",
   completed: "Signed",
@@ -56,7 +79,11 @@ export const contractStatusLabels: Record<ContractStatus, string> = {
 
 export function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
+  if (
+    typeof value === "string" &&
+    value.trim() &&
+    Number.isFinite(Number(value))
+  ) {
     return Number(value);
   }
   return null;
@@ -81,9 +108,12 @@ export function parseContractLineItems(value: Json): ContractLineItem[] {
 }
 
 export function calculateContractSubtotal(items: ContractLineItem[]): number {
-  return Math.round(
-    items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) * 100,
-  ) / 100;
+  return (
+    Math.round(
+      items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) *
+        100,
+    ) / 100
+  );
 }
 
 export type ClientContract = {
@@ -96,7 +126,8 @@ export type ClientContract = {
   status: ContractStatus;
   sentAt: string | null;
   completedAt: string | null;
+  // Set when the planner edited and re-sent it after the first send.
+  revisedAt: string | null;
   // Signing is offered while PandaDoc is waiting on the client.
   canSign: boolean;
 };
-

@@ -16,9 +16,13 @@ const currency = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
-const statusCopy: Record<ClientContract["status"], { label: string; tone: string }> = {
+const statusCopy: Record<
+  ClientContract["status"],
+  { label: string; tone: string }
+> = {
   draft: { label: "Preparing", tone: "bg-slate-100 text-slate-700" },
   creating: { label: "Preparing", tone: "bg-slate-100 text-slate-700" },
+  approval: { label: "Being finalized", tone: "bg-slate-100 text-slate-700" },
   sent: { label: "Ready to sign", tone: "bg-amber-100 text-amber-900" },
   viewed: { label: "Ready to sign", tone: "bg-amber-100 text-amber-900" },
   completed: { label: "Signed", tone: "bg-emerald-100 text-emerald-800" },
@@ -29,7 +33,9 @@ const statusCopy: Record<ClientContract["status"], { label: string; tone: string
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
+    new Date(iso),
+  );
 }
 
 export function ClientContractSigner({
@@ -61,7 +67,10 @@ export function ClientContractSigner({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "session" }),
       });
-      const data = (await res.json()) as { signingUrl?: string; error?: string };
+      const data = (await res.json()) as {
+        signingUrl?: string;
+        error?: string;
+      };
       if (!res.ok || !data.signingUrl) {
         throw new Error(data.error || "Unable to open the contract right now.");
       }
@@ -85,13 +94,25 @@ export function ClientContractSigner({
 
     const onMessage = (event: MessageEvent) => {
       if (!event.origin.endsWith("pandadoc.com")) return;
-      const data = event.data as { type?: string; event?: string } | string | null;
+      const data = event.data as
+        { type?: string; event?: string } | string | null;
       const type =
         typeof data === "string"
           ? data
           : data && typeof data === "object"
             ? (data.type ?? data.event ?? "")
             : "";
+      // The planner edited the contract while it was open here: PandaDoc
+      // ends the session. Tell the client what happened instead of leaving
+      // a dead frame.
+      if (type === "session_view.document.exception") {
+        setActiveId(null);
+        setSigningUrl(null);
+        setError(
+          "This contract was just updated by your planner. Reload the page to review and sign the latest version.",
+        );
+        return;
+      }
       if (type !== "session_view.document.completed") return;
 
       const contractId = activeId;
@@ -107,7 +128,9 @@ export function ClientContractSigner({
           if (result.contract) {
             setContracts((current) =>
               current.map((contract) =>
-                contract.id === contractId ? (result.contract as ClientContract) : contract,
+                contract.id === contractId
+                  ? (result.contract as ClientContract)
+                  : contract,
               ),
             );
           }
@@ -147,16 +170,21 @@ export function ClientContractSigner({
         const status = statusCopy[contract.status];
         const isActive = activeId === contract.id;
         return (
-          <div className="rounded-xl border border-slate-200 bg-white p-4" key={contract.id}>
+          <div
+            className="rounded-xl border border-slate-200 bg-white p-4"
+            key={contract.id}
+          >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-semibold text-slate-950">{contract.name}</p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {contract.status === "completed" && contract.completedAt
                     ? `Signed ${formatDate(contract.completedAt)}`
-                    : contract.sentAt
-                      ? `Sent ${formatDate(contract.sentAt)}`
-                      : ""}
+                    : contract.revisedAt
+                      ? `Updated ${formatDate(contract.revisedAt)}`
+                      : contract.sentAt
+                        ? `Sent ${formatDate(contract.sentAt)}`
+                        : ""}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -174,12 +202,17 @@ export function ClientContractSigner({
             {contract.lineItems.length > 0 ? (
               <ul className="mt-3 divide-y divide-slate-100 text-sm">
                 {contract.lineItems.map((item, index) => (
-                  <li className="flex justify-between gap-3 py-1.5" key={`${item.name}-${index}`}>
+                  <li
+                    className="flex justify-between gap-3 py-1.5"
+                    key={`${item.name}-${index}`}
+                  >
                     <span className="text-slate-700">
                       {item.name}
                       {item.quantity !== 1 ? ` × ${item.quantity}` : ""}
                       {item.description ? (
-                        <span className="block text-xs text-slate-500">{item.description}</span>
+                        <span className="block text-xs text-slate-500">
+                          {item.description}
+                        </span>
                       ) : null}
                     </span>
                     <span className="shrink-0 text-slate-800">
@@ -213,7 +246,9 @@ export function ClientContractSigner({
             {isActive ? (
               <div className="mt-4 space-y-2">
                 {loading ? (
-                  <p className="text-sm text-slate-600">Opening your contract…</p>
+                  <p className="text-sm text-slate-600">
+                    Opening your contract…
+                  </p>
                 ) : signingUrl ? (
                   <>
                     <div className="overflow-hidden rounded-xl border border-slate-200">

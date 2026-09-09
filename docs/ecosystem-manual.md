@@ -19,6 +19,7 @@ Three systems, three jobs:
 
 | System | Job | Owns |
 | --- | --- | --- |
+| 2026-09-09 | Contracts: **Edit** for unsigned contracts (same PandaDoc document moved to draft, updated, re-sent; `revision`, `revised_at`, `revised_by` columns; `contract_update` log; portal shows "Updated …" and handles a session ended by an edit). New **approval** status for templates with a PandaDoc approval workflow — portal shows *Being finalized* without a sign button; after approval in PandaDoc the sync sends it automatically (`contract_approved` log). First live verification against the sandbox API key: create/update/re-send work; pricing table rows now use PandaDoc's `Name`/`Description`/`Price`/`QTY` keys (lowercase was rejected); Salesforce-style tokens (`Client.*`, `Account.Name`, `Date__c`) filled so the existing Whitewater templates work; sandbox can only send to workspace members. Webhook and end-to-end signing still unverified (needs an approved doc + public URL). |
 | 2026-09-09 | Admin restyle toward a developer-tool look (Supabase-inspired): neutral gray palette in all three themes with one green brand accent for primary actions and positive status, 4–8px radii, hairline borders and no panel shadows, and a mono uppercase label style (`type-label`) for eyebrows, table headers, metric labels and status chips. The sidebar is now a rail (icons-only when collapsed) and a new desktop top bar carries the breadcrumb, a `development` tag on local builds, the theme switch, the signed-in email and sign out (they left the sidebar footer; the mobile drawer still has them). Dashboard metric tiles gained icons. Login and reset-password screens follow the admin theme. Client portal untouched apart from the shared button/badge shapes. Tokens live in `src/app/globals.css`. |
 | **GoHighLevel** | CRM and system of record | Contacts, opportunities, the Event Sales pipeline, client email/SMS notifications, calendars of record |
 | **This portal app** | Working surface for planners and clients | Room calendar, event checklists, schedules, uploads, vendor submissions, the client-facing portal pages |
@@ -194,6 +195,22 @@ the portal** (see Step 6). Nothing goes through GHL.
   3. the signed PDF is copied into Supabase Storage
      (`contracts/<event>/<contract>.pdf`);
   4. the outcome is written to integration logs (`contract_signed`).
+- **Editing before signature:** an unsigned contract (*Awaiting PandaDoc
+  approval*, *Awaiting signature*, *Viewed by client*, or a *Draft* left by
+  a failed re-send) has an **Edit** button. The same form opens prefilled;
+  saving moves the PandaDoc document back to draft, updates its name, terms
+  and pricing table, and re-sends it. The client's earlier signing link
+  stops working and the portal shows the revised contract ("Updated …").
+  The card shows *Revised … by … (revision N)*. Template and recipient
+  can't change — send to someone else with a new contract. Signed
+  contracts can't be edited: changes after signing are a new contract
+  (order change, final payment).
+- **Approval workflow:** if the PandaDoc template has an approval workflow,
+  sending parks the document in PandaDoc's *waiting approval* state. The app
+  shows **Awaiting PandaDoc approval** and the portal shows *Being
+  finalized* without a sign button. Once someone approves it in PandaDoc,
+  the next refresh (page load, Refresh status, or webhook) sends it to the
+  client automatically (`contract_approved` integration log).
 - Failed creations stay listed as *Failed* with PandaDoc's error so the
   planner can fix the template/key and retry; only those can be removed.
 
@@ -271,7 +288,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Dashboard | `/admin` | Work queue: items needing review, quick stats |
 | Events | `/admin/events` | All portal events; open one to work it |
 | Event detail | `/admin/events/<id>` | Summary (incl. contracts list under Portal URL), planner, room bookings, launch, review queues |
-| Contracts | `/admin/events/<id>/contracts` | PandaDoc contracts for the event: create (template, terms, line items, recipient), history with status/totals/links, signed PDF, refresh status |
+| Contracts | `/admin/events/<id>/contracts` | PandaDoc contracts for the event: create (template, terms, line items, recipient), edit unsigned ones in place (re-sent as a new revision), history with status/totals/links, signed PDF, refresh status |
 | — Checklist | `/admin/events/<id>/checklist` | Event-specific checklist editing |
 | — Schedule & Notes | `/admin/events/<id>/schedule` | Event-day schedule grid + sectioned notes |
 | Room Calendar | `/admin/calendar` | Reservation board; where events get rooms, coordinators, and Planning-stage pushes |
@@ -328,6 +345,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
 | Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
 | Opportunities board view | GHL → app | Badge counts read from the local `ghl_contact_badges` cache; stale rows (>5 min) re-swept from GHL after the response, paced (60 contacts/view, concurrency 5) for the 140–250-card in-season pipeline (see roadmap "Expected volume") |
+| Contracts tab "Save and re-send" (Edit) | app → PandaDoc | Document moved to draft, updated (name, tokens, pricing table), sent again; row gets `revision`+1, `revised_at/by`; `contract_update` log |
 | Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + pricing table from line items), waited to draft, sent silently (or emailed) |
 | Admin event page / Contracts tab load | PandaDoc → app | Open contracts re-read from PandaDoc (status, total); signed side effects run if newly completed |
 | Portal "Review and sign" | app → PandaDoc | Embedded-signing session minted for the recipient (1-hour link) |
@@ -408,8 +426,28 @@ field, read-only in the app — see Step 2).
   `planner.name/email/phone`, `facilitator.name/email/phone`,
   `contract.name`, `contract.description`, `contract.subtotal`. Set its id as
   `PANDADOC_TEMPLATE_ID` for the default; planners can pick any template.
+- **Whitewater's existing templates** (EA Group, Group w/ Catering, Final
+  Payment, the wedding ones, …) were built for PandaDoc's Salesforce
+  integration: two roles (*Client* and *Event Coordinator*), pricing tables
+  named `PricingTable1`/`PricingTable2`, and tokens named `Client.FirstName`,
+  `Client.LastName`, `Client.Email`, `Client.Phone`, `Account.Name`,
+  `Date__c`. The app fills those names too (Account.Name blank — the event
+  has no company field), so they work unchanged. Only the Client role is
+  assigned; PandaDoc gives that recipient every signature field. Pricing
+  table rows are sent with PandaDoc's column keys (`Name`, `Description`,
+  `Price`, `QTY`) — lowercase keys are rejected with a validation error.
+- **Editing:** move-to-draft → update → send, all on the same document id
+  (see Step 4b). PandaDoc refuses to update anything not in draft, and
+  refuses a move-to-draft on a draft, which the app handles.
+- **Sandbox limits:** sandbox documents get a `[DEV]` name prefix and can
+  only be *sent* to workspace members' addresses ("not allowed to send
+  documents outside of your organization"), so test with a recipient like
+  a whitewater.org member or austin@bellaworksweb.com. Silent send means no
+  email goes out either way.
 - **Signing:** silent send + embedded signing in the portal. Staff links go
-  to the PandaDoc app; clients never leave the portal.
+  to the PandaDoc app; clients never leave the portal. Sessions can only be
+  minted while the document is *sent*/*viewed* — not draft, not waiting
+  approval.
 - **Status back to the app:** three paths funnel through one sync
   (`src/lib/admin/contracts.ts` → `syncContractFromPandaDoc`): page-load
   refresh, portal signer completion, and the webhook. The signed side

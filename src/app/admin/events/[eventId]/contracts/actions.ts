@@ -7,6 +7,7 @@ import {
   createEventContract,
   deleteFailedEventContract,
   refreshEventContract,
+  updateEventContract,
   type CreateEventContractOutcome,
 } from "@/lib/admin/contracts";
 import type { ContractLineItem, EventContract } from "@/lib/contracts/shared";
@@ -59,6 +60,32 @@ export async function createContractAction(
   return outcome;
 }
 
+export type UpdateContractFormInput = {
+  name: string;
+  description: string;
+  notifyByEmail: boolean;
+  lineItems: ContractLineItem[];
+};
+
+export async function updateContractAction(
+  eventId: string,
+  contractId: string,
+  input: UpdateContractFormInput,
+): Promise<CreateEventContractOutcome> {
+  const user = await requirePlanner();
+  const outcome = await updateEventContract({
+    eventId,
+    contractId,
+    name: input.name,
+    description: input.description || null,
+    lineItems: input.lineItems,
+    notifyByEmail: input.notifyByEmail,
+    updatedBy: user.email ?? null,
+  });
+  revalidateContracts(eventId);
+  return outcome;
+}
+
 export async function refreshContractAction(
   eventId: string,
   contractId: string,
@@ -81,7 +108,10 @@ export async function deleteFailedContractAction(
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Unable to remove the contract.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to remove the contract.",
     };
   }
 }

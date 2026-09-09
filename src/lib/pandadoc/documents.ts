@@ -26,8 +26,10 @@ export type PandaDocTemplateDetails = {
 };
 
 const TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000;
-let templateListCache: { expiresAt: number; items: PandaDocTemplateSummary[] } | null =
-  null;
+let templateListCache: {
+  expiresAt: number;
+  items: PandaDocTemplateSummary[];
+} | null = null;
 
 export async function listPandaDocTemplates(
   options: { refresh?: boolean } = {},
@@ -48,7 +50,10 @@ export async function listPandaDocTemplates(
 
   const items = (result.data.results ?? [])
     .filter((row) => row.id)
-    .map((row) => ({ id: row.id as string, name: row.name ?? "Untitled template" }))
+    .map((row) => ({
+      id: row.id as string,
+      name: row.name ?? "Untitled template",
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   templateListCache = { expiresAt: Date.now() + TEMPLATE_CACHE_TTL_MS, items };
@@ -97,7 +102,12 @@ export type PandaDocPricingRow = {
 export type CreatePandaDocDocumentInput = {
   name: string;
   templateId: string;
-  recipient: { email: string; firstName: string; lastName: string; role: string };
+  recipient: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
   tokens: Record<string, string>;
   pricingTable: { name: string; rows: PandaDocPricingRow[] } | null;
   metadata: Record<string, string>;
@@ -120,7 +130,10 @@ export async function createPandaDocDocument(
         role: input.recipient.role,
       },
     ],
-    tokens: Object.entries(input.tokens).map(([name, value]) => ({ name, value })),
+    tokens: Object.entries(input.tokens).map(([name, value]) => ({
+      name,
+      value,
+    })),
     metadata: input.metadata,
     ...(input.pricingTable
       ? {
@@ -135,11 +148,12 @@ export async function createPandaDocDocument(
                   default: true,
                   rows: input.pricingTable.rows.map((row) => ({
                     options: { optional: false, qty_editable: false },
+                    // Column keys are the pricing table's own column names.
                     data: {
-                      name: row.name,
-                      description: row.description,
-                      price: row.price,
-                      qty: row.qty,
+                      Name: row.name,
+                      Description: row.description,
+                      Price: row.price,
+                      QTY: row.qty,
                     },
                   })),
                 },
@@ -188,7 +202,9 @@ export async function getPandaDocDocumentDetails(
   const grandTotal =
     typeof amount === "number"
       ? amount
-      : typeof amount === "string" && amount.trim() && Number.isFinite(Number(amount))
+      : typeof amount === "string" &&
+          amount.trim() &&
+          Number.isFinite(Number(amount))
         ? Number(amount)
         : null;
 
@@ -271,7 +287,10 @@ export async function createPandaDocSigningSession(
   }
   return {
     ok: true,
-    data: { sessionId: result.data.id, expiresAt: result.data.expires_at ?? null },
+    data: {
+      sessionId: result.data.id,
+      expiresAt: result.data.expires_at ?? null,
+    },
   };
 }
 
@@ -287,5 +306,94 @@ export function pandaDocDocumentUrl(documentId: string): string {
 export async function downloadPandaDocDocument(
   documentId: string,
 ): Promise<PandaDocResult<ArrayBuffer>> {
-  return pandaDocDownload(`/documents/${encodeURIComponent(documentId)}/download`);
+  return pandaDocDownload(
+    `/documents/${encodeURIComponent(documentId)}/download`,
+  );
+}
+
+// ---- Editing an unsigned document -----------------------------------------
+// PandaDoc only updates documents in document.draft. Editing a sent contract
+// is therefore: move it back to draft (clears signature fields, nothing is
+// emailed), update, then send again. Old signing sessions stop working.
+
+export async function movePandaDocDocumentToDraft(
+  documentId: string,
+): Promise<PandaDocResult<{ status: string; version: string | null }>> {
+  const result = await pandaDocRequest<{ status?: string; version?: string }>(
+    `/documents/${encodeURIComponent(documentId)}/draft`,
+    { method: "POST" },
+  );
+  if (!result.ok) {
+    return result.status === 423
+      ? {
+          ok: false,
+          status: 423,
+          error:
+            "PandaDoc has this document locked for editing (someone has it open in the PandaDoc app). Close it there and try again.",
+        }
+      : result;
+  }
+  return {
+    ok: true,
+    data: {
+      status: result.data.status ?? "document.draft",
+      version: result.data.version ?? null,
+    },
+  };
+}
+
+export type UpdatePandaDocDocumentInput = {
+  name: string;
+  tokens: Record<string, string>;
+  pricingTable: { name: string; rows: PandaDocPricingRow[] } | null;
+  metadata: Record<string, string>;
+};
+
+// Same shapes as create-from-template; the pricing table's single section
+// is replaced with the app's current line items.
+export async function updatePandaDocDocument(
+  documentId: string,
+  input: UpdatePandaDocDocumentInput,
+): Promise<PandaDocResult<void>> {
+  const body = {
+    name: input.name,
+    tokens: Object.entries(input.tokens).map(([name, value]) => ({
+      name,
+      value,
+    })),
+    metadata: input.metadata,
+    ...(input.pricingTable
+      ? {
+          pricing_tables: [
+            {
+              name: input.pricingTable.name,
+              data_merge: true,
+              options: { currency: "USD" },
+              sections: [
+                {
+                  title: "Event services",
+                  default: true,
+                  rows: input.pricingTable.rows.map((row) => ({
+                    options: { optional: false, qty_editable: false },
+                    // Column keys are the pricing table's own column names.
+                    data: {
+                      Name: row.name,
+                      Description: row.description,
+                      Price: row.price,
+                      QTY: row.qty,
+                    },
+                  })),
+                },
+              ],
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const result = await pandaDocRequest<unknown>(
+    `/documents/${encodeURIComponent(documentId)}`,
+    { method: "PATCH", body },
+  );
+  return result.ok ? { ok: true, data: undefined } : result;
 }
