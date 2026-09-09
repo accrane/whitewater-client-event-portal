@@ -24,6 +24,9 @@
   --brand-border: #020617;
   --brand-foreground: #ffffff;
   --ring: #2563eb;
+
+  /* Whitewater brand red (whitewater.org); used for the "W" mark only. */
+  --whitewater-red: #ba0d30;
 }
 
 /* ---------- Admin: shared shape tokens for every theme ---------- */
@@ -82,6 +85,7 @@
   --brand-border: #35b57c;
   --brand-foreground: #062a1b;
   --ring: #3ecf8e;
+  --whitewater-red: #e0213f;
 
   /* Accent scales inverted: light tint surfaces become dark tints and dark
      accent text becomes light, so banner/badge tiles stay readable. */
@@ -139,6 +143,7 @@
   --brand-border: #bc6c25;
   --brand-foreground: #283618;
   --ring: #dda15e;
+  --whitewater-red: #e0213f;
 
   --color-amber-50: #40300f;
   --color-amber-100: #574116;

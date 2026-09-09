@@ -235,7 +235,7 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
           className="absolute left-1/2 -translate-x-1/2"
           href="/admin"
         >
-          <WhitewaterMark className="h-5 w-auto text-[var(--brand)]" />
+          <WhitewaterMark className="h-5 w-auto text-[var(--whitewater-red)]" />
         </Link>
       </header>
 
@@ -255,7 +255,7 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
           >
             <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4">
               <Link className="flex items-center gap-2.5" href="/admin">
-                <WhitewaterMark className="h-5 w-auto text-[var(--brand)]" />
+                <WhitewaterMark className="h-5 w-auto text-[var(--whitewater-red)]" />
                 <span className="text-sm font-semibold text-slate-950">
                   Planner Admin
                 </span>
@@ -293,7 +293,7 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
           href="/admin"
           title="Planner Admin"
         >
-          <WhitewaterMark className="h-5 w-auto shrink-0 text-[var(--brand)]" />
+          <WhitewaterMark className="h-5 w-auto shrink-0 text-[var(--whitewater-red)]" />
           {collapsed ? null : (
             <span className="truncate text-sm font-semibold text-slate-950">
               Planner Admin
