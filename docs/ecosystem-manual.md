@@ -1,6 +1,6 @@
 # Whitewater Event Ecosystem Manual
 
-_Last updated: 2026-09-08. This is a **living training manual** for the whole
+_Last updated: 2026-09-09. This is a **living training manual** for the whole
 event ecosystem: this portal app, GoHighLevel (GHL), and PandaDoc. When a
 feature ships, update the relevant section and the changelog at the bottom —
 treat doc updates as part of the feature, not an afterthought._
@@ -19,6 +19,7 @@ Three systems, three jobs:
 
 | System | Job | Owns |
 | --- | --- | --- |
+| 2026-09-09 | Admin restyle toward a developer-tool look (Supabase-inspired): neutral gray palette in all three themes with one green brand accent for primary actions and positive status, 4–8px radii, hairline borders and no panel shadows, and a mono uppercase label style (`type-label`) for eyebrows, table headers, metric labels and status chips. The sidebar is now a rail (icons-only when collapsed) and a new desktop top bar carries the breadcrumb, a `development` tag on local builds, the theme switch, the signed-in email and sign out (they left the sidebar footer; the mobile drawer still has them). Dashboard metric tiles gained icons. Login and reset-password screens follow the admin theme. Client portal untouched apart from the shared button/badge shapes. Tokens live in `src/app/globals.css`. |
 | **GoHighLevel** | CRM and system of record | Contacts, opportunities, the Event Sales pipeline, client email/SMS notifications, calendars of record |
 | **This portal app** | Working surface for planners and clients | Room calendar, event checklists, schedules, uploads, vendor submissions, the client-facing portal pages |
 | **PandaDoc** (via GHL) | Proposals and signatures | Proposal documents; pushes the proposal link into GHL |

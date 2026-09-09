@@ -110,7 +110,7 @@ export default async function CompaniesPage({
       title="Companies"
       userEmail={user.email}
     >
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="rounded-xl border border-slate-200 bg-white">
         <form
           className="flex flex-wrap items-end gap-3 border-b border-slate-200 px-5 py-4 sm:px-6"
           method="get"
@@ -188,7 +188,7 @@ export default async function CompaniesPage({
         {companyPage.companies.length > 0 ? (
           <>
             {/* Column headers (desktop) */}
-            <div className="hidden border-b border-slate-200 px-5 py-2 text-xs font-semibold tracking-wide text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_repeat(5,minmax(0,1fr))] sm:gap-4 sm:px-6">
+            <div className="hidden border-b border-slate-200 px-5 py-2 type-label text-slate-500 sm:grid sm:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_repeat(5,minmax(0,1fr))] sm:gap-4 sm:px-6">
               {(
                 [
                   { key: "name", label: "Company", align: "left" },

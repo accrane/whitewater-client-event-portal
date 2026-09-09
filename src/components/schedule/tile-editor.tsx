@@ -62,14 +62,14 @@ export function TileEditor({
 
         <div className="min-w-0 flex-1 space-y-2">
           <input
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold"
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Tile title"
             type="text"
             value={title}
           />
           <textarea
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6"
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Description of the tile."
             rows={2}
@@ -167,7 +167,7 @@ export function AddTileForm({
       }}
     >
       <input
-        className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
         onChange={(e) => setTitle(e.target.value)}
         placeholder={placeholder ?? "New tile title (e.g. Lunch)"}
         type="text"

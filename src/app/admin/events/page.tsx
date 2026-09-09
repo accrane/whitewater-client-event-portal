@@ -109,7 +109,7 @@ export default async function AdminEventsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav
           aria-label="Filter events by status"
-          className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+          className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-white p-1"
         >
           {filters.map((filter) => {
             const active = filter.key === activeFilter;
@@ -119,7 +119,7 @@ export default async function AdminEventsPage({
                 aria-current={active ? "page" : undefined}
                 className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition ${
                   active
-                    ? "bg-slate-950 text-white"
+                    ? "bg-slate-100 text-slate-950"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                 }`}
                 href={filterHref(filter.key)}
@@ -154,10 +154,10 @@ export default async function AdminEventsPage({
       </div>
 
       {filtered.length > 0 ? (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="overflow-x-auto">
             <div className="min-w-[860px]">
-              <div className="grid grid-cols-[minmax(240px,2fr)_minmax(120px,auto)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(90px,auto)_minmax(150px,auto)] items-center gap-x-4 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-xs font-semibold text-slate-500">
+              <div className="grid grid-cols-[minmax(240px,2fr)_minmax(120px,auto)_minmax(130px,1fr)_minmax(150px,1fr)_minmax(90px,auto)_minmax(150px,auto)] items-center gap-x-4 border-b border-slate-200 bg-slate-50 px-5 py-2 type-label text-slate-500">
                 <span>Event</span>
                 <span>Event date</span>
                 <span>Type</span>

@@ -193,7 +193,7 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
 
         return (
           <div
-            className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4"
             key={column.key}
           >
             <div className="border-b border-slate-200 pb-3">
@@ -201,7 +201,7 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
                 <h2 className="truncate text-sm font-semibold text-slate-950">
                   {column.name}
                 </h2>
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                <span className="inline-flex items-center rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
                   {column.items.length}
                 </span>
               </div>
@@ -350,7 +350,7 @@ async function WonView({
 
   return (
     <>
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <div
           aria-label="Quick ranges"
           className="flex gap-1 rounded-lg bg-slate-100 p-1"
@@ -414,10 +414,10 @@ async function WonView({
           title="No past events found"
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-xs font-semibold tracking-wider text-slate-500 uppercase">
+              <tr className="border-b border-slate-200 type-label text-slate-500">
                 <th className="px-4 py-3">Contact</th>
                 <th className="px-4 py-3">Event</th>
                 <th className="px-4 py-3">Event date</th>
@@ -484,7 +484,7 @@ function QuickRangeLink({
       aria-current={active ? "true" : undefined}
       className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
         active
-          ? "bg-slate-950 text-white"
+          ? "bg-slate-100 text-slate-950"
           : "text-slate-600 hover:text-slate-950"
       }`}
       href={href}

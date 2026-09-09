@@ -18,7 +18,7 @@ export function SystemNav() {
   return (
     <nav
       aria-label="Admin sections"
-      className="inline-flex flex-wrap items-center gap-1 self-start rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+      className="inline-flex flex-wrap items-center gap-1 self-start rounded-lg border border-slate-200 bg-white p-1"
     >
       {systemNavItems.map((item) => {
         const active =
@@ -29,7 +29,7 @@ export function SystemNav() {
             aria-current={active ? "page" : undefined}
             className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition ${
               active
-                ? "bg-slate-950 text-white"
+                ? "bg-slate-100 text-slate-950"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
             }`}
             href={item.href}

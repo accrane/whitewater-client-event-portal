@@ -188,7 +188,7 @@ function NotesDrawer({
         <>
           <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="type-label text-slate-500">
                 Notes
               </p>
               <h2 className="mt-0.5 text-lg font-semibold text-slate-950">
@@ -216,10 +216,10 @@ function NotesDrawer({
             ) : (
               notes.map((note) => (
                 <div
-                  className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+                  className="rounded-xl border border-amber-200 bg-amber-50 p-4"
                   key={note.id}
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                  <p className="type-label text-amber-800">
                     {note.authorName || "GHL"}
                     {" · "}
                     {formatNoteDate(note.dateAdded)}

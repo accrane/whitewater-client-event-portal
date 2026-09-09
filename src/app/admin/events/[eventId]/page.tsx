@@ -381,7 +381,7 @@ export default async function AdminEventDetailPage({
             <input name="eventId" type="hidden" value={event.id} />
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="type-label text-slate-500">
                   Arrival time
                 </span>
                 <select
@@ -404,7 +404,7 @@ export default async function AdminEventDetailPage({
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="type-label text-slate-500">
                   Meeting location
                 </span>
                 <input
@@ -422,7 +422,7 @@ export default async function AdminEventDetailPage({
                 </datalist>
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="type-label text-slate-500">
                   Number of guests
                 </span>
                 <input
@@ -436,7 +436,7 @@ export default async function AdminEventDetailPage({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="type-label text-slate-500">
                   Activity Pass Count
                 </span>
                 <input
@@ -450,7 +450,7 @@ export default async function AdminEventDetailPage({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="type-label text-slate-500">
                   Number of Parking Passes
                 </span>
                 <input
@@ -464,7 +464,7 @@ export default async function AdminEventDetailPage({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="type-label text-slate-500">
                   Number of Storage Bins
                 </span>
                 <input
@@ -479,7 +479,7 @@ export default async function AdminEventDetailPage({
               </label>
               {isAdmin ? (
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-500">
+                  <span className="type-label text-slate-500">
                     Value{" "}
                     <span className="font-normal text-slate-400">
                       (visible to admins only)
@@ -640,7 +640,7 @@ export default async function AdminEventDetailPage({
         <DetailRow label="Updated" value={formatNullableDateTime(event.updatedAt)} />
       </DetailSection>
 
-      <section className="rounded-xl border border-red-200 bg-red-50/40 p-5 shadow-sm sm:p-6">
+      <section className="rounded-xl border border-red-200 bg-red-50/40 p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-red-700">Danger zone</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
           Deleting this event removes its checklist, vendors, upload records,
@@ -710,10 +710,10 @@ function FacilitatorSection({
   const contactDetails = [contactEmail, contactPhone].filter(Boolean).join(" · ");
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="type-label text-slate-500">
             Primary contact
           </p>
           <p className="mt-1 text-base font-semibold text-slate-950">
@@ -798,7 +798,7 @@ function FacilitatorSection({
         </div>
         <div className="grid gap-3 peer-has-checked:hidden sm:grid-cols-3">
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">Name</span>
+            <span className="type-label text-slate-500">Name</span>
             <input
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
               defaultValue={facilitatorName ?? ""}
@@ -808,7 +808,7 @@ function FacilitatorSection({
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">Email</span>
+            <span className="type-label text-slate-500">Email</span>
             <input
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
               defaultValue={facilitatorEmail ?? ""}
@@ -818,7 +818,7 @@ function FacilitatorSection({
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-slate-500">Phone</span>
+            <span className="type-label text-slate-500">Phone</span>
             <input
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
               defaultValue={facilitatorPhone ?? ""}
@@ -853,7 +853,7 @@ function RoomBookingsSection({
   const bookedCount = reservations.length - heldCount;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Room bookings</h2>
@@ -999,7 +999,7 @@ function ChecklistSetupSection({
   const reviewSummary = buildChecklistReviewSummary(items);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Checklist setup</h2>
@@ -1184,7 +1184,7 @@ function VendorSubmissionsSection({
   const reviewSummary = buildVendorReviewSummary(vendors);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Vendor submissions</h2>
@@ -1279,7 +1279,7 @@ function UploadReviewSection({
   const reviewSummary = buildUploadReviewSummary(uploads);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div>
           <h2 className="text-lg font-semibold text-slate-950">Upload review</h2>
@@ -1399,7 +1399,7 @@ type DetailSectionProps = {
 
 function DetailSection({ children, title }: DetailSectionProps) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
       <dl className="mt-4 divide-y divide-slate-200">{children}</dl>
     </section>

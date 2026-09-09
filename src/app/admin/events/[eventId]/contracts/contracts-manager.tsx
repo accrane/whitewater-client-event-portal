@@ -159,7 +159,7 @@ function ContractCard({
     !contract.pandadocDocumentId;
 
   return (
-    <li className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <li className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -182,7 +182,7 @@ function ContractCard({
           <span className="block text-lg font-semibold text-slate-950">
             {currency.format(contract.grandTotal ?? contract.subtotal)}
           </span>
-          <span className="block text-[11px] uppercase tracking-wide text-slate-500">
+          <span className="block type-label text-slate-500">
             {contract.grandTotal !== null ? "PandaDoc total" : "Subtotal"}
           </span>
         </p>
@@ -299,7 +299,7 @@ function ContractCard({
         <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
           {contract.description ? (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="type-label text-slate-500">
                 Description / terms
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
@@ -327,7 +327,7 @@ function LineItemsTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+          <tr className="text-left type-label text-slate-500">
             <th className="py-1 pr-3 font-semibold">Item</th>
             <th className="py-1 pr-3 font-semibold text-right">Qty</th>
             <th className="py-1 pr-3 font-semibold text-right">Unit price</th>
@@ -355,7 +355,7 @@ function LineItemsTable({
         </tbody>
         <tfoot>
           <tr>
-            <td className="pt-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500" colSpan={3}>
+            <td className="pt-2 text-right type-label text-slate-500" colSpan={3}>
               Subtotal
             </td>
             <td className="pt-2 text-right font-semibold text-slate-950">
@@ -395,7 +395,7 @@ function NewContractForm({
 
   const subtotal = calculateContractSubtotal(toLineItems(items));
   const inputClass =
-    "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-slate-500 focus:outline-none";
+    "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800";
 
   const updateItem = (key: number, patch: Partial<DraftLineItem>) =>
     setItems((current) =>
@@ -424,7 +424,7 @@ function NewContractForm({
 
   return (
     <form
-      className="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      className="space-y-5 rounded-xl border border-slate-200 bg-white p-5"
       onSubmit={(event) => {
         event.preventDefault();
         submit();

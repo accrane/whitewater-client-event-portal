@@ -37,7 +37,7 @@ const TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
 });
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400";
+  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800";
 
 function formatTime(iso: string): string {
   return new Intl.DateTimeFormat("en-US", { timeStyle: "short" }).format(

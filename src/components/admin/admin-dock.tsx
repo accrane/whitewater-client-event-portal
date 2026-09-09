@@ -177,6 +177,9 @@ type AdminDockProps = {
   showAdminNav?: boolean;
 };
 
+// Desktop rail + mobile drawer. The desktop top bar (AdminTopBar) is
+// rendered by AdminShell above the page content so it can show the
+// breadcrumb for the current page.
 export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
   const pathname = usePathname();
   const [collapsedValue, setCollapsedValue] = useLocalStorageValue(
@@ -213,11 +216,11 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
     <>
       {/* Mobile top bar: hamburger sits on the left, matching the side the
           drawer slides out from; the mark is centered on its own. */}
-      <header className="sticky top-0 z-30 flex items-center border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+      <header className="sticky top-0 z-30 flex h-12 items-center border-b border-slate-200 bg-[var(--background)] px-3 lg:hidden">
         <button
           aria-expanded={drawerOpen}
           aria-label="Open navigation"
-          className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
+          className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
           onClick={() => setDrawerOpen(true)}
           type="button"
         >
@@ -232,7 +235,7 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
           className="absolute left-1/2 -translate-x-1/2"
           href="/admin"
         >
-          <WhitewaterMark className="h-6 w-auto text-slate-950" />
+          <WhitewaterMark className="h-5 w-auto text-[var(--brand)]" />
         </Link>
       </header>
 
@@ -241,25 +244,25 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
             aria-hidden
-            className="absolute inset-0 bg-slate-950/40"
+            className="absolute inset-0 bg-black/50"
             onClick={() => setDrawerOpen(false)}
           />
           <div
             aria-label="Admin navigation"
             aria-modal="true"
-            className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl"
+            className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-[var(--background)] shadow-2xl"
             role="dialog"
           >
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
-              <Link className="flex items-center gap-3" href="/admin">
-                <WhitewaterMark className="h-6 w-auto text-slate-950" />
-                <span className="text-sm font-semibold tracking-tight text-slate-950">
+            <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4">
+              <Link className="flex items-center gap-2.5" href="/admin">
+                <WhitewaterMark className="h-5 w-auto text-[var(--brand)]" />
+                <span className="text-sm font-semibold text-slate-950">
                   Planner Admin
                 </span>
               </Link>
               <button
                 aria-label="Close navigation"
-                className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
+                className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
                 onClick={() => setDrawerOpen(false)}
                 type="button"
               >
@@ -270,49 +273,59 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
               </button>
             </div>
             <DockNav collapsed={false} showAdminNav={showAdminNav} />
-            <DockFooter collapsed={false} userEmail={userEmail} />
+            <DrawerFooter userEmail={userEmail} />
           </div>
         </div>
       ) : null}
 
-      {/* Desktop sidebar */}
+      {/* Desktop rail: page-colored, hairline border, icons-only when
+          collapsed (Supabase-style), labels when expanded. */}
       <aside
-        className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-200 lg:flex ${
-          collapsed ? "w-[72px]" : "w-60"
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-slate-200 bg-[var(--background)] transition-[width] duration-200 lg:flex ${
+          collapsed ? "w-12" : "w-56"
         }`}
       >
-        <div
-          className={`flex items-center gap-3 border-b border-slate-200 px-4 py-4 ${
-            collapsed ? "flex-col" : "justify-between"
+        <Link
+          aria-label="Planner Admin dashboard"
+          className={`flex h-12 shrink-0 items-center gap-2.5 border-b border-slate-200 ${
+            collapsed ? "justify-center" : "px-4"
           }`}
+          href="/admin"
+          title="Planner Admin"
         >
-          <Link
-            className="flex min-w-0 items-center gap-3"
-            href="/admin"
-            title="Planner Admin"
-          >
-            <WhitewaterMark className="h-7 w-auto shrink-0 text-slate-950" />
-            {collapsed ? null : (
-              <span className="truncate text-sm font-semibold tracking-tight text-slate-950">
-                Planner Admin
-              </span>
-            )}
-          </Link>
+          <WhitewaterMark className="h-5 w-auto shrink-0 text-[var(--brand)]" />
+          {collapsed ? null : (
+            <span className="truncate text-sm font-semibold text-slate-950">
+              Planner Admin
+            </span>
+          )}
+        </Link>
+
+        <DockNav collapsed={collapsed} showAdminNav={showAdminNav} />
+
+        <div className="border-t border-slate-200 p-2">
           <button
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+            className={`flex h-8 items-center gap-3 rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 ${
+              collapsed ? "w-8 justify-center" : "w-full px-2"
+            }`}
             onClick={toggleCollapsed}
             type="button"
           >
-            <Icon>
+            <Icon className="h-4 w-4 shrink-0">
               <rect height="18" rx="2" width="18" x="3" y="3" />
               <path d="M9 3v18" />
+              {collapsed ? (
+                <path d="m14 9 3 3-3 3" />
+              ) : (
+                <path d="m16 15-3-3 3-3" />
+              )}
             </Icon>
+            {collapsed ? null : (
+              <span className="text-[13px] font-medium">Collapse</span>
+            )}
           </button>
         </div>
-
-        <DockNav collapsed={collapsed} showAdminNav={showAdminNav} />
-        <DockFooter collapsed={collapsed} userEmail={userEmail} />
       </aside>
     </>
   );
@@ -336,21 +349,22 @@ function DockNav({
   }
 
   function navLink(item: NavItem) {
+    const active = isActive(item.href);
     return (
       <Link
-        aria-current={isActive(item.href) ? "page" : undefined}
-        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-semibold transition ${
-          collapsed ? "justify-center" : ""
+        aria-current={active ? "page" : undefined}
+        className={`flex h-8 items-center gap-3 rounded-md text-[13px] font-medium transition ${
+          collapsed ? "w-8 justify-center" : "w-full px-2"
         } ${
-          isActive(item.href)
-            ? "bg-slate-950 text-white"
-            : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+          active
+            ? "bg-slate-100 text-slate-950"
+            : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
         }`}
         href={item.href}
         key={item.href}
         title={collapsed ? item.label : undefined}
       >
-        {item.icon}
+        <span className="[&>svg]:h-4 [&>svg]:w-4">{item.icon}</span>
         {collapsed ? null : (
           <span className="truncate whitespace-nowrap">{item.label}</span>
         )}
@@ -361,12 +375,12 @@ function DockNav({
   return (
     <nav
       aria-label="Admin navigation"
-      className="flex flex-1 flex-col overflow-y-auto px-3 py-4"
+      className="flex flex-1 flex-col overflow-y-auto p-2"
     >
-      <div className="space-y-1">{workNavItems.map(navLink)}</div>
-      <div aria-hidden className="my-3 border-t border-slate-200" />
-      <div className="space-y-1">{salesNavItems.map(navLink)}</div>
-      <div className="mt-auto space-y-1 pt-4">
+      <div className="space-y-0.5">{workNavItems.map(navLink)}</div>
+      <div aria-hidden className="my-2 border-t border-slate-200" />
+      <div className="space-y-0.5">{salesNavItems.map(navLink)}</div>
+      <div className="mt-auto space-y-0.5 pt-4">
         {navLink(settingsNavItem)}
         {showAdminNav ? navLink(adminOnlyNavItem) : null}
       </div>
@@ -374,67 +388,162 @@ function DockNav({
   );
 }
 
-function DockFooter({
-  collapsed,
-  userEmail,
-}: {
-  collapsed: boolean;
-  userEmail?: string | null;
-}) {
+// Three-way theme switch shared by the desktop top bar and mobile drawer.
+export function ThemeSwitch() {
   const { theme, setTheme } = useAdminTheme();
 
   return (
-    <div className="border-t border-slate-200 px-3 py-4">
-      <div
-        aria-label="Color theme"
-        className={`mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 ${
-          collapsed ? "flex-col" : ""
-        }`}
-        role="group"
-      >
-        {themeOptions.map((option) => (
-          <button
-            aria-label={option.label}
-            aria-pressed={theme === option.value}
-            className={`flex flex-1 items-center justify-center rounded-md p-1.5 transition ${
-              theme === option.value
-                ? "bg-slate-950 text-white"
-                : "text-slate-500 hover:text-slate-950"
-            }`}
-            key={option.value}
-            onClick={() => setTheme(option.value)}
-            title={option.label}
-            type="button"
-          >
-            {option.icon}
-          </button>
-        ))}
-      </div>
+    <div
+      aria-label="Color theme"
+      className="flex gap-0.5 rounded-md border border-slate-200 bg-slate-50 p-0.5"
+      role="group"
+    >
+      {themeOptions.map((option) => (
+        <button
+          aria-label={option.label}
+          aria-pressed={theme === option.value}
+          className={`flex h-6 w-7 items-center justify-center rounded-sm transition [&>svg]:h-3.5 [&>svg]:w-3.5 ${
+            theme === option.value
+              ? "bg-white text-slate-950 ring-1 ring-slate-300"
+              : "text-slate-500 hover:text-slate-950"
+          }`}
+          key={option.value}
+          onClick={() => setTheme(option.value)}
+          title={option.label}
+          type="button"
+        >
+          {option.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-      {userEmail && !collapsed ? (
-        <p className="px-3 pb-3 text-xs leading-5 text-slate-500">
-          Signed in as
-          <span className="block truncate font-semibold text-slate-700">
+function SignOutButton({ iconOnly = false }: { iconOnly?: boolean }) {
+  return (
+    <form action={logoutAction}>
+      <button
+        aria-label={iconOnly ? "Sign out" : undefined}
+        className={`flex h-8 items-center gap-2 rounded-md text-[13px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 ${
+          iconOnly ? "w-8 justify-center" : "w-full px-2"
+        }`}
+        title={iconOnly ? "Sign out" : undefined}
+        type="submit"
+      >
+        <Icon className="h-4 w-4 shrink-0">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <path d="m16 17 5-5-5-5" />
+          <path d="M21 12H9" />
+        </Icon>
+        {iconOnly ? null : <span>Sign out</span>}
+      </button>
+    </form>
+  );
+}
+
+function DrawerFooter({ userEmail }: { userEmail?: string | null }) {
+  return (
+    <div className="space-y-3 border-t border-slate-200 p-3">
+      <div className="flex items-center justify-between gap-3">
+        {userEmail ? (
+          <p className="min-w-0 truncate text-xs text-slate-500">{userEmail}</p>
+        ) : (
+          <span />
+        )}
+        <ThemeSwitch />
+      </div>
+      <SignOutButton />
+    </div>
+  );
+}
+
+const allNavItems = [
+  ...workNavItems,
+  ...salesNavItems,
+  settingsNavItem,
+  adminOnlyNavItem,
+];
+
+type AdminTopBarProps = {
+  /** Page title shown as the last breadcrumb segment. */
+  title: string;
+  userEmail?: string | null;
+  /** Short mono tag after the app name, e.g. "local" while developing. */
+  environment?: string | null;
+};
+
+// Slim desktop context bar: app name and environment, the section and page
+// breadcrumb, then theme, account, and sign out on the right.
+export function AdminTopBar({
+  title,
+  userEmail,
+  environment,
+}: AdminTopBarProps) {
+  const pathname = usePathname();
+  const section =
+    pathname === "/admin"
+      ? null
+      : allNavItems.find(
+          (item) =>
+            item.href !== "/admin" &&
+            (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+        );
+  const showTitle = !section || section.label !== title;
+
+  return (
+    <header className="sticky top-0 z-20 hidden h-12 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-[var(--background)] px-4 lg:flex">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex min-w-0 items-center gap-2 text-[13px]"
+      >
+        <Link
+          className="shrink-0 font-medium text-slate-700 transition hover:text-slate-950"
+          href="/admin"
+        >
+          Planner Admin
+        </Link>
+        {environment ? (
+          <span className="type-label rounded-sm border border-amber-300 bg-amber-50 px-1.5 py-px text-amber-800">
+            {environment}
+          </span>
+        ) : null}
+        {section ? (
+          <>
+            <span aria-hidden className="text-slate-300">
+              /
+            </span>
+            <Link
+              className="shrink-0 text-slate-500 transition hover:text-slate-950"
+              href={section.href}
+            >
+              {section.label}
+            </Link>
+          </>
+        ) : null}
+        {showTitle ? (
+          <>
+            <span aria-hidden className="text-slate-300">
+              /
+            </span>
+            <span aria-current="page" className="truncate text-slate-950">
+              {title}
+            </span>
+          </>
+        ) : null}
+      </nav>
+
+      <div className="flex shrink-0 items-center gap-3">
+        <ThemeSwitch />
+        {userEmail ? (
+          <span
+            className="hidden max-w-[220px] truncate text-xs text-slate-500 xl:inline"
+            title={userEmail}
+          >
             {userEmail}
           </span>
-        </p>
-      ) : null}
-      <form action={logoutAction}>
-        <button
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 ${
-            collapsed ? "justify-center" : ""
-          }`}
-          title={collapsed ? "Sign out" : undefined}
-          type="submit"
-        >
-          <Icon>
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" x2="9" y1="12" y2="12" />
-          </Icon>
-          {collapsed ? null : <span>Sign out</span>}
-        </button>
-      </form>
-    </div>
+        ) : null}
+        <SignOutButton iconOnly />
+      </div>
+    </header>
   );
 }

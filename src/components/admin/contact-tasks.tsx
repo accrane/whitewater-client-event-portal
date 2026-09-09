@@ -267,7 +267,7 @@ function TasksDrawer({
         <>
           <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="type-label text-slate-500">
                 Tasks
               </p>
               <h2 className="mt-0.5 text-lg font-semibold text-slate-950">
@@ -306,7 +306,7 @@ function TasksDrawer({
 
                 return (
                   <label
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 shadow-sm transition ${
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
                       task.completed
                         ? "border-slate-200 bg-white/60"
                         : "border-slate-200 bg-white hover:border-slate-300"

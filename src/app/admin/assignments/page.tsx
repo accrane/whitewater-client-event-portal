@@ -163,7 +163,7 @@ export default async function AdminAssignmentsPage({
       userEmail={user.email}
     >
       <form
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
         method="get"
       >
         <label className="grid gap-1 text-xs font-semibold text-slate-500">
@@ -215,13 +215,13 @@ export default async function AdminAssignmentsPage({
           {[...groups.entries()].map(([plannerName, items]) => (
             <div
               key={plannerName}
-              className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4"
             >
               <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
                 <h2 className="truncate text-sm font-semibold text-slate-950">
                   {plannerName}
                 </h2>
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                <span className="inline-flex items-center rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
                   {items.length}
                 </span>
               </div>

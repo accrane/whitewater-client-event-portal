@@ -359,7 +359,7 @@ export function CalendarGrid({
 
   return (
     <div
-      className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col"
+      className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col"
       style={{ minHeight: 0 }}
     >
       {/* Header */}

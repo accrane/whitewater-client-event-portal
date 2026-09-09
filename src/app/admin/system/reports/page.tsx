@@ -117,7 +117,7 @@ export default async function AdminReportsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav
           aria-label="Filter reports by timeframe"
-          className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+          className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-white p-1"
         >
           {presets.map((preset) => {
             const active = !isCustom && preset.key === activePreset;
@@ -127,7 +127,7 @@ export default async function AdminReportsPage({
                 aria-current={active ? "page" : undefined}
                 className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition ${
                   active
-                    ? "bg-slate-950 text-white"
+                    ? "bg-slate-100 text-slate-950"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                 }`}
                 href={
@@ -151,7 +151,7 @@ export default async function AdminReportsPage({
             Custom
           </label>
           <input
-            className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 shadow-sm"
+            className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800"
             defaultValue={from ?? ""}
             id="from"
             name="from"
@@ -159,7 +159,7 @@ export default async function AdminReportsPage({
           />
           <span className="text-[13px] text-slate-400">to</span>
           <input
-            className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 shadow-sm"
+            className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800"
             defaultValue={to ?? ""}
             name="to"
             type="date"
@@ -423,7 +423,7 @@ function ReportPanel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="text-base font-semibold text-slate-950">{title}</h2>
       <p className="mt-0.5 text-sm text-slate-600">{subtitle}</p>
       <div className="mt-4">{children}</div>

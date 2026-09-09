@@ -186,7 +186,7 @@ export function NoteWysiwyg({ initialHtml, onChange }: NoteWysiwygProps) {
       </div>
 
       <div
-        className="min-h-28 px-3 py-2 text-sm leading-6 text-slate-800 focus:outline-none [&_a]:text-blue-700 [&_a]:underline [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-lg [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+        className="min-h-28 px-3 py-2 text-sm leading-6 text-slate-800 [&_a]:text-blue-700 [&_a]:underline [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-lg [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
         contentEditable
         onBlur={emitChange}
         onInput={emitChange}

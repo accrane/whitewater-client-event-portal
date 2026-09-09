@@ -337,7 +337,7 @@ function ConversationsDrawer({
         <>
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="type-label text-slate-500">
               Conversations
             </p>
             <h2 className="mt-0.5 text-lg font-semibold text-slate-950">
@@ -369,14 +369,14 @@ function ConversationsDrawer({
                 key={message.id}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                     message.direction === "outbound"
                       ? "rounded-br-md bg-slate-900 text-slate-100"
                       : "rounded-bl-md border border-slate-200 bg-white text-slate-800"
                   }`}
                 >
                   <p
-                    className={`mb-1 text-[11px] font-semibold uppercase tracking-wide ${
+                    className={`mb-1 type-label ${
                       message.direction === "outbound"
                         ? "text-slate-400"
                         : "text-slate-500"

@@ -7,7 +7,7 @@ interface RoomLegendProps {
 
 export function RoomLegend({ rooms, onAddRoom }: RoomLegendProps) {
   return (
-    <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-white rounded-xl shadow-sm border border-slate-200">
+    <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-white rounded-xl border border-slate-200">
       {rooms.map((room) => (
         <div key={room.id} className="flex items-center gap-2">
           <div

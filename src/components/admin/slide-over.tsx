@@ -39,14 +39,14 @@ export function SlideOver({
     <div className="fixed inset-0 z-50">
       <button
         aria-label="Close panel"
-        className={`absolute inset-0 bg-slate-950/30 transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-black/50 transition-opacity duration-300 ${
           visible ? "opacity-100" : "opacity-0"
         }`}
         onClick={requestClose}
         type="button"
       />
       <aside
-        className={`absolute inset-y-0 right-0 flex w-full max-w-lg flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 flex w-full max-w-lg flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out ${
           visible ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -60,7 +60,7 @@ export function SlideOverCloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       aria-label="Close"
-      className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+      className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
       onClick={onClick}
       type="button"
     >

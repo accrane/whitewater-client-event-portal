@@ -119,7 +119,7 @@ export default async function SfMigrationPage({
         />
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">
@@ -155,7 +155,7 @@ export default async function SfMigrationPage({
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="rounded-xl border border-slate-200 bg-white">
         <form
           className="flex flex-wrap items-end gap-3 border-b border-slate-200 px-5 py-4 sm:px-6"
           method="get"
@@ -288,7 +288,7 @@ function ContactRow({
           </p>
         </div>
         <span
-          className={`justify-self-start rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset sm:justify-self-end ${statusClasses[contact.push_status]}`}
+          className={`justify-self-start rounded-sm px-2 py-0.5 type-label ring-1 ring-inset sm:justify-self-end ${statusClasses[contact.push_status]}`}
         >
           {statusLabels[contact.push_status]}
         </span>
@@ -296,7 +296,7 @@ function ContactRow({
 
       <div className="mt-4 grid gap-4 rounded-lg bg-slate-50 p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <h3 className="type-label text-slate-500">
             GHL payload this contact would push
           </h3>
           <pre className="mt-2 overflow-x-auto rounded-lg bg-white p-3 text-xs text-slate-800 ring-1 ring-slate-200">

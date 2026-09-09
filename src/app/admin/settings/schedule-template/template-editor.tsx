@@ -39,7 +39,7 @@ export function TemplateEditor({ items }: TemplateEditorProps) {
         </div>
       )}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">
@@ -56,7 +56,7 @@ export function TemplateEditor({ items }: TemplateEditorProps) {
               <button
                 className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
                   tab === value
-                    ? "bg-slate-950 text-white"
+                    ? "bg-slate-100 text-slate-950"
                     : "text-slate-600 hover:bg-slate-100"
                 }`}
                 key={value}

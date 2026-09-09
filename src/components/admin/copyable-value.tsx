@@ -48,7 +48,7 @@ export function CopyableValue({ value }: { value: string }) {
         className={
           copied
             ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700"
-            : "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 opacity-0 transition group-hover:opacity-100"
+            : "rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500 opacity-0 transition group-hover:opacity-100"
         }
       >
         {copied ? "Copied!" : "Click to copy"}

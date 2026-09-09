@@ -317,7 +317,7 @@ export function ReservationModal({
   };
 
   const inputClass =
-    "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+    "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm";
 
   return (
     <div
@@ -447,7 +447,7 @@ export function ReservationModal({
 
           {/* Divider */}
           <div className="flex items-center gap-3 pt-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <span className="type-label text-slate-400">
               {isEditing ? "Room" : "Rooms"}
             </span>
             <div className="h-px flex-1 bg-slate-200" />

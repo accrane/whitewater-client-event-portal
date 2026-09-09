@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import { AdminThemeScope } from "@/components/admin/admin-theme";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -111,97 +113,97 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-5 py-10">
-      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
-          Portal Admin
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-          Choose a new password
-        </h1>
+    <AdminThemeScope>
+      <main className="flex min-h-screen flex-1 items-center justify-center px-5 py-10">
+        <section className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 sm:p-8">
+          <p className="type-label text-slate-500">Portal Admin</p>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+            Choose a new password
+          </h1>
 
-        {state === "checking" ? (
-          <p className="mt-6 text-sm leading-6 text-slate-600">
-            Checking your reset link…
-          </p>
-        ) : null}
+          {state === "checking" ? (
+            <p className="mt-6 text-sm leading-6 text-slate-500">
+              Checking your reset link…
+            </p>
+          ) : null}
 
-        {state === "invalid" ? (
-          <div className="mt-6 space-y-4">
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              This reset link is invalid or has expired.
-            </div>
-            <Link
-              className="inline-flex text-sm font-medium text-slate-600 transition hover:text-slate-950"
-              href="/admin/login?view=forgot"
-            >
-              Request a new reset link
-            </Link>
-          </div>
-        ) : null}
-
-        {state === "done" ? (
-          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Password updated. Taking you to the admin…
-          </div>
-        ) : null}
-
-        {state === "ready" || state === "saving" ? (
-          <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-            {error ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
+          {state === "invalid" ? (
+            <div className="mt-6 space-y-4">
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                This reset link is invalid or has expired.
               </div>
-            ) : null}
-
-            <div className="space-y-2">
-              <label
-                className="text-sm font-medium text-slate-700"
-                htmlFor="password"
+              <Link
+                className="inline-flex text-sm font-medium text-slate-600 transition hover:text-slate-950"
+                href="/admin/login?view=forgot"
               >
-                New password
-              </label>
-              <input
-                autoComplete="new-password"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base text-slate-950 outline-none transition focus:border-slate-950 focus:ring-4 focus:ring-slate-200"
-                id="password"
-                minLength={8}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                type="password"
-                value={password}
-              />
+                Request a new reset link
+              </Link>
             </div>
+          ) : null}
 
-            <div className="space-y-2">
-              <label
-                className="text-sm font-medium text-slate-700"
-                htmlFor="confirm"
+          {state === "done" ? (
+            <div className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              Password updated. Taking you to the admin…
+            </div>
+          ) : null}
+
+          {state === "ready" || state === "saving" ? (
+            <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+              {error ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <label
+                  className="text-sm font-medium text-slate-700"
+                  htmlFor="password"
+                >
+                  New password
+                </label>
+                <input
+                  autoComplete="new-password"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 transition"
+                  id="password"
+                  minLength={8}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  type="password"
+                  value={password}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  className="text-sm font-medium text-slate-700"
+                  htmlFor="confirm"
+                >
+                  Confirm new password
+                </label>
+                <input
+                  autoComplete="new-password"
+                  className="w-full h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 transition"
+                  id="confirm"
+                  minLength={8}
+                  onChange={(event) => setConfirm(event.target.value)}
+                  required
+                  type="password"
+                  value={confirm}
+                />
+              </div>
+
+              <button
+                className="h-10 w-full rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)] disabled:opacity-50"
+                disabled={state === "saving"}
+                type="submit"
               >
-                Confirm new password
-              </label>
-              <input
-                autoComplete="new-password"
-                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-base text-slate-950 outline-none transition focus:border-slate-950 focus:ring-4 focus:ring-slate-200"
-                id="confirm"
-                minLength={8}
-                onChange={(event) => setConfirm(event.target.value)}
-                required
-                type="password"
-                value={confirm}
-              />
-            </div>
-
-            <button
-              className="w-full rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
-              disabled={state === "saving"}
-              type="submit"
-            >
-              {state === "saving" ? "Saving…" : "Set new password"}
-            </button>
-          </form>
-        ) : null}
-      </section>
-    </main>
+                {state === "saving" ? "Saving…" : "Set new password"}
+              </button>
+            </form>
+          ) : null}
+        </section>
+      </main>
+    </AdminThemeScope>
   );
 }

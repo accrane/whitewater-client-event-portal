@@ -91,7 +91,7 @@ export function SectionEditor({
 
         <div className="min-w-0 flex-1 space-y-2">
           <input
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold"
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Section title"
             type="text"
@@ -101,7 +101,7 @@ export function SectionEditor({
 
           {status && onSetStatus && (
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-xs font-semibold text-slate-500">
+              <span className="type-label text-slate-500">
                 Client status:
               </span>
               {STATUS_OPTIONS.map((option) => {

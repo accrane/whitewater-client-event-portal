@@ -30,7 +30,7 @@ export function CalendarToolbar({
       : format(currentDate, "EEEE, MMMM d, yyyy");
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 bg-white rounded-xl shadow-sm border border-slate-200">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 bg-white rounded-xl border border-slate-200">
       {/* Left: Navigation */}
       <div className="flex items-center gap-2">
         <button
@@ -88,7 +88,7 @@ export function CalendarToolbar({
         <select
           value={selectedRoomId || ""}
           onChange={(e) => onRoomFilter(e.target.value || null)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 bg-white"
         >
           <option value="">All Rooms</option>
           {rooms.map((room) => (
@@ -104,7 +104,7 @@ export function CalendarToolbar({
           onChange={(e) =>
             onStatusFilter(e.target.value as "all" | "held" | "booked")
           }
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700 bg-white"
         >
           <option value="all">All Statuses</option>
           <option value="held">Held</option>
@@ -117,7 +117,7 @@ export function CalendarToolbar({
             onClick={() => onViewChange("day")}
             className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
               viewMode === "day"
-                ? "bg-white text-slate-800 shadow-sm font-medium"
+                ? "bg-white text-slate-800 font-medium"
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -127,7 +127,7 @@ export function CalendarToolbar({
             onClick={() => onViewChange("week")}
             className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
               viewMode === "week"
-                ? "bg-white text-slate-800 shadow-sm font-medium"
+                ? "bg-white text-slate-800 font-medium"
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >

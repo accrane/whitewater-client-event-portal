@@ -39,7 +39,7 @@ function TimelineTile({ item }: { item: ScheduleTileFields }) {
 
   return (
     <div className="relative grid gap-x-14 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-      <div className="relative rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
+      <div className="relative rounded-lg border border-slate-300 bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-lg font-semibold text-slate-950">{item.title}</h3>
           {hasNote && (
@@ -75,7 +75,7 @@ function TimelineTile({ item }: { item: ScheduleTileFields }) {
             aria-hidden
             className="absolute top-7 -left-14 h-px w-14 bg-slate-400"
           />
-          <div className="max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-sm">
+          <div className="max-w-md rounded-lg border border-slate-300 bg-white p-4">
             <NotePanel html={item.note_html} />
           </div>
         </div>

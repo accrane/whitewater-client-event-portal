@@ -38,13 +38,13 @@ export function FlashBanner({
 
   return (
     <div
-      className={`relative rounded-2xl border p-5 pr-12 text-sm ${toneClasses[tone]}`}
+      className={`relative rounded-lg border px-4 py-3 pr-12 text-sm ${toneClasses[tone]}`}
       role="status"
     >
       {children}
       <button
         aria-label="Dismiss notification"
-        className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full text-lg leading-none opacity-60 transition hover:bg-black/5 hover:opacity-100"
+        className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-md text-lg leading-none opacity-60 transition hover:bg-black/5 hover:opacity-100"
         onClick={dismiss}
         type="button"
       >

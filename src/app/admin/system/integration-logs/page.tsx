@@ -62,7 +62,7 @@ export default async function AdminIntegrationLogsPage() {
       </section>
 
       {logs.length > 0 ? (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
             <h2 className="text-lg font-semibold text-slate-950">
               Recent integration activity

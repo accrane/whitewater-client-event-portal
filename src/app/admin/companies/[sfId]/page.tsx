@@ -172,7 +172,7 @@ export default async function CompanyDetailPage({
       </section>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-xl border border-slate-200 bg-white">
           <header className="border-b border-slate-200 px-5 py-4">
             <h2 className="text-lg font-semibold text-slate-950">Contacts</h2>
             {isAdmin ? (
@@ -203,7 +203,7 @@ export default async function CompanyDetailPage({
           )}
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-xl border border-slate-200 bg-white">
           <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 px-5 py-4">
             <h2 className="text-lg font-semibold text-slate-950">
               Booking history

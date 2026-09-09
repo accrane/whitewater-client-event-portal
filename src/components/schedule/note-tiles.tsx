@@ -15,7 +15,7 @@ export function NoteTiles({ notes }: NoteTilesProps) {
     <div className="grid gap-4 sm:grid-cols-2">
       {visible.map((note) => (
         <div
-          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          className="rounded-2xl border border-slate-200 bg-white p-5"
           key={note.id}
         >
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">

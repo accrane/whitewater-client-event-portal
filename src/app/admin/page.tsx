@@ -43,7 +43,10 @@ function buildAttentionItems(events: AdminEventListItem[]): AttentionItem[] {
         );
       }
 
-      if (event.lastSyncStatus === "warning" || event.lastSyncStatus === "error") {
+      if (
+        event.lastSyncStatus === "warning" ||
+        event.lastSyncStatus === "error"
+      ) {
         reasons.push(
           <StatusBadge key="sync" tone="danger">
             Sync {event.lastSyncStatus}
@@ -56,7 +59,9 @@ function buildAttentionItems(events: AdminEventListItem[]): AttentionItem[] {
     .filter((item) => item.reasons.length > 0);
 }
 
-function buildUpcomingEvents(events: AdminEventListItem[]): AdminEventListItem[] {
+function buildUpcomingEvents(
+  events: AdminEventListItem[],
+): AdminEventListItem[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -101,29 +106,58 @@ export default async function AdminDashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <AdminStatCard
           href="/admin/events?status=draft"
+          icon={
+            <Icon>
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </Icon>
+          }
           label="Draft portals"
           value={String(metrics.draftPortalCount)}
         />
         <AdminStatCard
           href="/admin/events?status=launched"
+          icon={
+            <Icon>
+              <path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2 0-2.8a2 2 0 0 0-3-.2Z" />
+              <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.9 12.9 0 0 1 22 2c0 2.7-.9 7.6-6 11a22 22 0 0 1-4 2Z" />
+              <path d="M9 12H4s.6-3.3 2-4c1.6-.8 5 0 5 0" />
+              <path d="M12 15v5s3.3-.6 4-2c.8-1.6 0-5 0-5" />
+            </Icon>
+          }
           label="Launched portals"
           value={String(metrics.launchedPortalCount)}
         />
         <AdminStatCard
           href="/admin/events?status=launched"
           hint="Launched with an event date today or later"
+          icon={
+            <Icon>
+              <path d="M8 2v4" />
+              <path d="M16 2v4" />
+              <rect height="18" rx="2" width="18" x="3" y="4" />
+              <path d="M3 10h18" />
+            </Icon>
+          }
           label="Upcoming events"
           value={String(metrics.upcomingLaunchedCount)}
         />
         <AdminStatCard
           hint="GHL sync warnings and errors"
           href={isAdmin ? "/admin/system/integration-logs" : undefined}
+          icon={
+            <Icon>
+              <path d="M21 12a9 9 0 1 1-6.2-8.6" />
+              <path d="M21 3v6h-6" />
+              <path d="M12 8v4l2 2" />
+            </Icon>
+          }
           label="Integration review"
           value={String(metrics.integrationReviewCount)}
         />
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-950">
             Needs attention
@@ -172,7 +206,7 @@ export default async function AdminDashboardPage() {
         )}
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-slate-950">
