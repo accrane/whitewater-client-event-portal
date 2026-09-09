@@ -5,11 +5,17 @@ import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 // Reads one GHL contact's name/email/phone — used to fill the facilitator
 // from the event's primary contact when "same as current contact" is picked.
 // Degrades to null when GHL is unconfigured or the lookup fails.
-export async function fetchGhlContact(contactId: string): Promise<{
+export type GhlContactSummary = {
   name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
-} | null> {
+};
+
+export async function fetchGhlContact(
+  contactId: string,
+): Promise<GhlContactSummary | null> {
   const { accessToken, apiBaseUrl } = appConfig.ghl;
   if (!accessToken) return null;
 
@@ -44,6 +50,8 @@ export async function fetchGhlContact(contactId: string): Promise<{
 
     return {
       name: name || null,
+      firstName: contact.firstName?.trim() || null,
+      lastName: contact.lastName?.trim() || null,
       email: contact.email?.trim() || null,
       phone: contact.phone?.trim() || null,
     };

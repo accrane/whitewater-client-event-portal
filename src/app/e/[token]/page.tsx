@@ -3,8 +3,10 @@ import Link from "next/link";
 import { ChecklistFaq } from "@/components/checklist/checklist-faq";
 import { ClientHero } from "@/components/client/client-hero";
 import { ClientPortalNav } from "@/components/client/client-portal-nav";
+import { ClientContractSigner } from "@/components/client/client-contract-signer";
 import { ClientSectionCard } from "@/components/client/client-section-card";
 import { getEventChecklistSections } from "@/lib/admin/checklist-sections";
+import { listClientContracts } from "@/lib/admin/contracts";
 import type { EventChecklistSection } from "@/lib/checklist";
 import { formatDisplayDate } from "@/lib/dates";
 import { getClientPortalEventByToken } from "@/lib/client/portal";
@@ -44,6 +46,7 @@ export default async function ClientPortalPlaceholderPage({
   // Merge tags like {{event.num_attendees}} resolve at view time so the
   // client always sees the latest GHL-synced values.
   const mergeContext = buildMergeTagContext(event);
+  const contracts = await listClientContracts(event.id);
   const checklistSections = (await getEventChecklistSections(event.id)).map(
     (section) => ({
       ...section,
@@ -98,6 +101,13 @@ export default async function ClientPortalPlaceholderPage({
         ) : null}
 
         <ClientChecklistAccordion sections={checklistSections} token={token} />
+
+        <ClientSectionCard
+          description="Your event contracts. Review each one and sign it right here — no separate email or account needed."
+          title="Contracts"
+        >
+          <ClientContractSigner contracts={contracts} token={token} />
+        </ClientSectionCard>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <ClientSectionCard

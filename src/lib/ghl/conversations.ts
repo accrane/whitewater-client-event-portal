@@ -167,8 +167,12 @@ async function listConversationMessages(
 export type SendConversationMessageInput = {
   contactId: string;
   channel: "Email" | "SMS";
+  // Plain-text message; ignored (may be empty) when emailTemplateId is set.
   body: string;
   subject?: string | null;
+  // GHL email-builder template id. GHL renders the designed email and its
+  // merge tags itself, so no html is sent alongside it.
+  emailTemplateId?: string | null;
   // Email id of the message being replied to; keeps the client's inbox
   // thread intact. Dropped automatically if GHL rejects it.
   replyToEmailMessageId?: string | null;
@@ -202,10 +206,14 @@ export async function sendConversationMessage(
         contactId: input.contactId,
         ...(input.channel === "Email"
           ? {
-              html: `<p>${input.body
-                .split(/\n{2,}/)
-                .map((paragraph) => paragraph.replace(/\n/g, "<br/>"))
-                .join("</p><p>")}</p>`,
+              ...(input.emailTemplateId
+                ? { templateId: input.emailTemplateId }
+                : {
+                    html: `<p>${input.body
+                      .split(/\n{2,}/)
+                      .map((paragraph) => paragraph.replace(/\n/g, "<br/>"))
+                      .join("</p><p>")}</p>`,
+                  }),
               ...(input.subject ? { subject: input.subject } : {}),
               ...(withThreading && input.replyToEmailMessageId
                 ? {
@@ -244,11 +252,16 @@ export async function sendConversationMessage(
     portalEventId: input.portalEventId,
     status: ok ? "success" : "error",
     message: ok
-      ? `Sent a ${input.channel} reply to the contact's GHL conversation.`
+      ? input.emailTemplateId
+        ? "Sent a GHL email template to the contact's GHL conversation."
+        : `Sent a ${input.channel} reply to the contact's GHL conversation.`
       : "Failed sending a conversation reply through GHL.",
     details: {
       ghl_contact_id: input.contactId,
       channel: input.channel,
+      ...(input.emailTemplateId
+        ? { ghl_email_template_id: input.emailTemplateId }
+        : {}),
       ...(error ? { error } : {}),
     },
   });

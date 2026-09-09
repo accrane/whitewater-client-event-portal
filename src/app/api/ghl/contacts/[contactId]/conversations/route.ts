@@ -11,8 +11,10 @@ import {
 // Conversations drawer backend, keyed by GHL contact id so the drawer works
 // anywhere a contact appears (admin event page, opportunities board). GET
 // loads the contact's full GHL conversation history; POST sends a reply
-// through GHL. An optional eventId in the POST body links the integration
-// log row to a portal event when the drawer was opened from one.
+// through GHL — either a typed body or, for email, a GHL email-builder
+// template by id (emailTemplateId; GHL renders it). An optional eventId in
+// the POST body links the integration log row to a portal event when the
+// drawer was opened from one.
 
 export async function GET(
   _request: Request,
@@ -41,13 +43,16 @@ export async function POST(
       body?: string;
       subject?: string;
       replyToEmailMessageId?: string;
+      emailTemplateId?: string;
       eventId?: string;
     };
 
     const channel = payload.channel === "SMS" ? "SMS" : "Email";
     const body = (payload.body ?? "").trim();
+    const emailTemplateId =
+      channel === "Email" ? payload.emailTemplateId?.trim() || null : null;
 
-    if (!body) {
+    if (!body && !emailTemplateId) {
       return Response.json({ error: "Enter a message to send." }, { status: 400 });
     }
 
@@ -56,6 +61,7 @@ export async function POST(
       channel,
       body,
       subject: payload.subject?.trim() || null,
+      emailTemplateId,
       replyToEmailMessageId: payload.replyToEmailMessageId || null,
       ghlLocationId: appConfig.ghl.locationId || null,
       portalEventId: payload.eventId?.trim() || null,

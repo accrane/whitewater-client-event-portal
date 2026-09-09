@@ -321,7 +321,7 @@ export async function uploadClientFileForToken({
   }
 }
 
-async function getLaunchedPortalEventByToken(token: string): Promise<EventRow | null> {
+export async function getLaunchedPortalEventByToken(token: string): Promise<EventRow | null> {
   const trimmedToken = token.trim();
 
   if (!trimmedToken || trimmedToken === "demo-token") {

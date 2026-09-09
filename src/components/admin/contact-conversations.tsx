@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { SlideOver, SlideOverCloseButton } from "@/components/admin/slide-over";
 import { buttonClasses } from "@/components/ui/button";
@@ -8,6 +14,8 @@ import { buttonClasses } from "@/components/ui/button";
 // Speech-bubble button + slide-in drawer showing the primary contact's GHL
 // conversation history for this event, with a reply box that sends through
 // GHL (so replies land in the same Conversations thread staff see there).
+// The reply box can pull in GHL snippets (inserted as editable text) and
+// send GHL email-builder templates (rendered by GHL, sent by id).
 
 type DrawerMessage = {
   id: string;
@@ -23,6 +31,30 @@ type DrawerConversation = {
   id: string;
   lastMessageDate: string | null;
   messages: DrawerMessage[];
+};
+
+type Snippet = {
+  id: string;
+  name: string;
+  channel: "Email" | "SMS";
+  subject: string | null;
+  body: string;
+};
+
+type EmailTemplate = {
+  id: string;
+  name: string;
+  subject: string | null;
+  previewUrl: string | null;
+};
+
+type TemplateList<T> =
+  | { ok: true; items: T[] }
+  | { ok: false; error: string };
+
+type MessageTemplates = {
+  snippets: TemplateList<Snippet>;
+  emailTemplates: TemplateList<EmailTemplate>;
 };
 
 type ContactConversationsButtonProps = {
@@ -110,9 +142,19 @@ function ConversationsDrawer({
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [sentNotice, setSentNotice] = useState(false);
+  const [sentNotice, setSentNotice] = useState<string | null>(null);
+
+  // Snippets + email templates load once per drawer open (cached
+  // server-side); null until they arrive so the menus can say "Loading…".
+  const [templates, setTemplates] = useState<MessageTemplates | null>(null);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  // A chosen email-builder template replaces the typed body: GHL renders it.
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(
+    null,
+  );
 
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   // State updates only happen after the fetch resolves (loading starts true),
   // so the initial effect never sets state synchronously.
@@ -137,11 +179,37 @@ function ConversationsDrawer({
     }
   }, [contactId]);
 
+  const loadTemplates = useCallback(
+    async (refresh = false) => {
+      try {
+        const res = await fetch(
+          `/api/ghl/contacts/${contactId}/message-templates${refresh ? "?refresh=1" : ""}`,
+        );
+        const data = (await res.json()) as Partial<MessageTemplates> & {
+          error?: string;
+        };
+        if (!res.ok || !data.snippets || !data.emailTemplates) {
+          throw new Error(data.error || "Unable to load templates");
+        }
+        setTemplates({
+          snippets: data.snippets,
+          emailTemplates: data.emailTemplates,
+        });
+        setTemplatesError(null);
+      } catch (error) {
+        setTemplatesError(
+          error instanceof Error ? error.message : "Unable to load templates",
+        );
+      }
+    },
+    [contactId],
+  );
+
   useEffect(() => {
     (async () => {
-      await loadConversations();
+      await Promise.all([loadConversations(), loadTemplates()]);
     })();
-  }, [loadConversations]);
+  }, [loadConversations, loadTemplates]);
 
   // Land at the latest message once the thread renders.
   useEffect(() => {
@@ -154,36 +222,84 @@ function ConversationsDrawer({
   const lastEmail = [...allMessages]
     .reverse()
     .find((m) => m.messageType.includes("EMAIL"));
+  const replySubject = lastEmail?.subject
+    ? `Re: ${lastEmail.subject.replace(/^Re:\s*/i, "")}`
+    : "";
+
+  const changeChannel = (next: "Email" | "SMS") => {
+    setChannel(next);
+    if (next === "SMS") setSelectedTemplate(null);
+  };
+
+  // Drops the snippet at the cursor (or appends), and fills an empty
+  // subject line from an email snippet's own subject.
+  const insertSnippet = (snippet: Snippet) => {
+    const textarea = bodyRef.current;
+    const start = textarea?.selectionStart ?? body.length;
+    const end = textarea?.selectionEnd ?? body.length;
+    const before = body.slice(0, start);
+    const after = body.slice(end);
+    const separator = before && !before.endsWith("\n") ? "\n" : "";
+    const next = `${before}${separator}${snippet.body}${after}`;
+    setBody(next);
+    if (snippet.channel === "Email" && snippet.subject && !subject.trim()) {
+      setSubject(snippet.subject);
+    }
+    // Put the caret after the inserted text once React has re-rendered.
+    const caret = before.length + separator.length + snippet.body.length;
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(caret, caret);
+    });
+  };
+
+  const chooseTemplate = (template: EmailTemplate) => {
+    setSelectedTemplate(template);
+    if (template.subject && !subject.trim()) setSubject(template.subject);
+  };
+
+  const canSend = selectedTemplate ? true : Boolean(body.trim());
 
   const handleSend = async () => {
-    if (!body.trim() || sending) return;
+    if (!canSend || sending) return;
     setSending(true);
     setSendError(null);
-    setSentNotice(false);
+    setSentNotice(null);
     try {
       const res = await fetch(`/api/ghl/contacts/${contactId}/conversations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           channel,
-          body,
+          body: selectedTemplate ? "" : body,
           eventId,
           subject:
             channel === "Email"
               ? subject.trim() ||
-                (lastEmail?.subject ? `Re: ${lastEmail.subject.replace(/^Re:\s*/i, "")}` : "")
+                (selectedTemplate ? selectedTemplate.subject ?? "" : replySubject)
+              : undefined,
+          emailTemplateId:
+            channel === "Email" && selectedTemplate
+              ? selectedTemplate.id
               : undefined,
           replyToEmailMessageId:
-            channel === "Email" ? (lastEmail?.emailMessageId ?? undefined) : undefined,
+            channel === "Email" && !selectedTemplate
+              ? (lastEmail?.emailMessageId ?? undefined)
+              : undefined,
         }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         throw new Error(data.error || "Unable to send the message");
       }
+      setSentNotice(
+        selectedTemplate
+          ? `Sent the "${selectedTemplate.name}" template through GHL. It may take a moment to appear in the thread.`
+          : "Sent through GHL. It may take a moment to appear in the thread.",
+      );
       setBody("");
       setSubject("");
-      setSentNotice(true);
+      setSelectedTemplate(null);
       // GHL can take a moment to index the new message; a short delay makes
       // the refresh actually show it.
       setTimeout(() => void loadConversations(), 1500);
@@ -195,6 +311,25 @@ function ConversationsDrawer({
       setSending(false);
     }
   };
+
+  const snippetList: TemplateList<Snippet> | null = templates
+    ? templates.snippets.ok
+      ? {
+          ok: true,
+          items: templates.snippets.items.filter(
+            (snippet) => snippet.channel === channel,
+          ),
+        }
+      : templates.snippets
+    : templatesError
+      ? { ok: false, error: templatesError }
+      : null;
+
+  const emailTemplateList: TemplateList<EmailTemplate> | null = templates
+    ? templates.emailTemplates
+    : templatesError
+      ? { ok: false, error: templatesError }
+      : null;
 
   return (
     <SlideOver onClose={onClose}>
@@ -276,13 +411,13 @@ function ConversationsDrawer({
           ) : null}
           {sentNotice ? (
             <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-              Sent through GHL. It may take a moment to appear in the thread.
+              {sentNotice}
             </p>
           ) : null}
           <div className="flex items-center gap-2">
             <select
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-800"
-              onChange={(e) => setChannel(e.target.value === "SMS" ? "SMS" : "Email")}
+              onChange={(e) => changeChannel(e.target.value === "SMS" ? "SMS" : "Email")}
               value={channel}
             >
               <option value="Email">Email</option>
@@ -293,35 +428,267 @@ function ConversationsDrawer({
                 className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-800"
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder={
-                  lastEmail?.subject
-                    ? `Re: ${lastEmail.subject.replace(/^Re:\s*/i, "")}`
-                    : "Subject"
+                  selectedTemplate
+                    ? selectedTemplate.subject || "Subject (template default)"
+                    : replySubject || "Subject"
                 }
                 type="text"
                 value={subject}
               />
             ) : null}
           </div>
-          <textarea
-            className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={`Reply to ${contactName || "the contact"} by ${channel.toLowerCase()}…`}
-            value={body}
-          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <InsertMenu
+              emptyLabel={`No ${channel === "SMS" ? "SMS" : "email"} snippets in GHL yet.`}
+              label="Insert snippet"
+              list={snippetList}
+              onPick={insertSnippet}
+              onRefresh={() => void loadTemplates(true)}
+              renderItem={(snippet) => (
+                <>
+                  <span className="block truncate font-medium text-slate-800">
+                    {snippet.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-slate-500">
+                    {snippet.subject ?? snippet.body}
+                  </span>
+                </>
+              )}
+              searchText={(snippet) =>
+                `${snippet.name} ${snippet.subject ?? ""} ${snippet.body}`
+              }
+            />
+            {channel === "Email" ? (
+              <InsertMenu
+                emptyLabel="No email templates in GHL yet."
+                label="Use email template"
+                list={emailTemplateList}
+                onPick={chooseTemplate}
+                onRefresh={() => void loadTemplates(true)}
+                renderItem={(template) => (
+                  <>
+                    <span className="block truncate font-medium text-slate-800">
+                      {template.name}
+                    </span>
+                    {template.subject ? (
+                      <span className="block truncate text-[11px] text-slate-500">
+                        {template.subject}
+                      </span>
+                    ) : null}
+                  </>
+                )}
+                searchText={(template) =>
+                  `${template.name} ${template.subject ?? ""}`
+                }
+              />
+            ) : null}
+          </div>
+
+          {selectedTemplate ? (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate">
+                  <span className="font-semibold">Email template:</span>{" "}
+                  {selectedTemplate.name}
+                </p>
+                <div className="flex shrink-0 items-center gap-2">
+                  {selectedTemplate.previewUrl ? (
+                    <a
+                      className="font-semibold underline-offset-2 hover:underline"
+                      href={selectedTemplate.previewUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Preview
+                    </a>
+                  ) : null}
+                  <button
+                    className="font-semibold underline-offset-2 hover:underline"
+                    onClick={() => setSelectedTemplate(null)}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+              <p className="mt-1 text-sky-800">
+                GHL sends this template&apos;s designed email and fills its
+                merge fields. Leave the subject blank to use the
+                template&apos;s own.
+              </p>
+            </div>
+          ) : (
+            <textarea
+              className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              onChange={(e) => setBody(e.target.value)}
+              placeholder={`Reply to ${contactName || "the contact"} by ${channel.toLowerCase()}…`}
+              ref={bodyRef}
+              value={body}
+            />
+          )}
           <div className="flex justify-end">
             <button
               className={buttonClasses("primary", "sm")}
-              disabled={sending || !body.trim()}
+              disabled={sending || !canSend}
               onClick={() => void handleSend()}
               type="button"
             >
-              {sending ? "Sending…" : `Send ${channel}`}
+              {sending
+                ? "Sending…"
+                : selectedTemplate
+                  ? "Send template"
+                  : `Send ${channel}`}
             </button>
           </div>
         </footer>
         </>
       )}
     </SlideOver>
+  );
+}
+
+// Small upward-opening picker used for both snippets and email templates:
+// a filter box over a scrollable list, with the loading / scope-error /
+// empty states rendered inside the panel so the trigger is always clickable
+// and the planner sees exactly why a list is empty.
+function InsertMenu<T extends { id: string }>({
+  label,
+  list,
+  emptyLabel,
+  onPick,
+  onRefresh,
+  renderItem,
+  searchText,
+}: {
+  label: string;
+  list: TemplateList<T> | null;
+  emptyLabel: string;
+  onPick: (item: T) => void;
+  onRefresh: () => void;
+  renderItem: (item: T) => ReactNode;
+  searchText: (item: T) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    const frame = requestAnimationFrame(() => searchRef.current?.focus());
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      cancelAnimationFrame(frame);
+    };
+  }, [open]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const items =
+    list?.ok
+      ? list.items.filter(
+          (item) =>
+            !normalizedQuery ||
+            searchText(item).toLowerCase().includes(normalizedQuery),
+        )
+      : [];
+
+  return (
+    <div className="relative" ref={rootRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={`${buttonClasses("secondary", "sm")} gap-1`}
+        onClick={() => setOpen((value) => !value)}
+        type="button"
+      >
+        {label}
+        <ChevronIcon />
+      </button>
+      {open ? (
+        <div
+          className="absolute bottom-full left-0 z-10 mb-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white shadow-xl"
+          // Escape closes just this menu, not the whole drawer.
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.stopPropagation();
+              setOpen(false);
+            }
+          }}
+          role="menu"
+        >
+          <div className="border-b border-slate-100 p-2">
+            <input
+              className="w-full rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-800"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search…"
+              ref={searchRef}
+              type="search"
+              value={query}
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {list === null ? (
+              <p className="px-3 py-2 text-xs text-slate-500">Loading…</p>
+            ) : !list.ok ? (
+              <div className="space-y-2 px-3 py-2">
+                <p className="text-xs text-red-800">{list.error}</p>
+                <button
+                  className="text-xs font-semibold text-slate-600 underline-offset-2 hover:underline"
+                  onClick={onRefresh}
+                  type="button"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : items.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-slate-500">
+                {normalizedQuery ? "No matches." : emptyLabel}
+              </p>
+            ) : (
+              items.map((item) => (
+                <button
+                  className="block w-full px-3 py-2 text-left text-sm transition hover:bg-slate-100"
+                  key={item.id}
+                  onClick={() => {
+                    onPick(item);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  {renderItem(item)}
+                </button>
+              ))
+            )}
+          </div>
+          {list?.ok ? (
+            <div className="border-t border-slate-100 px-3 py-1.5 text-right">
+              <button
+                className="text-[11px] font-medium text-slate-500 underline-offset-2 hover:underline"
+                onClick={onRefresh}
+                type="button"
+              >
+                Refresh from GHL
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg fill="none" height="12" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="12">
+      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

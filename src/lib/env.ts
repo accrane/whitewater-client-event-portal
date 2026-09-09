@@ -13,6 +13,11 @@ type EnvKey =
   | "GHL_DATE_OF_INTEREST_FIELD_ID"
   | "GHL_PIPELINE_ID"
   | "GHL_PLANNING_STAGE_ID"
+  | "GHL_BOOKED_STAGE_ID"
+  | "PANDADOC_API_KEY"
+  | "PANDADOC_API_BASE_URL"
+  | "PANDADOC_WEBHOOK_KEY"
+  | "PANDADOC_TEMPLATE_ID"
   | "PORTAL_BASE_URL"
   | "SALESFORCE_DOMAIN"
   | "SALESFORCE_CLIENT_ID"
@@ -66,5 +71,17 @@ export const appConfig = {
     dateOfInterestFieldId: process.env.GHL_DATE_OF_INTEREST_FIELD_ID,
     pipelineId: process.env.GHL_PIPELINE_ID,
     planningStageId: process.env.GHL_PLANNING_STAGE_ID,
+    // Stage a won event moves to once its PandaDoc contract is signed.
+    bookedStageId: process.env.GHL_BOOKED_STAGE_ID,
+  },
+  pandadoc: {
+    // Sandbox and production keys both talk to the same API host.
+    apiKey: process.env.PANDADOC_API_KEY,
+    apiBaseUrl:
+      process.env.PANDADOC_API_BASE_URL || "https://api.pandadoc.com/public/v1",
+    // Shared key from PandaDoc's webhook settings; signs webhook payloads.
+    webhookKey: process.env.PANDADOC_WEBHOOK_KEY,
+    // Default document template for new contracts (planners can pick another).
+    defaultTemplateId: process.env.PANDADOC_TEMPLATE_ID,
   },
 } as const;

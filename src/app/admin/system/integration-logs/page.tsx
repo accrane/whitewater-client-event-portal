@@ -10,6 +10,8 @@ import { requireAdminUser } from "@/lib/admin/users";
 const directionLabels = {
   GHL_TO_PORTAL: "GHL → Portal",
   PORTAL_TO_GHL: "Portal → GHL",
+  PANDADOC_TO_PORTAL: "PandaDoc → Portal",
+  PORTAL_TO_PANDADOC: "Portal → PandaDoc",
 } as const;
 
 const statusLabels = {

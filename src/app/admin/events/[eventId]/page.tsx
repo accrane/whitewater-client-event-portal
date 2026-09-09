@@ -13,6 +13,11 @@ import {
 import { DirtySaveButton } from "@/components/admin/dirty-save-button";
 import { FlashBanner } from "@/components/admin/flash-banner";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
+import {
+  contractStatusLabels,
+  listEventContracts,
+  syncEventContracts,
+} from "@/lib/admin/contracts";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import {
   buildChecklistReviewSummary,
@@ -197,9 +202,9 @@ export default async function AdminEventDetailPage({
 
   // Pull current opportunity data (Date of Interest, assigned planner,
   // contact, event type) from GHL before rendering; degrades quietly.
-  await syncEventFromGhl(eventId);
+  await Promise.all([syncEventFromGhl(eventId), syncEventContracts(eventId)]);
 
-  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms, roomReservations, ghlUsers] =
+  const [event, checklistItems, checklistTemplates, vendors, uploads, rooms, roomReservations, ghlUsers, contracts] =
     await Promise.all([
       getAdminEventById(eventId),
       listEventChecklistItems(eventId),
@@ -209,6 +214,7 @@ export default async function AdminEventDetailPage({
       listRooms(),
       listEventReservations(eventId),
       listGhlPlannerUsers(),
+      listEventContracts(eventId),
     ]);
 
   if (!event) {
@@ -237,6 +243,12 @@ export default async function AdminEventDetailPage({
     <AdminShell
       actions={
         <>
+          <ButtonLink
+            href={`/admin/events/${event.id}/contracts`}
+            variant="secondary"
+          >
+            Contracts
+          </ButtonLink>
           <ButtonLink
             href={`/admin/events/${event.id}/checklist`}
             variant="secondary"
@@ -318,6 +330,52 @@ export default async function AdminEventDetailPage({
           </dd>
         </div>
         <DetailRow copyable label="Portal URL" value={portalUrl} />
+        <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
+          <dt className="font-semibold text-slate-500">Contracts</dt>
+          <dd className="space-y-1 sm:col-span-2">
+            {contracts.length === 0 ? (
+              <span className="text-slate-800">
+                None yet ·{" "}
+                <a
+                  className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
+                  href={`/admin/events/${event.id}/contracts`}
+                >
+                  create one
+                </a>
+              </span>
+            ) : (
+              contracts.map((contract) => (
+                <p className="flex flex-wrap items-center gap-2" key={contract.id}>
+                  {contract.pandadocUrl ? (
+                    <a
+                      className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
+                      href={contract.pandadocUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {contract.name}
+                    </a>
+                  ) : (
+                    <span className="text-slate-800">{contract.name}</span>
+                  )}
+                  <StatusBadge
+                    tone={
+                      contract.status === "completed"
+                        ? "success"
+                        : contract.status === "error" || contract.status === "declined"
+                          ? "danger"
+                          : contract.status === "voided"
+                            ? "neutral"
+                            : "warning"
+                    }
+                  >
+                    {contractStatusLabels[contract.status]}
+                  </StatusBadge>
+                </p>
+              ))
+            )}
+          </dd>
+        </div>
         <div className="py-4">
           <form action={updateEventDetailsAction} className="space-y-4">
             <input name="eventId" type="hidden" value={event.id} />

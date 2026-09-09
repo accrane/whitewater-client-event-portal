@@ -9,6 +9,87 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      event_contracts: {
+        Row: {
+          id: string;
+          event_id: string;
+          name: string;
+          description: string | null;
+          line_items: Json;
+          subtotal: number;
+          status: Database["public"]["Enums"]["event_contract_status"];
+          pandadoc_document_id: string | null;
+          pandadoc_template_id: string | null;
+          pandadoc_status: string | null;
+          pandadoc_url: string | null;
+          recipient_name: string | null;
+          recipient_email: string | null;
+          grand_total: number | null;
+          sent_at: string | null;
+          viewed_at: string | null;
+          completed_at: string | null;
+          signed_actions_applied_at: string | null;
+          signed_pdf_bucket: string | null;
+          signed_pdf_path: string | null;
+          last_error: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          name: string;
+          description?: string | null;
+          line_items?: Json;
+          subtotal?: number;
+          status?: Database["public"]["Enums"]["event_contract_status"];
+          pandadoc_document_id?: string | null;
+          pandadoc_template_id?: string | null;
+          pandadoc_status?: string | null;
+          pandadoc_url?: string | null;
+          recipient_name?: string | null;
+          recipient_email?: string | null;
+          grand_total?: number | null;
+          sent_at?: string | null;
+          viewed_at?: string | null;
+          completed_at?: string | null;
+          signed_actions_applied_at?: string | null;
+          signed_pdf_bucket?: string | null;
+          signed_pdf_path?: string | null;
+          last_error?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          name?: string;
+          description?: string | null;
+          line_items?: Json;
+          subtotal?: number;
+          status?: Database["public"]["Enums"]["event_contract_status"];
+          pandadoc_document_id?: string | null;
+          pandadoc_template_id?: string | null;
+          pandadoc_status?: string | null;
+          pandadoc_url?: string | null;
+          recipient_name?: string | null;
+          recipient_email?: string | null;
+          grand_total?: number | null;
+          sent_at?: string | null;
+          viewed_at?: string | null;
+          completed_at?: string | null;
+          signed_actions_applied_at?: string | null;
+          signed_pdf_bucket?: string | null;
+          signed_pdf_path?: string | null;
+          last_error?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       events: {
         Row: {
           id: string;
@@ -749,7 +830,21 @@ export type Database = {
       reservation_source: "manual" | "ghl";
       // Text column with a check constraint, typed here as an enum for safety.
       schedule_block_color: "green" | "purple" | "yellow" | "blue" | "plain";
-      integration_direction: "GHL_TO_PORTAL" | "PORTAL_TO_GHL";
+      integration_direction:
+        | "GHL_TO_PORTAL"
+        | "PORTAL_TO_GHL"
+        | "PANDADOC_TO_PORTAL"
+        | "PORTAL_TO_PANDADOC";
+      // Text column with a check constraint, typed here as an enum for safety.
+      event_contract_status:
+        | "draft"
+        | "creating"
+        | "sent"
+        | "viewed"
+        | "completed"
+        | "declined"
+        | "voided"
+        | "error";
       integration_status: "success" | "warning" | "error";
       // Text column with a check constraint, typed here as an enum for safety.
       sf_push_status: "staged" | "approved" | "excluded" | "pushed" | "error";

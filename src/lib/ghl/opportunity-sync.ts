@@ -316,23 +316,52 @@ export async function writePortalLinkToOpportunity(
 export async function moveOpportunityToPlanning(
   event: EventRow,
 ): Promise<OpportunitySyncOutcome> {
-  const { pipelineId, planningStageId } = appConfig.ghl;
+  return moveOpportunityToStage(event, {
+    stageId: appConfig.ghl.planningStageId,
+    stageLabel: "Planning",
+    envVarName: "GHL_PLANNING_STAGE_ID",
+    eventType: "opportunity_move_to_planning",
+  });
+}
+
+// Fired when the client signs a PandaDoc contract in the portal: the
+// opportunity becomes Booked so GHL reporting and workflows see the win.
+export async function moveOpportunityToBooked(
+  event: EventRow,
+): Promise<OpportunitySyncOutcome> {
+  return moveOpportunityToStage(event, {
+    stageId: appConfig.ghl.bookedStageId,
+    stageLabel: "Booked",
+    envVarName: "GHL_BOOKED_STAGE_ID",
+    eventType: "opportunity_move_to_booked",
+  });
+}
+
+async function moveOpportunityToStage(
+  event: EventRow,
+  target: {
+    stageId: string | undefined;
+    stageLabel: string;
+    envVarName: string;
+    eventType: string;
+  },
+): Promise<OpportunitySyncOutcome> {
+  const { pipelineId } = appConfig.ghl;
 
   if (!event.ghl_opportunity_id) {
     return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
   }
 
-  if (!pipelineId || !planningStageId) {
-    const error =
-      "GHL_PIPELINE_ID / GHL_PLANNING_STAGE_ID are not configured";
+  if (!pipelineId || !target.stageId) {
+    const error = `GHL_PIPELINE_ID / ${target.envVarName} are not configured`;
 
     await logIntegrationEvent({
       direction: "PORTAL_TO_GHL",
-      eventType: "opportunity_move_to_planning",
+      eventType: target.eventType,
       ghlLocationId: event.ghl_location_id,
       portalEventId: event.id,
       status: "warning",
-      message: `Skipped moving the GHL opportunity to Planning: ${error}.`,
+      message: `Skipped moving the GHL opportunity to ${target.stageLabel}: ${error}.`,
       details: { ghl_opportunity_id: event.ghl_opportunity_id },
     });
 
@@ -341,17 +370,17 @@ export async function moveOpportunityToPlanning(
 
   const result = await updateGhlOpportunity(
     event.ghl_opportunity_id,
-    buildPlanningStageBody(pipelineId, planningStageId),
+    buildPlanningStageBody(pipelineId, target.stageId),
   );
 
   if (!result.ok) {
     await logIntegrationEvent({
       direction: "PORTAL_TO_GHL",
-      eventType: "opportunity_move_to_planning",
+      eventType: target.eventType,
       ghlLocationId: event.ghl_location_id,
       portalEventId: event.id,
       status: "error",
-      message: "Failed moving the GHL opportunity to the Planning stage.",
+      message: `Failed moving the GHL opportunity to the ${target.stageLabel} stage.`,
       details: {
         ghl_opportunity_id: event.ghl_opportunity_id,
         error: result.error ?? "Unknown GHL error",
@@ -363,11 +392,11 @@ export async function moveOpportunityToPlanning(
 
   await logIntegrationEvent({
     direction: "PORTAL_TO_GHL",
-    eventType: "opportunity_move_to_planning",
+    eventType: target.eventType,
     ghlLocationId: event.ghl_location_id,
     portalEventId: event.id,
     status: "success",
-    message: "GHL opportunity moved to the Planning stage.",
+    message: `GHL opportunity moved to the ${target.stageLabel} stage.`,
     details: { ghl_opportunity_id: event.ghl_opportunity_id },
   });
 

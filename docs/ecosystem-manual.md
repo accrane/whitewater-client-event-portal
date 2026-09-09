@@ -1,6 +1,6 @@
 # Whitewater Event Ecosystem Manual
 
-_Last updated: 2026-08-31. This is a **living training manual** for the whole
+_Last updated: 2026-09-08. This is a **living training manual** for the whole
 event ecosystem: this portal app, GoHighLevel (GHL), and PandaDoc. When a
 feature ships, update the relevant section and the changelog at the bottom —
 treat doc updates as part of the feature, not an afterthought._
@@ -113,6 +113,21 @@ reservation, and in the modal:
   so they land in the same Conversations thread. Sending requires the
   Private Integration's *write conversation messages* scope; without it the
   drawer still shows history and the send reports a clear scope error.
+  The reply box also reuses what's already set up in GHL: **Insert snippet**
+  drops a GHL Snippet (Settings → Snippets; filtered to the chosen channel)
+  into the message as editable text, with `{{contact.*}}` / `{{user.*}}`
+  merge tags already filled in for this contact and the signed-in planner
+  (other tags stay visible so you can fix them before sending). For email,
+  **Use email template** picks a GHL email-builder template (Marketing →
+  Emails → Templates); the drawer then sends it by id so GHL renders the
+  design and its merge fields — the typed body is replaced by a template
+  chip with Preview/Remove, and the subject falls back to the template's
+  own. Lists are cached for five minutes; "Refresh from GHL" inside a menu
+  bypasses that after editing snippets/templates in GHL. Each menu needs
+  its own read scope on the Private Integration (*view templates* →
+  `locations/templates.readonly` for snippets, *view email builder* →
+  `emails/builder.readonly` for email templates); a missing scope shows as
+  a message inside that menu, and the other keeps working.
   Beside it, a notepad button (with a red badge showing the note count)
   opens a matching drawer of the contact's **GHL notes**; notes added there
   save to the GHL contact, attributed to the GHL user whose email matches
@@ -146,6 +161,41 @@ reservation, and in the modal:
 - Reassigning the planner updates the GHL opportunity's assigned user; the
   local snapshot only updates after the GHL write succeeds.
 
+### Step 4b — Contract (PandaDoc, from the app)
+
+**Human:** on the event's **Contracts** tab (`/admin/events/<id>/contracts`)
+the planner clicks **New contract**, names it (initial agreement, an
+event-order change, a 50% deposit — as many per event as needed), picks a
+PandaDoc template, writes any description/terms, adds the **items and
+prices** it covers, confirms the recipient (prefilled from the GHL
+contact), and clicks *Create and send*. The client then signs it **inside
+the portal** (see Step 6). Nothing goes through GHL.
+
+**Automatic:**
+- The app creates the PandaDoc document from the template: line items
+  become the template's first pricing table, event/contact/planner values
+  are sent as document tokens (`[event.name]`, `[event.date]`,
+  `[contact.email]`, `[contract.description]`, `[contract.subtotal]`, …),
+  the client is assigned to the template's client role, and the document is
+  sent **silently** (PandaDoc emails the invite too only if the planner
+  ticks "also email from PandaDoc").
+- Every contract stays on the event forever (name, terms, line items,
+  status, PandaDoc link, signed date). The Event summary lists them under
+  the Portal URL with a status pill and a link into PandaDoc; the tab shows
+  history, totals, "Refresh status", "Open in PandaDoc", and the archived
+  **Signed PDF** once executed.
+- **When the client signs** (detected by the portal's embedded signer the
+  moment they finish, by the event/Contracts page refresh, or by the
+  PandaDoc webhook — whichever comes first, applied once):
+  1. every **held** room reservation on the event flips to **booked**;
+  2. the GHL opportunity moves to the **Booked** stage
+     (`GHL_BOOKED_STAGE_ID`);
+  3. the signed PDF is copied into Supabase Storage
+     (`contracts/<event>/<contract>.pdf`);
+  4. the outcome is written to integration logs (`contract_signed`).
+- Failed creations stay listed as *Failed* with PandaDoc's error so the
+  planner can fix the template/key and retry; only those can be removed.
+
 ### Step 5 — Portal launch
 
 **Human:** when the checklist and schedule are client-ready, the planner uses
@@ -171,6 +221,11 @@ the planner-approval confirmation).
 - submit vendors;
 - submit or update their **event facilitator's** contact info (synced to GHL
   immediately, flagged needs review for the planner);
+- **review and sign contracts** in the Contracts card: each contract shows
+  its items and total with a *Review and sign* button that opens PandaDoc's
+  signer in an embedded frame — no email or PandaDoc account needed. When
+  they finish, the portal confirms with the app immediately (rooms booked,
+  GHL Booked, PDF archived) and shows the contract as **Signed**;
 - open proposal/contract/invoice/payment links ("Documents and payment");
 - view the event-day schedule at `/e/<token>/schedule`.
 
@@ -214,7 +269,8 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | --- | --- | --- |
 | Dashboard | `/admin` | Work queue: items needing review, quick stats |
 | Events | `/admin/events` | All portal events; open one to work it |
-| Event detail | `/admin/events/<id>` | Summary, planner, room bookings, launch, review queues |
+| Event detail | `/admin/events/<id>` | Summary (incl. contracts list under Portal URL), planner, room bookings, launch, review queues |
+| Contracts | `/admin/events/<id>/contracts` | PandaDoc contracts for the event: create (template, terms, line items, recipient), history with status/totals/links, signed PDF, refresh status |
 | — Checklist | `/admin/events/<id>/checklist` | Event-specific checklist editing |
 | — Schedule & Notes | `/admin/events/<id>/schedule` | Event-day schedule grid + sectioned notes |
 | Room Calendar | `/admin/calendar` | Reservation board; where events get rooms, coordinators, and Planning-stage pushes |
@@ -231,7 +287,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 
 | Screen | Route | What it's for |
 | --- | --- | --- |
-| Portal overview | `/e/<token>` | Summary, arrival details, checklist, documents/payment, facilitator, vendors, uploads, planner contact |
+| Portal overview | `/e/<token>` | Summary, arrival details, checklist, **contracts (embedded PandaDoc signing)**, documents/payment, facilitator, vendors, uploads, planner contact |
 | Event schedule | `/e/<token>/schedule` | Event-day schedule and notes |
 
 ---
@@ -243,8 +299,15 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 - **Supabase (Postgres)** — events (with a `ghl_snapshot` JSON mirror of the
   opportunity), checklist items/templates, schedule, vendors, uploads
   metadata, reservations/rooms, integration logs, portal users.
-- **Supabase Storage** — client-uploaded files (private; planners get
-  short-lived signed URLs).
+- **Supabase Storage** — client-uploaded files and archived signed
+  contracts (private; planners get short-lived signed URLs).
+- **Supabase `event_contracts`** — one row per PandaDoc contract: name,
+  description, line items, subtotal, app status + raw PandaDoc status,
+  document id/link, recipient, sent/viewed/signed timestamps, signed-PDF
+  path, `signed_actions_applied_at` (once-only guard for the signed side
+  effects).
+- **PandaDoc** — the documents themselves and signing; the app reads status
+  and the executed PDF back.
 - **GHL** — contacts, opportunities, pipeline stages, custom fields (see
   [ghl-custom-fields.md](ghl-custom-fields.md) for the full field map).
 
@@ -258,10 +321,18 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Facilitator save (admin or client portal) | app → GHL | Facilitator name/email/phone custom fields + `facilitator`-tagged contact upsert (one-way; GHL never writes back). "Same as current contact" saves instead read the primary GHL contact and skip the upsert |
 | Conversations drawer open | GHL → app | Contact's conversations + message history, read live (never stored) |
 | Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope) |
+| Conversations drawer insert menus | GHL → app | Location snippets (`/locations/{id}/templates`) and email-builder templates (`/emails/builder`), read live and cached 5 min per server process (never stored); snippet merge tags rendered per contact/planner (`/api/ghl/contacts/[contactId]/message-templates`) |
+| Conversations drawer template send | app → GHL | Email-builder template sent by `templateId` through the Conversations API; GHL renders the design and merge fields |
 | Notes drawer open | GHL → app | Contact's GHL notes, read live (never stored); count shown as a badge on the notepad button |
 | Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
 | Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
 | Opportunities board view | GHL → app | Badge counts read from the local `ghl_contact_badges` cache; stale rows (>5 min) re-swept from GHL after the response, paced (60 contacts/view, concurrency 5) for the 140–250-card in-season pipeline (see roadmap "Expected volume") |
+| Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + pricing table from line items), waited to draft, sent silently (or emailed) |
+| Admin event page / Contracts tab load | PandaDoc → app | Open contracts re-read from PandaDoc (status, total); signed side effects run if newly completed |
+| Portal "Review and sign" | app → PandaDoc | Embedded-signing session minted for the recipient (1-hour link) |
+| Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (rooms booked, GHL Booked, PDF archived) |
+| PandaDoc webhook | PandaDoc → app | `POST /api/pandadoc/webhook?signature=…` (HMAC-SHA256 with `PANDADOC_WEBHOOK_KEY`); each document in the delivery is re-read and synced — needs a public URL |
+| Contract signed | app → GHL | Opportunity moved to the Booked stage (`opportunity_move_to_booked`) |
 | Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in planner's GHL user) or completion toggled |
 | Planner reassign / coordinator pick | app → GHL | Opportunity `assignedTo` |
 | Reservation linked to event | app → GHL | Opportunity moved to Planning stage |
@@ -319,13 +390,36 @@ The app sends **only password-reset emails**, via Mailgun
 
 ## 5. PandaDoc
 
-**Today:** PandaDoc is integrated through GHL. Sending a proposal populates
-the opportunity's Proposal Link field; the app mirrors that link to the admin
-event page and the client portal. The app never talks to PandaDoc directly.
+**Proposals** still come from GHL's PandaDoc integration (Proposal Link
+field, read-only in the app — see Step 2).
 
-**Planned:** deeper integration (contracts, payment status, signature
-webhooks) is on the horizon. When it lands, document it here: what triggers
-document creation, which fields sync, and what the client sees.
+**Contracts** are the app's own PandaDoc integration (Step 4b + Step 6):
+
+- **Account/API:** needs a PandaDoc plan with API access and an API key in
+  `PANDADOC_API_KEY`. A sandbox key works against the same host for testing.
+- **Template:** build a "Contract" template in PandaDoc with one recipient
+  role for the client (any role containing "client"/"customer"/"signer" is
+  picked, else the first), a **pricing table** (the first one receives the
+  app's line items), and whichever tokens you want filled: `event.name`,
+  `event.type`, `event.date`, `event.arrival_time`, `event.meeting_location`,
+  `event.num_attendees`, `event.activity_passes`, `event.parking_passes`,
+  `event.storage_bins`, `contact.name/email/phone`,
+  `planner.name/email/phone`, `facilitator.name/email/phone`,
+  `contract.name`, `contract.description`, `contract.subtotal`. Set its id as
+  `PANDADOC_TEMPLATE_ID` for the default; planners can pick any template.
+- **Signing:** silent send + embedded signing in the portal. Staff links go
+  to the PandaDoc app; clients never leave the portal.
+- **Status back to the app:** three paths funnel through one sync
+  (`src/lib/admin/contracts.ts` → `syncContractFromPandaDoc`): page-load
+  refresh, portal signer completion, and the webhook. The signed side
+  effects run exactly once per contract.
+- **Webhook:** register `https://<app>/api/pandadoc/webhook` in PandaDoc for
+  *document_state_changed* and *recipient_completed*, and put the shared key
+  in `PANDADOC_WEBHOOK_KEY`. Only matters once the app has a public URL —
+  on localhost the signer-completion path already flips rooms within
+  seconds of the client finishing.
+- **Payment status** is still the GHL-synced field; PandaDoc payments are
+  not wired (a `document.paid` status simply reads as Signed).
 
 ---
 
@@ -338,6 +432,10 @@ All in `.env.local` (see `src/lib/env.ts` for the full list):
 | `GHL_ACCESS_TOKEN` / `GHL_LOCATION_ID` | All GHL sync; planner dropdowns fall back to read-only; Opportunities page shows empty states |
 | `GHL_WEBHOOK_SECRET` | Inquiry webhook rejects deliveries |
 | `GHL_PIPELINE_ID` / `GHL_PLANNING_STAGE_ID` | Planning-stage moves; Opportunities pipeline board |
+| `GHL_BOOKED_STAGE_ID` | Contract-signed move to the Booked stage (logged as a skipped warning when missing) |
+| `PANDADOC_API_KEY` | Contracts tab can't create documents; portal shows no signing; template picker explains |
+| `PANDADOC_TEMPLATE_ID` | No default template preselected (planners pick one per contract) |
+| `PANDADOC_WEBHOOK_KEY` | Webhook deliveries rejected (401); signer completion + page refresh still work |
 | Field id vars (`GHL_OPPORTUNITY_EVENT_FIELD_ID`, `GHL_PORTAL_LINK_FIELD_ID`, `GHL_DATE_OF_INTEREST_FIELD_ID`) | The respective field reads/writes |
 | Supabase vars | Everything — auth, data, storage |
 | `MAILGUN_API_KEY` | Password-reset emails |
@@ -345,6 +443,12 @@ All in `.env.local` (see `src/lib/env.ts` for the full list):
 
 A GHL **401** in the dev logs means the access token is expired/invalid —
 planner pickers go read-only and pipeline views go empty until it's replaced.
+
+**Private Integration scopes** the token needs beyond the basics (Settings →
+Private Integrations in GHL): *write conversation messages* (drawer replies),
+*view templates* / `locations/templates.readonly` (snippet menu), *view email
+builder* / `emails/builder.readonly` (email-template menu). Each missing
+scope surfaces as a labeled 401 message in the feature it gates.
 
 ---
 
@@ -363,6 +467,8 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-08 | PandaDoc contracts: new **Contracts** tab on the admin event page (create from a PandaDoc template with description/terms, line items + prices, recipient; full history with status, totals, PandaDoc link, signed PDF, refresh) and a **Contracts** card in the client portal with embedded PandaDoc signing. New `event_contracts` table, `src/lib/pandadoc/*` client, `src/lib/admin/contracts.ts`, `/api/pandadoc/webhook` (signed), `/api/portal/[token]/contracts/[id]` (session/complete). On signature: held reservations → booked, GHL opportunity → Booked (`GHL_BOOKED_STAGE_ID`, new `moveOpportunityToBooked`), signed PDF archived to Storage, `contract_signed` integration log. Event summary lists contracts under Portal URL. Built before the PandaDoc API key existed — unverified against the live API. |
+| 2026-09-08 | Conversations drawer (event page + Opportunities cards) gained GHL snippets and email templates: "Insert snippet" pastes a GHL Snippet for the current channel into the reply box with contact/user merge tags pre-filled server-side (`src/lib/ghl/message-templates.ts`, new `/api/ghl/contacts/[contactId]/message-templates` route, 5-minute cache); "Use email template" sends a GHL email-builder template by id (`templateId` on the Conversations send, `emailTemplateId` in the POST body) so GHL renders the design. Needs the `locations/templates.readonly` and `emails/builder.readonly` scopes on the Private Integration — each menu reports its own scope error. |
 | 2026-08-31 | Primary contact on the event: page-load sync now also pulls the GHL contact's name/email/phone into `ghl_snapshot.contact`, shown at the top of the Event facilitator card. New conversations drawer (speech-bubble button): full GHL email/SMS history for the contact, read live via the Conversations API, with reply-from-the-app (sends through GHL, threads into the same conversation; needs the Private Integration's write-conversations scope). New `/api/events/[eventId]/conversations` route backs it. Notes drawer beside it (notepad button + red note-count badge): reads the contact's GHL notes live and adds new ones to GHL, attributed to the GHL user matching the planner's email (`/api/events/[eventId]/notes`). Tasks drawer completes the trio: read, create, and check off the contact's GHL tasks like GHL natively does; badge counts open tasks. The drawer trio also sits on every Opportunities board card, backed by contact-keyed routes (`/api/ghl/contacts/[contactId]/conversations`, `/notes`, `/tasks`) shared with the event page. |
 | 2026-08-11 | Initial manual. Covers inquiry→launch lifecycle, planner reassignment on the event page, staff-planner-only pickers, and the new Opportunities page (pipeline board + Won tab). |
 | 2026-08-14 | Salesforce → GHL contact migration staging: read-only Salesforce pulls into `sf_contacts` via `scripts/sf-pull.ts`, new `SALESFORCE_*` env vars. Review screen and GHL push still to come. |

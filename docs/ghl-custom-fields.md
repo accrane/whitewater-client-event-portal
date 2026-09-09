@@ -36,6 +36,7 @@ page blanks its Event Planning App ID on the opportunity.
 | Property | How the portal uses it |
 | --- | --- |
 | Opportunity `assignedTo` | App **writes** it when a planner picks an Event Coordinator on a reservation — the coordinator dropdown lists the location's GHL users, and the selected user is assigned to the opportunity. |
+| Opportunity `pipelineStageId` | App **writes** it twice in the lifecycle: to Planning (`GHL_PLANNING_STAGE_ID`) when a room is reserved, and to Booked (`GHL_BOOKED_STAGE_ID` = `7b569908-d031-4442-aba1-7805efebedd8` in Event Sales) when the client signs a PandaDoc contract in the portal. |
 | Opportunity `monetaryValue` | **Two-way**: read on event-page auto-sync into the admin-only "Value" field on the Event summary; written back when an admin edits it in the app. |
 | Location users | **Read** to populate the Event Coordinator dropdown (replaces the app's manual coordinator list). |
 | Contacts (`POST /contacts/upsert`) | App **upserts** a contact (tagged `facilitator`) whenever an event facilitator with an email or phone is saved, so staff can message facilitators from GHL Conversations and target them in workflows by tag. |
