@@ -41,7 +41,8 @@
 
 /* ---------- Admin: light ---------- */
 [data-theme="light"] {
-  --background: #f8f8f8;
+  /* Deeper than the panels so sections read as distinct cards. */
+  --background: #efefef;
   --foreground: #0a0a0a;
   --color-white: #ffffff;
   --color-slate-50: #f5f5f5;
