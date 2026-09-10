@@ -18,6 +18,52 @@ export type GhlPipeline = {
   stages: GhlPipelineStage[];
 };
 
+// Why the pipeline couldn't be loaded, in words a deployer can act on. Used
+// by the Opportunities page only when fetchConfiguredPipeline returned null,
+// so the extra request happens on the failure path alone.
+export async function describePipelineProblem(): Promise<string> {
+  const { accessToken, apiBaseUrl, locationId, pipelineId } = appConfig.ghl;
+  const missing = [
+    !accessToken ? "GHL_ACCESS_TOKEN" : null,
+    !locationId ? "GHL_LOCATION_ID" : null,
+  ].filter(Boolean);
+  if (missing.length > 0) {
+    return `${missing.join(" and ")} ${missing.length === 1 ? "is" : "are"} not set in this environment.`;
+  }
+
+  try {
+    const response = await fetch(
+      `${apiBaseUrl}/opportunities/pipelines?locationId=${encodeURIComponent(locationId as string)}`,
+      { headers: getGhlApiHeaders(accessToken as string) },
+    );
+    if (!response.ok) {
+      const text = (await response.text().catch(() => "")).slice(0, 200);
+      return response.status === 401 || response.status === 403
+        ? `GoHighLevel rejected the access token (${response.status}). The token in this environment may be expired or missing the opportunities/pipelines scope. ${text}`
+        : `GoHighLevel responded ${response.status} listing pipelines. ${text}`;
+    }
+    const data = (await response.json()) as {
+      pipelines?: { id?: string; name?: string }[];
+    };
+    const pipelines = (data.pipelines ?? []).filter((pipeline) => pipeline.id);
+    if (pipelines.length === 0) {
+      return `Location ${locationId} has no pipelines.`;
+    }
+    if (
+      pipelineId &&
+      !pipelines.some((pipeline) => pipeline.id === pipelineId)
+    ) {
+      const names = pipelines.map(
+        (pipeline) => `${pipeline.name ?? "Unnamed"} (${pipeline.id})`,
+      );
+      return `GHL_PIPELINE_ID "${pipelineId}" is not a pipeline in this location. Available: ${names.join(", ")}.`;
+    }
+    return "Pipelines loaded but the request that renders the board failed; check the server log.";
+  } catch (error) {
+    return `Could not reach GoHighLevel: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
 // The pipeline the portal works from (GHL_PIPELINE_ID), with its stages in
 // board order. Falls back to the location's first pipeline when the id is
 // unset so the view still renders something useful.
@@ -57,8 +103,7 @@ export async function fetchConfiguredPipeline(): Promise<GhlPipeline | null> {
         .map((stage, index) => ({
           id: stage.id as string,
           name: stage.name || `Stage ${index + 1}`,
-          position:
-            typeof stage.position === "number" ? stage.position : index,
+          position: typeof stage.position === "number" ? stage.position : index,
         }))
         .sort((a, b) => a.position - b.position),
     };
@@ -96,8 +141,13 @@ export type GhlOpportunityStatus = "open" | "won" | "lost" | "abandoned";
 export async function searchPipelineOpportunities(
   status: GhlOpportunityStatus,
 ): Promise<GhlPipelineOpportunity[]> {
-  const { accessToken, apiBaseUrl, locationId, pipelineId, dateOfInterestFieldId } =
-    appConfig.ghl;
+  const {
+    accessToken,
+    apiBaseUrl,
+    locationId,
+    pipelineId,
+    dateOfInterestFieldId,
+  } = appConfig.ghl;
   if (!accessToken || !locationId) return [];
 
   const params = new URLSearchParams({
@@ -107,7 +157,8 @@ export async function searchPipelineOpportunities(
   });
   if (pipelineId) params.set("pipeline_id", pipelineId);
 
-  let url: string | null = `${apiBaseUrl}/opportunities/search?${params.toString()}`;
+  let url: string | null =
+    `${apiBaseUrl}/opportunities/search?${params.toString()}`;
   const results: GhlPipelineOpportunity[] = [];
 
   try {
@@ -156,7 +207,10 @@ export async function searchPipelineOpportunities(
           assignedTo: opportunity.assignedTo ?? null,
           createdAt: opportunity.createdAt ?? null,
           eventDate: dateOfInterestFieldId
-            ? findDateOfInterest(opportunity.customFields, dateOfInterestFieldId)
+            ? findDateOfInterest(
+                opportunity.customFields,
+                dateOfInterestFieldId,
+              )
             : null,
           contact: opportunity.contact?.id
             ? {

@@ -208,7 +208,9 @@ Portal URL variable:
 PORTAL_BASE_URL=https://<preview-domain>
 ```
 
-GoHighLevel variables can remain blank or placeholder until GHL setup begins, unless testing the draft-event API route:
+GoHighLevel variables (the full set as of 2026-09-10 — the Opportunities
+board, planner assignment, portal-link write-back and the Booked move all
+need these; see `docs/ecosystem-manual.md` §6 for what each one is):
 
 ```text
 GHL_LOCATION_ID
@@ -216,7 +218,34 @@ GHL_API_BASE_URL=https://services.leadconnectorhq.com
 GHL_ACCESS_TOKEN
 GHL_WEBHOOK_SECRET
 GHL_EVENT_OBJECT_ID_OR_KEY
+GHL_PIPELINE_ID
+GHL_PLANNING_STAGE_ID
+GHL_BOOKED_STAGE_ID
+GHL_DATE_OF_INTEREST_FIELD_ID
+GHL_OPPORTUNITY_EVENT_FIELD_ID
+GHL_PORTAL_LINK_FIELD_ID
 ```
+
+PandaDoc (contracts), Mailgun (email) and Salesforce (archive pulls):
+
+```text
+PANDADOC_API_KEY
+PANDADOC_API_BASE_URL=https://api.pandadoc.com/public/v1
+PANDADOC_WEBHOOK_KEY
+PANDADOC_TEMPLATE_ID
+MAILGUN_API_KEY
+MAILGUN_DOMAIN
+MAILGUN_API_BASE_URL
+EMAIL_FROM
+SALESFORCE_DOMAIN
+SALESFORCE_CLIENT_ID
+SALESFORCE_CLIENT_SECRET
+```
+
+Copy every name from `.env.local` when adding variables to the host: a
+variable that exists locally but not on the host is the usual reason a
+screen works on localhost and not on the deployed site (the Opportunities
+page says which one it is missing).
 
 Security notes:
 

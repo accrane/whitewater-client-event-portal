@@ -20,6 +20,7 @@ import {
   fetchConfiguredPipeline,
   searchPipelineOpportunities,
   type GhlPipelineOpportunity,
+  describePipelineProblem,
 } from "@/lib/ghl/opportunities";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -129,9 +130,10 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
   ]);
 
   if (!pipeline) {
+    const problem = await describePipelineProblem();
     return (
       <EmptyState
-        description="The pipeline could not be loaded from GoHighLevel. Check the GHL access token and GHL_PIPELINE_ID configuration."
+        description={`The pipeline could not be loaded from GoHighLevel. ${problem}`}
         title="Pipeline unavailable"
       />
     );
@@ -184,56 +186,56 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
 
   return (
     <ContactBadgesProvider badges={badges}>
-    <div className="flex gap-4 overflow-x-auto pb-2">
-      {columns.map((column) => {
-        const total = column.items.reduce(
-          (sum, item) => sum + (item.monetaryValue ?? 0),
-          0,
-        );
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        {columns.map((column) => {
+          const total = column.items.reduce(
+            (sum, item) => sum + (item.monetaryValue ?? 0),
+            0,
+          );
 
-        return (
-          <div
-            className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4"
-            key={column.key}
-          >
-            <div className="border-b border-slate-200 pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="truncate text-sm font-semibold text-slate-950">
-                  {column.name}
-                </h2>
-                <span className="inline-flex items-center rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
-                  {column.items.length}
-                </span>
+          return (
+            <div
+              className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4"
+              key={column.key}
+            >
+              <div className="border-b border-slate-200 pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="truncate text-sm font-semibold text-slate-950">
+                    {column.name}
+                  </h2>
+                  <span className="inline-flex items-center rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
+                    {column.items.length}
+                  </span>
+                </div>
+                {showValues ? (
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    {currency.format(total)}
+                  </p>
+                ) : null}
               </div>
-              {showValues ? (
-                <p className="mt-1 text-xs font-medium text-slate-500">
-                  {currency.format(total)}
-                </p>
-              ) : null}
+              <div className="mt-3 space-y-2">
+                {column.items.length === 0 ? (
+                  <p className="py-2 text-xs text-slate-400">
+                    No open opportunities.
+                  </p>
+                ) : (
+                  column.items.map((opportunity) => (
+                    <OpportunityCard
+                      key={opportunity.id}
+                      opportunity={opportunity}
+                      plannerName={plannerNameById(
+                        ghlUsers,
+                        opportunity.assignedTo,
+                      )}
+                      showValue={showValues}
+                    />
+                  ))
+                )}
+              </div>
             </div>
-            <div className="mt-3 space-y-2">
-              {column.items.length === 0 ? (
-                <p className="py-2 text-xs text-slate-400">
-                  No open opportunities.
-                </p>
-              ) : (
-                column.items.map((opportunity) => (
-                  <OpportunityCard
-                    key={opportunity.id}
-                    opportunity={opportunity}
-                    plannerName={plannerNameById(
-                      ghlUsers,
-                      opportunity.assignedTo,
-                    )}
-                    showValue={showValues}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
     </ContactBadgesProvider>
   );
 }
