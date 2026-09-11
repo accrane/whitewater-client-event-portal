@@ -73,6 +73,16 @@ const channelLabels: Record<string, string> = {
   TYPE_GMB: "Google",
 };
 
+// Which compose channel answers a message of this GHL type; null for
+// channels the drawer can't send on (chat, WhatsApp, social).
+function channelOfMessageType(messageType: string): "Email" | "SMS" | null {
+  if (messageType === "TYPE_SMS" || messageType === "TYPE_CUSTOM_SMS") return "SMS";
+  if (messageType === "TYPE_EMAIL" || messageType === "TYPE_CUSTOM_EMAIL") {
+    return "Email";
+  }
+  return null;
+}
+
 function formatMessageDate(iso: string | null): string {
   if (!iso) return "";
   return new Intl.DateTimeFormat("en-US", {
@@ -151,6 +161,9 @@ function ConversationsDrawer({
 
   const threadEndRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  // The picker follows the contact's last inbound message once, on the
+  // first load; later refreshes (after a send) leave the planner's choice.
+  const channelDefaulted = useRef(false);
 
   // State updates only happen after the fetch resolves (loading starts true),
   // so the initial effect never sets state synchronously.
@@ -165,19 +178,29 @@ function ConversationsDrawer({
       if (!res.ok) {
         throw new Error(data.error || "Unable to load conversations");
       }
-      setConversations(data.conversations ?? []);
-      if (data.dnd) {
-        setDnd(data.dnd);
-        // Never leave the compose box on a channel that just became
-        // unavailable.
-        setChannel((current) =>
-          current === "SMS" && data.dnd?.sms
-            ? "Email"
-            : current === "Email" && data.dnd?.email && !data.dnd?.sms
-              ? "SMS"
-              : current,
-        );
-      }
+      const list = data.conversations ?? [];
+      setConversations(list);
+      const nextDnd = data.dnd ?? { all: false, sms: false, email: false };
+      setDnd(nextDnd);
+      setChannel((current) => {
+        let preferred: "Email" | "SMS" = current;
+        if (!channelDefaulted.current) {
+          channelDefaulted.current = true;
+          // Answer on the channel the contact last used to reach us.
+          const lastInbound = list
+            .flatMap((conversation) => conversation.messages)
+            .filter((message) => message.direction === "inbound")
+            .sort((a, b) => (b.dateAdded ?? "").localeCompare(a.dateAdded ?? ""))[0];
+          const inferred = lastInbound
+            ? channelOfMessageType(lastInbound.messageType)
+            : null;
+          if (inferred) preferred = inferred;
+        }
+        // Never leave the compose box on a channel DND has taken away.
+        if (preferred === "SMS" && nextDnd.sms && !nextDnd.email) return "Email";
+        if (preferred === "Email" && nextDnd.email && !nextDnd.sms) return "SMS";
+        return preferred;
+      });
       setLoadError(null);
     } catch (error) {
       setLoadError(
@@ -356,12 +379,13 @@ function ConversationsDrawer({
                   }`}
                 >
                   <p
-                    className={`mb-1 type-label ${
+                    className={`mb-1 flex items-center gap-1.5 type-label ${
                       message.direction === "outbound"
                         ? "text-slate-400"
                         : "text-slate-500"
                     }`}
                   >
+                    <ChannelIcon messageType={message.messageType} />
                     {message.direction === "outbound" ? "Whitewater" : contactName || "Contact"}
                     {" · "}
                     {channelLabels[message.messageType] ?? "Message"}
@@ -618,6 +642,46 @@ function ChevronIcon() {
   return (
     <svg fill="none" height="12" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="12">
       <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Envelope for email, phone for SMS, a bubble for anything else (chat,
+// WhatsApp, social) so a glance down the thread shows how each message
+// travelled.
+function ChannelIcon({ messageType }: { messageType: string }) {
+  const channel = channelOfMessageType(messageType);
+  const common = {
+    "aria-hidden": true,
+    fill: "none",
+    height: 13,
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    viewBox: "0 0 24 24",
+    width: 13,
+  } as const;
+  if (channel === "Email") {
+    return (
+      <svg {...common}>
+        <rect height="14" rx="2" width="18" x="3" y="5" />
+        <path d="M3 7l9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (channel === "SMS") {
+    return (
+      <svg {...common}>
+        <rect height="18" rx="2.5" width="11" x="6.5" y="3" />
+        <path d="M10.5 17.5h3" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path
+        d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5v-7Z"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
