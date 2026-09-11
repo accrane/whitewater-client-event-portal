@@ -242,11 +242,17 @@ async function PipelineView({
               key={stage.key}
             >
               {stage.name}
+              {/* Non-empty stages carry their count in the brand green so a
+                  glance across the row shows where the work is. */}
               <span
                 className={`inline-flex min-w-5 items-center justify-center rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
-                  active
-                    ? "bg-slate-100 text-slate-700"
-                    : "bg-white/70 text-slate-500"
+                  active ? "bg-slate-100" : "bg-white/70"
+                } ${
+                  stage.items.length > 0
+                    ? "text-[var(--brand)]"
+                    : active
+                      ? "text-slate-500"
+                      : "text-slate-400"
                 }`}
               >
                 {stage.items.length}
