@@ -2,21 +2,18 @@ import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
 import { htmlToText } from "@/lib/ghl/html-text";
 
-// GHL's two reusable-message features, read for the conversations drawer's
-// "Insert" menus:
+// GHL Snippets (GHL Settings → Snippets; API "location templates"), read for
+// the conversations drawer's "Insert snippet" menu — short email/SMS bodies
+// staff paste into replies. Their text is inserted into the drawer's compose
+// box so the planner can tweak it before sending. (GHL's email-builder
+// templates are deliberately not offered here: they're marketing designs,
+// not customer correspondence.)
 //
-// - Snippets (GHL Settings → Snippets; API "location templates") — short
-//   email/SMS bodies staff paste into replies. Their text is inserted into
-//   the drawer's compose box so the planner can tweak it before sending.
-// - Email templates (GHL Marketing → Emails → Templates; the email builder)
-//   — designed HTML emails. These can't be edited in a plain textarea, so
-//   the drawer sends them by id and GHL renders the design itself.
-//
-// Both lists change rarely and are location-wide, so they're cached per
-// process for a few minutes: the Opportunities board can open dozens of
-// drawers in a session and shouldn't hit GHL for the same list each time.
-// Each read needs its own Private Integration scope; a 401 is reported as a
-// scope problem so the drawer can say exactly what to enable.
+// The list changes rarely and is location-wide, so it's cached per process
+// for a few minutes: the Opportunities board can open dozens of drawers in
+// a session and shouldn't hit GHL for the same list each time. The read
+// needs its own Private Integration scope; a 401 is reported as a scope
+// problem so the drawer can say exactly what to enable.
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -29,14 +26,6 @@ export type GhlSnippet = {
   body: string;
 };
 
-export type GhlEmailTemplate = {
-  id: string;
-  name: string;
-  subject: string | null;
-  previewUrl: string | null;
-  updatedAt: string | null;
-};
-
 export type TemplateListResult<T> =
   | { ok: true; items: T[] }
   | { ok: false; error: string };
@@ -44,7 +33,6 @@ export type TemplateListResult<T> =
 type CacheEntry<T> = { expiresAt: number; result: TemplateListResult<T> };
 
 let snippetCache: CacheEntry<GhlSnippet> | null = null;
-let emailTemplateCache: CacheEntry<GhlEmailTemplate> | null = null;
 
 function scopeError(feature: string, scope: string): string {
   return `${feature} are unavailable: the GHL integration token is missing the "${scope}" scope (enable it under Settings → Private Integrations in GHL).`;
@@ -143,97 +131,6 @@ async function fetchSnippets(): Promise<TemplateListResult<GhlSnippet>> {
   } catch (error) {
     console.error("GHL snippets lookup failed", error);
     return { ok: false, error: "GHL snippets lookup failed." };
-  }
-}
-
-// Email-builder templates, newest-updated first.
-export async function listGhlEmailTemplates(
-  options: { refresh?: boolean } = {},
-): Promise<TemplateListResult<GhlEmailTemplate>> {
-  if (
-    !options.refresh &&
-    emailTemplateCache &&
-    emailTemplateCache.expiresAt > Date.now()
-  ) {
-    return emailTemplateCache.result;
-  }
-
-  const result = await fetchEmailTemplates();
-  if (result.ok) {
-    emailTemplateCache = { expiresAt: Date.now() + CACHE_TTL_MS, result };
-  }
-  return result;
-}
-
-async function fetchEmailTemplates(): Promise<
-  TemplateListResult<GhlEmailTemplate>
-> {
-  const { accessToken, apiBaseUrl, locationId } = appConfig.ghl;
-  if (!accessToken || !locationId) {
-    return { ok: false, error: "GHL is not configured." };
-  }
-
-  try {
-    const response = await fetch(
-      `${apiBaseUrl}/emails/builder?locationId=${encodeURIComponent(locationId)}&limit=100&offset=0`,
-      { headers: getGhlApiHeaders(accessToken) },
-    );
-
-    if (response.status === 401) {
-      return {
-        ok: false,
-        error: scopeError("Email templates", "emails/builder.readonly"),
-      };
-    }
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: `GHL email templates lookup failed (${response.status}).`,
-      };
-    }
-
-    const data = (await response.json()) as unknown;
-    // The builder list has shipped both as a bare array and wrapped in
-    // {templates|data}; accept either.
-    const rows: unknown[] = Array.isArray(data)
-      ? data
-      : data && typeof data === "object"
-        ? ((data as { templates?: unknown[]; data?: unknown[] }).templates ??
-          (data as { data?: unknown[] }).data ??
-          [])
-        : [];
-
-    const templates: GhlEmailTemplate[] = [];
-
-    for (const raw of rows) {
-      if (!raw || typeof raw !== "object") continue;
-      const row = raw as Record<string, unknown>;
-      const id = stringOrNull(row.id) ?? stringOrNull(row._id);
-      if (!id) continue;
-
-      const updatedAt =
-        stringOrNull(row.lastUpdated) ??
-        stringOrNull(row.updatedAt) ??
-        stringOrNull(row.dateAdded);
-
-      templates.push({
-        id,
-        name: stringOrNull(row.name) ?? "Untitled template",
-        subject: stringOrNull(row.subject),
-        previewUrl: stringOrNull(row.previewUrl),
-        updatedAt,
-      });
-    }
-
-    return {
-      ok: true,
-      items: templates.sort((a, b) =>
-        (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
-      ),
-    };
-  } catch (error) {
-    console.error("GHL email templates lookup failed", error);
-    return { ok: false, error: "GHL email templates lookup failed." };
   }
 }
 

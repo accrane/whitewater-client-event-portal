@@ -5,17 +5,15 @@ import {
 import { fetchGhlContact } from "@/lib/ghl/contacts";
 import { listGhlUsers } from "@/lib/ghl/location-data";
 import {
-  listGhlEmailTemplates,
   listGhlSnippets,
   renderSnippetMergeTags,
 } from "@/lib/ghl/message-templates";
 
-// Feeds the conversations drawer's "Insert snippet" / "Use email template"
-// menus. Keyed by contact so snippet merge tags ({{contact.first_name}},
-// {{user.name}}, …) come back already filled in for this contact and the
-// signed-in planner. Each list carries its own ok/error so a missing scope
-// on one feature doesn't hide the other. `?refresh=1` bypasses the cache
-// after someone edits snippets in GHL.
+// Feeds the conversations drawer's "Insert snippet" menu. Keyed by contact
+// so snippet merge tags ({{contact.first_name}}, {{user.name}}, …) come back
+// already filled in for this contact and the signed-in planner. The list
+// carries its own ok/error so a missing scope renders inside the menu.
+// `?refresh=1` bypasses the cache after someone edits snippets in GHL.
 
 export async function GET(
   request: Request,
@@ -26,9 +24,8 @@ export async function GET(
     const { contactId } = await params;
     const refresh = new URL(request.url).searchParams.get("refresh") === "1";
 
-    const [snippets, emailTemplates, contact, ghlUsers] = await Promise.all([
+    const [snippets, contact, ghlUsers] = await Promise.all([
       listGhlSnippets({ refresh }),
-      listGhlEmailTemplates({ refresh }),
       fetchGhlContact(contactId),
       listGhlUsers(),
     ]);
@@ -60,7 +57,6 @@ export async function GET(
             })),
           }
         : snippets,
-      emailTemplates,
     });
   } catch (error) {
     return calendarErrorResponse(error);

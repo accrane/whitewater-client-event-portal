@@ -14,8 +14,7 @@ import { buttonClasses } from "@/components/ui/button";
 // Speech-bubble button + slide-in drawer showing the primary contact's GHL
 // conversation history for this event, with a reply box that sends through
 // GHL (so replies land in the same Conversations thread staff see there).
-// The reply box can pull in GHL snippets (inserted as editable text) and
-// send GHL email-builder templates (rendered by GHL, sent by id).
+// The reply box can pull in GHL snippets (inserted as editable text).
 
 type DrawerMessage = {
   id: string;
@@ -41,20 +40,12 @@ type Snippet = {
   body: string;
 };
 
-type EmailTemplate = {
-  id: string;
-  name: string;
-  subject: string | null;
-  previewUrl: string | null;
-};
-
 type TemplateList<T> =
   | { ok: true; items: T[] }
   | { ok: false; error: string };
 
 type MessageTemplates = {
   snippets: TemplateList<Snippet>;
-  emailTemplates: TemplateList<EmailTemplate>;
 };
 
 type ContactConversationsButtonProps = {
@@ -144,14 +135,10 @@ function ConversationsDrawer({
   const [sendError, setSendError] = useState<string | null>(null);
   const [sentNotice, setSentNotice] = useState<string | null>(null);
 
-  // Snippets + email templates load once per drawer open (cached
-  // server-side); null until they arrive so the menus can say "Loading…".
+  // Snippets load once per drawer open (cached server-side); null until
+  // they arrive so the menu can say "Loading…".
   const [templates, setTemplates] = useState<MessageTemplates | null>(null);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
-  // A chosen email-builder template replaces the typed body: GHL renders it.
-  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(
-    null,
-  );
 
   const threadEndRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -188,17 +175,14 @@ function ConversationsDrawer({
         const data = (await res.json()) as Partial<MessageTemplates> & {
           error?: string;
         };
-        if (!res.ok || !data.snippets || !data.emailTemplates) {
-          throw new Error(data.error || "Unable to load templates");
+        if (!res.ok || !data.snippets) {
+          throw new Error(data.error || "Unable to load snippets");
         }
-        setTemplates({
-          snippets: data.snippets,
-          emailTemplates: data.emailTemplates,
-        });
+        setTemplates({ snippets: data.snippets });
         setTemplatesError(null);
       } catch (error) {
         setTemplatesError(
-          error instanceof Error ? error.message : "Unable to load templates",
+          error instanceof Error ? error.message : "Unable to load snippets",
         );
       }
     },
@@ -226,11 +210,6 @@ function ConversationsDrawer({
     ? `Re: ${lastEmail.subject.replace(/^Re:\s*/i, "")}`
     : "";
 
-  const changeChannel = (next: "Email" | "SMS") => {
-    setChannel(next);
-    if (next === "SMS") setSelectedTemplate(null);
-  };
-
   // Drops the snippet at the cursor (or appends), and fills an empty
   // subject line from an email snippet's own subject.
   const insertSnippet = (snippet: Snippet) => {
@@ -253,12 +232,7 @@ function ConversationsDrawer({
     });
   };
 
-  const chooseTemplate = (template: EmailTemplate) => {
-    setSelectedTemplate(template);
-    if (template.subject && !subject.trim()) setSubject(template.subject);
-  };
-
-  const canSend = selectedTemplate ? true : Boolean(body.trim());
+  const canSend = Boolean(body.trim());
 
   const handleSend = async () => {
     if (!canSend || sending) return;
@@ -271,19 +245,11 @@ function ConversationsDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           channel,
-          body: selectedTemplate ? "" : body,
+          body,
           eventId,
-          subject:
-            channel === "Email"
-              ? subject.trim() ||
-                (selectedTemplate ? selectedTemplate.subject ?? "" : replySubject)
-              : undefined,
-          emailTemplateId:
-            channel === "Email" && selectedTemplate
-              ? selectedTemplate.id
-              : undefined,
+          subject: channel === "Email" ? subject.trim() || replySubject : undefined,
           replyToEmailMessageId:
-            channel === "Email" && !selectedTemplate
+            channel === "Email"
               ? (lastEmail?.emailMessageId ?? undefined)
               : undefined,
         }),
@@ -293,13 +259,10 @@ function ConversationsDrawer({
         throw new Error(data.error || "Unable to send the message");
       }
       setSentNotice(
-        selectedTemplate
-          ? `Sent the "${selectedTemplate.name}" template through GHL. It may take a moment to appear in the thread.`
-          : "Sent through GHL. It may take a moment to appear in the thread.",
+        "Sent through GHL. It may take a moment to appear in the thread.",
       );
       setBody("");
       setSubject("");
-      setSelectedTemplate(null);
       // GHL can take a moment to index the new message; a short delay makes
       // the refresh actually show it.
       setTimeout(() => void loadConversations(), 1500);
@@ -321,12 +284,6 @@ function ConversationsDrawer({
           ),
         }
       : templates.snippets
-    : templatesError
-      ? { ok: false, error: templatesError }
-      : null;
-
-  const emailTemplateList: TemplateList<EmailTemplate> | null = templates
-    ? templates.emailTemplates
     : templatesError
       ? { ok: false, error: templatesError }
       : null;
@@ -417,7 +374,7 @@ function ConversationsDrawer({
           <div className="flex items-center gap-2">
             <select
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-800"
-              onChange={(e) => changeChannel(e.target.value === "SMS" ? "SMS" : "Email")}
+              onChange={(e) => setChannel(e.target.value === "SMS" ? "SMS" : "Email")}
               value={channel}
             >
               <option value="Email">Email</option>
@@ -427,11 +384,7 @@ function ConversationsDrawer({
               <input
                 className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-800"
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder={
-                  selectedTemplate
-                    ? selectedTemplate.subject || "Subject (template default)"
-                    : replySubject || "Subject"
-                }
+                placeholder={replySubject || "Subject"}
                 type="text"
                 value={subject}
               />
@@ -459,74 +412,15 @@ function ConversationsDrawer({
                 `${snippet.name} ${snippet.subject ?? ""} ${snippet.body}`
               }
             />
-            {channel === "Email" ? (
-              <InsertMenu
-                emptyLabel="No email templates in GHL yet."
-                label="Use email template"
-                list={emailTemplateList}
-                onPick={chooseTemplate}
-                onRefresh={() => void loadTemplates(true)}
-                renderItem={(template) => (
-                  <>
-                    <span className="block truncate font-medium text-slate-800">
-                      {template.name}
-                    </span>
-                    {template.subject ? (
-                      <span className="block truncate text-[11px] text-slate-500">
-                        {template.subject}
-                      </span>
-                    ) : null}
-                  </>
-                )}
-                searchText={(template) =>
-                  `${template.name} ${template.subject ?? ""}`
-                }
-              />
-            ) : null}
           </div>
 
-          {selectedTemplate ? (
-            <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-              <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 truncate">
-                  <span className="font-semibold">Email template:</span>{" "}
-                  {selectedTemplate.name}
-                </p>
-                <div className="flex shrink-0 items-center gap-2">
-                  {selectedTemplate.previewUrl ? (
-                    <a
-                      className="font-semibold underline-offset-2 hover:underline"
-                      href={selectedTemplate.previewUrl}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      Preview
-                    </a>
-                  ) : null}
-                  <button
-                    className="font-semibold underline-offset-2 hover:underline"
-                    onClick={() => setSelectedTemplate(null)}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-              <p className="mt-1 text-sky-800">
-                GHL sends this template&apos;s designed email and fills its
-                merge fields. Leave the subject blank to use the
-                template&apos;s own.
-              </p>
-            </div>
-          ) : (
-            <textarea
-              className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-              onChange={(e) => setBody(e.target.value)}
-              placeholder={`Reply to ${contactName || "the contact"} by ${channel.toLowerCase()}…`}
-              ref={bodyRef}
-              value={body}
-            />
-          )}
+          <textarea
+            className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={`Reply to ${contactName || "the contact"} by ${channel.toLowerCase()}…`}
+            ref={bodyRef}
+            value={body}
+          />
           <div className="flex justify-end">
             <button
               className={buttonClasses("primary", "sm")}
@@ -534,11 +428,7 @@ function ConversationsDrawer({
               onClick={() => void handleSend()}
               type="button"
             >
-              {sending
-                ? "Sending…"
-                : selectedTemplate
-                  ? "Send template"
-                  : `Send ${channel}`}
+              {sending ? "Sending…" : `Send ${channel}`}
             </button>
           </div>
         </footer>
@@ -548,7 +438,7 @@ function ConversationsDrawer({
   );
 }
 
-// Small upward-opening picker used for both snippets and email templates:
+// Small upward-opening picker for the snippet menu:
 // a filter box over a scrollable list, with the loading / scope-error /
 // empty states rendered inside the panel so the trigger is always clickable
 // and the planner sees exactly why a list is empty.
