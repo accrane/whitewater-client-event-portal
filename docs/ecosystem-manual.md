@@ -119,21 +119,26 @@ reservation, and in the modal:
   so they land in the same Conversations thread. Sending requires the
   Private Integration's *write conversation messages* scope; without it the
   drawer still shows history and the send reports a clear scope error.
+  The drawer honors GHL's **Do Not Disturb**: a channel the contact has DND
+  on (the contact-level switch, or per-channel DND including a STOP
+  opt-out GHL records itself) disappears from the Email/SMS picker with a
+  notice explaining why, and the send API refuses it as a backstop. Each
+  message in the thread carries a channel icon (envelope = email, phone =
+  SMS, bubble = chat/social) and label. The compose box's Email/SMS picker
+  chooses the reply channel; it starts on whichever channel the contact
+  last used to reach us (falling back to Email), and email replies thread
+  onto the most recent email.
   The reply box also reuses what's already set up in GHL: **Insert snippet**
   drops a GHL Snippet (Settings → Snippets; filtered to the chosen channel)
   into the message as editable text, with `{{contact.*}}` / `{{user.*}}`
   merge tags already filled in for this contact and the signed-in planner
-  (other tags stay visible so you can fix them before sending). For email,
-  **Use email template** picks a GHL email-builder template (Marketing →
-  Emails → Templates); the drawer then sends it by id so GHL renders the
-  design and its merge fields — the typed body is replaced by a template
-  chip with Preview/Remove, and the subject falls back to the template's
-  own. Lists are cached for five minutes; "Refresh from GHL" inside a menu
-  bypasses that after editing snippets/templates in GHL. Each menu needs
-  its own read scope on the Private Integration (*view templates* →
-  `locations/templates.readonly` for snippets, *view email builder* →
-  `emails/builder.readonly` for email templates); a missing scope shows as
-  a message inside that menu, and the other keeps working.
+  (other tags stay visible so you can fix them before sending). The list is
+  cached for five minutes; "Refresh from GHL" inside the menu bypasses that
+  after editing snippets in GHL. The menu needs the *view templates* →
+  `locations/templates.readonly` scope on the Private Integration; a missing
+  scope shows as a message inside the menu. GHL's email-builder templates
+  (Marketing → Emails) are intentionally not offered here — they're
+  marketing designs, not customer correspondence.
   Beside it, a notepad button (with a red badge showing the note count)
   opens a matching drawer of the contact's **GHL notes**; notes added there
   save to the GHL contact, attributed to the GHL user whose email matches
@@ -302,8 +307,8 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | — Checklist | `/admin/events/<id>/checklist` | Event-specific checklist editing |
 | — Schedule & Notes | `/admin/events/<id>/schedule` | Event-day schedule grid + sectioned notes |
 | Room Calendar | `/admin/calendar` | Reservation board; where events get rooms, coordinators, and Planning-stage pushes |
-| Planner Assignments | `/admin/assignments` | One column per staff planner with their upcoming events |
-| Opportunities | `/admin/opportunities` | GHL pipeline board (default tab) + Won contact list; below the nav rule. Each board card carries the conversations/notes/tasks buttons for its contact — same drawers as the event page. Note/open-task badges read from the local `ghl_contact_badges` cache (instant at 100–250 cards); stale rows refresh after each view via paced background sweeps, and opening a drawer freshens its contact's row exactly |
+| Planner Assignments | `/admin/assignments` | Month calendar of every planner's assigned events (default), colored by planner with a legend of filter chips (click to show/hide a planner; counts are that month's workload), previous/next/Today arrows. One chip per event per day (not per room): clicking it opens an event summary pop-up listing every room booked with its time and held/booked status, with an **Open event** link top right when the reservation is tied to a portal event. A chip is faded only when every room is still held. `?month=YYYY-MM&planners=Name,Name` reproduces a view. A **Columns** toggle keeps the original one-column-per-planner workload comparison with its from/to filter (`?view=columns`) |
+| Opportunities | `/admin/opportunities` | GHL pipeline (default tab) + Won contact list; below the nav rule. The Pipeline tab shows one stage at a time: a row of stage tabs with counts (`?stage=<stage id>`; the first stage is the default, and opportunities in stages since removed from the pipeline collect under an "Other" tab) above a full-width grid of that stage's cards, so a busy stage is read top-to-bottom on one screen instead of down a narrow column. Between the stage header and the cards, a **stage guide** panel explains "What's happened" (mostly automatic: draft event created, opportunity moved, contract signed…) and "What to do next" for that stage — the training text lives in `STAGE_GUIDES` in `src/app/admin/opportunities/page.tsx`, keyed by the GHL stage name, so renaming a stage in GHL needs a matching key. Each card carries the conversations/notes/tasks buttons for its contact — same drawers as the event page. Note/open-task badges read from the local `ghl_contact_badges` cache (instant at 100–250 cards); stale rows refresh after each view via paced background sweeps, and opening a drawer freshens its contact's row exactly |
 | Companies | `/admin/companies` | Company directory from the Salesforce archive: contacts, booking history, live booking stats; dollar values admin-only |
 | Settings | `/admin/settings` | Checklist + schedule templates |
 | Admin → Users | `/admin/system/users` | Create/delete portal users, set roles, reset passwords (Mailgun email) |
@@ -349,12 +354,11 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Facilitator save (admin or client portal) | app → GHL | Facilitator name/email/phone custom fields + `facilitator`-tagged contact upsert (one-way; GHL never writes back). "Same as current contact" saves instead read the primary GHL contact and skip the upsert |
 | Conversations drawer open | GHL → app | Contact's conversations + message history, read live (never stored) |
 | Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope) |
-| Conversations drawer insert menus | GHL → app | Location snippets (`/locations/{id}/templates`) and email-builder templates (`/emails/builder`), read live and cached 5 min per server process (never stored); snippet merge tags rendered per contact/planner (`/api/ghl/contacts/[contactId]/message-templates`) |
-| Conversations drawer template send | app → GHL | Email-builder template sent by `templateId` through the Conversations API; GHL renders the design and merge fields |
+| Conversations drawer snippet menu | GHL → app | Location snippets (`/locations/{id}/templates`), read live and cached 5 min per server process (never stored); merge tags rendered per contact/planner (`/api/ghl/contacts/[contactId]/message-templates`) |
 | Notes drawer open | GHL → app | Contact's GHL notes, read live (never stored); count shown as a badge on the notepad button |
 | Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
 | Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
-| Opportunities board view | GHL → app | Badge counts read from the local `ghl_contact_badges` cache; stale rows (>5 min) re-swept from GHL after the response, paced (60 contacts/view, concurrency 5) for the 140–250-card in-season pipeline (see roadmap "Expected volume") |
+| Opportunities pipeline view | GHL → app | Badge counts for the visible stage read from the local `ghl_contact_badges` cache; stale rows (>5 min) across the whole pipeline re-swept from GHL after the response, paced (60 contacts/view, concurrency 5) for the 140–250-card in-season pipeline (see roadmap "Expected volume") |
 | Contracts tab "Save and re-send" (Edit) | app → PandaDoc | Document moved to draft, updated (name, tokens, pricing table), sent again; row gets `revision`+1, `revised_at/by`; `contract_update` log |
 | Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + pricing table from line items), waited to draft, sent silently (or emailed) |
 | Admin event page / Contracts tab load | PandaDoc → app | Open contracts re-read from PandaDoc (status, total); signed side effects run if newly completed |
@@ -506,9 +510,8 @@ planner pickers go read-only and pipeline views go empty until it's replaced.
 
 **Private Integration scopes** the token needs beyond the basics (Settings →
 Private Integrations in GHL): *write conversation messages* (drawer replies),
-*view templates* / `locations/templates.readonly` (snippet menu), *view email
-builder* / `emails/builder.readonly` (email-template menu). Each missing
-scope surfaces as a labeled 401 message in the feature it gates.
+*view templates* / `locations/templates.readonly` (snippet menu). Each
+missing scope surfaces as a labeled 401 message in the feature it gates.
 
 ---
 
@@ -527,6 +530,13 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-11 | Opportunities → Pipeline: each stage tab now shows a two-column stage guide ("What's happened" / "What to do next") between the header and the cards, describing the automatic steps and the planner's next move for New Inquiry, Contacted, Planning, Proposal Sent, Booked, Lost, and Other. Keyed by GHL stage name (`STAGE_GUIDES`). |
+| 2026-09-11 | Conversations drawer: the Email/SMS picker now defaults to the channel of the contact's most recent inbound message (first load only; DND still wins), and every thread message shows an envelope/phone/bubble icon for its channel. |
+| 2026-09-11 | Conversations drawer honors GHL Do Not Disturb: the contact's `dnd` / `dndSettings` are read with the thread (`GET …/conversations` now returns `dnd`), a DND channel is removed from the Email/SMS picker with an explanatory notice (all-channel DND blocks sending entirely), and `POST …/conversations` refuses a DND channel with a 409. `GhlContactSummary` gained `dnd`. |
+| 2026-09-11 | Planner Assignments gained a month calendar (now the default view) at the client's request: every planner's events on one grid, color per planner (the Room Calendar still colors by room), legend chips that filter by planner and show monthly counts, month arrows + Today, multi-day events on each day they cover. A day shows one chip per event rather than one per room; clicking opens an event summary pop-up (all rooms with times and held/booked status, "Open event" link top right for event-linked reservations), so a four-room booking is one tile. Chips fade only when every room is held. URL-driven (`?month=&planners=`), no client state. The original planner columns remain behind a Calendar/Columns toggle (`?view=columns`). |
+| 2026-09-11 | Opportunities → Pipeline redesigned from a column-per-stage board to stage tabs: a row of stage tabs with counts (and the stage total for admins) above a full-width card grid for the selected stage (`?stage=<id>`, first stage by default, "Other" for orphaned stages). No more sideways scrolling or long narrow columns in season. Badge reads cover just the visible stage; the stale sweep still covers the whole pipeline. |
+| 2026-09-11 | Removed "Use email template" from the conversations drawer: GHL email-builder templates are marketing designs, not customer correspondence. The drawer now only offers "Insert snippet"; the `emailTemplateId` send path, the `/emails/builder` read, and the `emails/builder.readonly` scope requirement are gone. |
+| 2026-09-11 | Fix: "Insert snippet" in the conversations drawer showed no snippets. The GHL `/locations/{id}/templates` read was passing `originId=<location id>`, which GHL treats as a filter on the snippet's origin record and answered with an empty list; the parameter is dropped. Snippet merge tags also gained `{{contact.company_name}}` (used in every email snippet's subject), read from the GHL contact's company name. |
 | 2026-09-08 | PandaDoc contracts: new **Contracts** tab on the admin event page (create from a PandaDoc template with description/terms, line items + prices, recipient; full history with status, totals, PandaDoc link, signed PDF, refresh) and a **Contracts** card in the client portal with embedded PandaDoc signing. New `event_contracts` table, `src/lib/pandadoc/*` client, `src/lib/admin/contracts.ts`, `/api/pandadoc/webhook` (signed), `/api/portal/[token]/contracts/[id]` (session/complete). On signature: held reservations → booked, GHL opportunity → Booked (`GHL_BOOKED_STAGE_ID`, new `moveOpportunityToBooked`), signed PDF archived to Storage, `contract_signed` integration log. Event summary lists contracts under Portal URL. Built before the PandaDoc API key existed — unverified against the live API. |
 | 2026-09-08 | Conversations drawer (event page + Opportunities cards) gained GHL snippets and email templates: "Insert snippet" pastes a GHL Snippet for the current channel into the reply box with contact/user merge tags pre-filled server-side (`src/lib/ghl/message-templates.ts`, new `/api/ghl/contacts/[contactId]/message-templates` route, 5-minute cache); "Use email template" sends a GHL email-builder template by id (`templateId` on the Conversations send, `emailTemplateId` in the POST body) so GHL renders the design. Needs the `locations/templates.readonly` and `emails/builder.readonly` scopes on the Private Integration — each menu reports its own scope error. |
 | 2026-08-31 | Primary contact on the event: page-load sync now also pulls the GHL contact's name/email/phone into `ghl_snapshot.contact`, shown at the top of the Event facilitator card. New conversations drawer (speech-bubble button): full GHL email/SMS history for the contact, read live via the Conversations API, with reply-from-the-app (sends through GHL, threads into the same conversation; needs the Private Integration's write-conversations scope). New `/api/events/[eventId]/conversations` route backs it. Notes drawer beside it (notepad button + red note-count badge): reads the contact's GHL notes live and adds new ones to GHL, attributed to the GHL user matching the planner's email (`/api/events/[eventId]/notes`). Tasks drawer completes the trio: read, create, and check off the contact's GHL tasks like GHL natively does; badge counts open tasks. The drawer trio also sits on every Opportunities board card, backed by contact-keyed routes (`/api/ghl/contacts/[contactId]/conversations`, `/notes`, `/tasks`) shared with the event page. |
