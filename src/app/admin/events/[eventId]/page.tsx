@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ContactConversationsButton } from "@/components/admin/contact-conversations";
+import { FollowUpPauseButton } from "@/components/admin/follow-up-pause-button";
 import { ContactNotesButton } from "@/components/admin/contact-notes";
 import { ContactTasksButton } from "@/components/admin/contact-tasks";
 import { CopyableValue } from "@/components/admin/copyable-value";
@@ -761,6 +762,13 @@ function FacilitatorSection({
           ) : null}
         </div>
         <div className="flex items-center gap-2">
+          {ghlContactId ? (
+            <FollowUpPauseButton
+              contactId={ghlContactId}
+              contactName={contactName}
+              eventId={eventId}
+            />
+          ) : null}
           <ContactConversationsButton
             contactId={ghlContactId}
             contactName={contactName}

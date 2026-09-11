@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminStatCard } from "@/components/admin/admin-stat-card";
+import { FollowUpPauseButton } from "@/components/admin/follow-up-pause-button";
 import { Icon } from "@/components/ui/icon";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import {
@@ -17,6 +18,12 @@ import {
 } from "@/lib/admin/dashboard";
 import { listAdminEvents, type AdminEventListItem } from "@/lib/admin/events";
 import { getUserRole } from "@/lib/admin/users";
+import {
+  listStaleFollowUpPauses,
+  reconcileFollowUpPauses,
+  STALE_PAUSE_DAYS,
+  type StaleFollowUpPause,
+} from "@/lib/ghl/follow-up-pauses";
 import { daysUntil, formatDisplayDate } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -72,12 +79,16 @@ export default async function AdminDashboardPage() {
   }
 
   const isAdmin = getUserRole(user) === "admin";
-  const [metrics, events, vendorSubmissions, recentlySigned] =
+  // Pauses whose deal booked or died inside GHL get lifted before the list
+  // is read, so nobody is nagged about a contact who no longer needs it.
+  await reconcileFollowUpPauses();
+  const [metrics, events, vendorSubmissions, recentlySigned, stalePauses] =
     await Promise.all([
       getAdminDashboardMetrics(),
       listAdminEvents(),
       listVendorSubmissionsNeedingReview(),
       listRecentlySignedContracts(),
+      listStaleFollowUpPauses(),
     ]);
   const eventsById = new Map(events.map((event) => [event.id, event]));
 
@@ -179,7 +190,66 @@ export default async function AdminDashboardPage() {
         needsAttention={needsAttention}
         recentlySigned={recentlySigned}
       />
+      <PausedFollowUpsSection pauses={stalePauses} />
     </AdminShell>
+  );
+}
+
+// Contacts whose automated follow-ups have been paused longer than the
+// threshold: a pause with no expiry needs a human to remember it.
+function PausedFollowUpsSection({ pauses }: { pauses: StaleFollowUpPause[] }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <SectionHeader
+        description={`Follow-ups paused more than ${STALE_PAUSE_DAYS} days ago. Check in with them, then resume so GHL's chase messages apply again — or leave them paused if the conversation is still live.`}
+        title="Paused follow-ups"
+      />
+      {pauses.length > 0 ? (
+        <ul className="divide-y divide-slate-200">
+          {pauses.map((pause) => (
+            <li
+              className="flex items-center justify-between gap-4 px-5 py-3"
+              key={pause.id}
+            >
+              <div className="min-w-0">
+                <Link
+                  className="block truncate text-sm font-medium text-slate-950 underline-offset-2 hover:underline"
+                  href={
+                    pause.portalEventId
+                      ? `/admin/events/${pause.portalEventId}`
+                      : "/admin/opportunities"
+                  }
+                >
+                  {pause.contactName || "Unnamed contact"}
+                </Link>
+                <p className="mt-0.5 truncate text-xs text-slate-500">
+                  Paused {pause.daysPaused} days ago
+                  {pause.pausedBy ? ` by ${pause.pausedBy}` : ""}
+                  {pause.reason ? ` · ${pause.reason}` : ""}
+                </p>
+              </div>
+              <div className="shrink-0">
+                <FollowUpPauseButton
+                  contactId={pause.ghlContactId}
+                  contactName={pause.contactName}
+                  eventId={pause.portalEventId}
+                  initialPause={{
+                    pausedAt: pause.pausedAt,
+                    pausedBy: pause.pausedBy,
+                    reason: pause.reason,
+                  }}
+                  opportunityId={pause.ghlOpportunityId}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyRow>
+          No follow-ups have been paused longer than {STALE_PAUSE_DAYS} days.
+        </EmptyRow>
+      )}
+    </section>
   );
 }
 

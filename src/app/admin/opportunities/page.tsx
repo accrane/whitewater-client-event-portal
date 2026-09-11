@@ -8,6 +8,10 @@ import { ContactBadgesProvider } from "@/components/admin/contact-badges";
 import { ContactConversationsButton } from "@/components/admin/contact-conversations";
 import { ContactNotesButton } from "@/components/admin/contact-notes";
 import { ContactTasksButton } from "@/components/admin/contact-tasks";
+import {
+  FollowUpPauseButton,
+  type FollowUpPauseSummary,
+} from "@/components/admin/follow-up-pause-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getUserRole } from "@/lib/admin/users";
 import { listGhlUsers, type GhlUser } from "@/lib/ghl/location-data";
@@ -22,6 +26,7 @@ import {
   type GhlPipelineOpportunity,
   describePipelineProblem,
 } from "@/lib/ghl/opportunities";
+import { getActiveFollowUpPauses } from "@/lib/ghl/follow-up-pauses";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // Accept only YYYY-MM-DD values from the query string; anything else is
@@ -56,13 +61,13 @@ const STAGE_GUIDES: Record<string, { happened: string; next: string }> = {
     happened:
       "The contact submitted the inquiry form. GoHighLevel created the opportunity and the portal created a draft event for each one — you'll find it under Events and in the Linked Event list when reserving rooms.",
     next:
-      "Reach out from the chat bubble and move the opportunity to Contacted in GHL, or hold rooms right away from the Room Calendar or Events page; saving a reservation moves it to Planning automatically.",
+      "Reach out from the chat bubble and move the opportunity to Contacted in GHL, or hold rooms right away from the Room Calendar or Events page; saving a reservation moves it to Planning automatically. Spoke to them by phone? Use the pause button on the card so GHL's automated follow-ups stop.",
   },
   contacted: {
     happened:
       "Someone has been in touch with the contact and is gathering dates, headcount, and what they want to do.",
     next:
-      "Keep the conversation going from the chat bubble. Once dates are settled, reserve rooms from the Room Calendar or Events page and pick the coordinator; saving moves the opportunity to Planning and assigns it to that coordinator.",
+      "Keep the conversation going from the chat bubble; pause follow-ups from the card if you're talking by phone. Once dates are settled, reserve rooms from the Room Calendar or Events page and pick the coordinator; saving moves the opportunity to Planning and assigns it to that coordinator.",
   },
   planning: {
     happened:
@@ -250,7 +255,10 @@ async function PipelineView({
   const visibleContactIds = (activeStage?.items ?? [])
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
-  const badges = await getStoredContactBadges(visibleContactIds);
+  const [badges, pauses] = await Promise.all([
+    getStoredContactBadges(visibleContactIds),
+    getActiveFollowUpPauses(visibleContactIds),
+  ]);
 
   after(async () => {
     const staleIds = await findStaleContactIds(allContactIds);
@@ -355,6 +363,11 @@ async function PipelineView({
               <OpportunityCard
                 key={opportunity.id}
                 opportunity={opportunity}
+                pause={
+                  opportunity.contact?.id
+                    ? (pauses.get(opportunity.contact.id) ?? null)
+                    : null
+                }
                 plannerName={plannerNameById(ghlUsers, opportunity.assignedTo)}
                 showValue={showValues}
               />
@@ -368,10 +381,12 @@ async function PipelineView({
 
 function OpportunityCard({
   opportunity,
+  pause,
   plannerName,
   showValue,
 }: {
   opportunity: GhlPipelineOpportunity;
+  pause: FollowUpPauseSummary | null;
   plannerName: string | null;
   showValue: boolean;
 }) {
@@ -425,6 +440,17 @@ function OpportunityCard({
             contactId={opportunity.contact.id}
             contactName={opportunity.contact.name}
           />
+          {opportunity.contact.id ? (
+            <div className="ml-auto">
+              <FollowUpPauseButton
+                compact
+                contactId={opportunity.contact.id}
+                contactName={opportunity.contact.name}
+                initialPause={pause}
+                opportunityId={opportunity.id}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

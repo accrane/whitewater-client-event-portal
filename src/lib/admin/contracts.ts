@@ -11,6 +11,7 @@ import {
   moveOpportunityToBooked,
   writeOpportunityValue,
 } from "@/lib/ghl/opportunity-sync";
+import { resumeFollowUpsForEvent } from "@/lib/ghl/follow-up-pauses";
 import { isPandaDocConfigured } from "@/lib/pandadoc/client";
 import {
   createPandaDocDocument,
@@ -965,6 +966,11 @@ async function applySignedContractActions(
         : `error: ${moved.error}`;
   } else {
     outcomes.ghl_stage = "skipped: event not found";
+  }
+
+  // 2b. A booked deal no longer needs its follow-ups paused.
+  if (event) {
+    outcomes.follow_ups = await resumeFollowUpsForEvent(event, "booked");
   }
 
   // 3. Archive the executed PDF in Supabase storage.

@@ -128,6 +128,22 @@ reservation, and in the modal:
   chooses the reply channel; it starts on whichever channel the contact
   last used to reach us (falling back to Email), and email replies thread
   onto the most recent email.
+- **Pause follow-ups** — GHL's chase workflows send automated nudges when
+  an inquiry goes quiet, but a phone call never reaches GHL, so the chase
+  would keep going. The pause button (on each Opportunities card, in the
+  conversations drawer header, and on the event page's contact card) adds
+  the `follow-ups-paused` tag to the GHL contact, writes a GHL note with
+  who paused and the optional reason (the missing call log), and shows an
+  amber **Paused** badge with a Resume link. Every chase workflow checks
+  for the tag before each send (see the GHL checklist in section 6), so
+  paused contacts skip messages but keep their place in the cadence. A
+  pause never expires on its own: it ends when someone resumes it, when
+  the contract is signed (the portal lifts it as it moves the deal to
+  Booked), or when the dashboard notices the opportunity is Booked, Lost,
+  won, or lost in GHL. Tags are per contact — one pause covers every open
+  opportunity that person has, and next year's new inquiry starts clean.
+  The dashboard's **Paused follow-ups** section lists anyone paused longer
+  than 14 days so a planner checks in.
   The reply box also reuses what's already set up in GHL: **Insert snippet**
   drops a GHL Snippet (Settings → Snippets; filtered to the chosen channel)
   into the message as editable text, with `{{contact.*}}` / `{{user.*}}`
@@ -302,13 +318,13 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | --- | --- | --- |
 | Dashboard | `/admin` | Four metric tiles, then: **Vendor submissions** awaiting planner approval (links to the event's vendors section); **Upcoming events** split into *Today's events* and *This week's events* (next seven days); **Contracts** with *Recently signed* and a red *Needs attention* list — launched events within three weeks with no signed contract (no contract sent / awaiting PandaDoc approval / awaiting signature) and, inside two weeks, signed-but-unpaid ones (PandaDoc `waiting_pay`) |
 | Events | `/admin/events` | All portal events; open one to work it |
-| Event detail | `/admin/events/<id>` | Summary (incl. contracts list under Portal URL), planner, room bookings, launch, review queues |
+| Event detail | `/admin/events/<id>` | Summary (incl. contracts list under Portal URL), planner, primary contact with conversations/notes/tasks buttons and the follow-ups pause switch, room bookings, launch, review queues |
 | Contracts | `/admin/events/<id>/contracts` | PandaDoc contracts for the event: create (template, terms, line items, recipient), edit unsigned ones in place (re-sent as a new revision), history with status/totals/links, signed PDF, refresh status |
 | — Checklist | `/admin/events/<id>/checklist` | Event-specific checklist editing |
 | — Schedule & Notes | `/admin/events/<id>/schedule` | Event-day schedule grid + sectioned notes |
 | Room Calendar | `/admin/calendar` | Reservation board; where events get rooms, coordinators, and Planning-stage pushes |
 | Planner Assignments | `/admin/assignments` | Month calendar of every planner's assigned events (default), colored by planner with a legend of filter chips (click to show/hide a planner; counts are that month's workload), previous/next/Today arrows. One chip per event per day (not per room): clicking it opens an event summary pop-up listing every room booked with its time and held/booked status, with an **Open event** link top right when the reservation is tied to a portal event. A chip is faded only when every room is still held. `?month=YYYY-MM&planners=Name,Name` reproduces a view. A **Columns** toggle keeps the original one-column-per-planner workload comparison with its from/to filter (`?view=columns`) |
-| Opportunities | `/admin/opportunities` | GHL pipeline (default tab) + Won contact list; below the nav rule. The Pipeline tab shows one stage at a time: a row of stage tabs with counts (`?stage=<stage id>`; the first stage is the default, and opportunities in stages since removed from the pipeline collect under an "Other" tab) above a full-width grid of that stage's cards, so a busy stage is read top-to-bottom on one screen instead of down a narrow column. Between the stage header and the cards, a **stage guide** panel explains "What's happened" (mostly automatic: draft event created, opportunity moved, contract signed…) and "What to do next" for that stage — the training text lives in `STAGE_GUIDES` in `src/app/admin/opportunities/page.tsx`, keyed by the GHL stage name, so renaming a stage in GHL needs a matching key. Each card carries the conversations/notes/tasks buttons for its contact — same drawers as the event page. Note/open-task badges read from the local `ghl_contact_badges` cache (instant at 100–250 cards); stale rows refresh after each view via paced background sweeps, and opening a drawer freshens its contact's row exactly |
+| Opportunities | `/admin/opportunities` | GHL pipeline (default tab) + Won contact list; below the nav rule. The Pipeline tab shows one stage at a time: a row of stage tabs with counts (`?stage=<stage id>`; the first stage is the default, and opportunities in stages since removed from the pipeline collect under an "Other" tab) above a full-width grid of that stage's cards, so a busy stage is read top-to-bottom on one screen instead of down a narrow column. Each card's action row ends with the follow-ups pause switch (pause icon, or an amber Paused badge + Resume). Between the stage header and the cards, a **stage guide** panel explains "What's happened" (mostly automatic: draft event created, opportunity moved, contract signed…) and "What to do next" for that stage — the training text lives in `STAGE_GUIDES` in `src/app/admin/opportunities/page.tsx`, keyed by the GHL stage name, so renaming a stage in GHL needs a matching key. Each card carries the conversations/notes/tasks buttons for its contact — same drawers as the event page. Note/open-task badges read from the local `ghl_contact_badges` cache (instant at 100–250 cards); stale rows refresh after each view via paced background sweeps, and opening a drawer freshens its contact's row exactly |
 | Companies | `/admin/companies` | Company directory from the Salesforce archive: contacts, booking history, live booking stats; dollar values admin-only |
 | Settings | `/admin/settings` | Checklist + schedule templates |
 | Admin → Users | `/admin/system/users` | Create/delete portal users, set roles, reset passwords (Mailgun email) |
@@ -355,6 +371,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Conversations drawer open | GHL → app | Contact's conversations + message history, read live (never stored) |
 | Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope) |
 | Conversations drawer snippet menu | GHL → app | Location snippets (`/locations/{id}/templates`), read live and cached 5 min per server process (never stored); merge tags rendered per contact/planner (`/api/ghl/contacts/[contactId]/message-templates`) |
+| Follow-ups pause / resume | app → GHL | `follow-ups-paused` tag added to / removed from the contact (`POST`/`DELETE /contacts/{id}/tags`) plus a GHL note; the pause row lives in `follow_up_pauses` (who, when, why, how it ended). Lifted automatically on contract signature (Booked) and by the dashboard's reconcile pass when GHL shows the opportunity Booked/Lost/won/lost |
 | Notes drawer open | GHL → app | Contact's GHL notes, read live (never stored); count shown as a badge on the notepad button |
 | Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
 | Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
@@ -510,8 +527,26 @@ planner pickers go read-only and pipeline views go empty until it's replaced.
 
 **Private Integration scopes** the token needs beyond the basics (Settings →
 Private Integrations in GHL): *write conversation messages* (drawer replies),
-*view templates* / `locations/templates.readonly` (snippet menu). Each
-missing scope surfaces as a labeled 401 message in the feature it gates.
+*view templates* / `locations/templates.readonly` (snippet menu), *edit
+contacts* / `contacts.write` (follow-ups pause tag). Each missing scope
+surfaces as a labeled 401 message in the feature it gates.
+
+**GHL workflow checklist for follow-up pauses** (someone with workflow
+access does this once in GHL; the portal only sets and clears the tag):
+
+1. In every chase workflow (the automated "haven't heard back" sends),
+   add an **If/Else** step immediately before each send action:
+   *Contact tag* → *includes* → `follow-ups-paused`. Route the "yes"
+   branch around the send so the contact skips that message but stays in
+   the workflow; the "no" branch sends as before.
+2. Backstop for deals that book or die inside GHL: a small workflow with
+   two triggers — *Opportunity stage changed* to **Booked** and to
+   **Lost** — whose only action is *Remove Contact Tag*
+   `follow-ups-paused`. (The portal lifts the tag itself when a contract
+   is signed and on each dashboard load, but this keeps GHL self-consistent
+   even if nobody opens the portal.)
+3. Don't create the tag by hand; the portal adds it the first time someone
+   pauses, and GHL creates tags on first use.
 
 ---
 
@@ -530,6 +565,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-11 | Follow-ups pause: a pause switch on Opportunities cards, in the conversations drawer, and on the event page's contact card adds the `follow-ups-paused` tag to the GHL contact (which the chase workflows check before each send — see the section 6 checklist), writes a GHL note with who/why, and records the pause in the new `follow_up_pauses` table. Amber Paused badge + Resume. Lifted on contract signature (Booked), by the dashboard's reconcile pass when GHL shows the deal Booked/Lost/won/lost, or manually — never by a timer. New dashboard section **Paused follow-ups** lists contacts paused over 14 days with a Resume control. API: `GET`/`POST /api/ghl/contacts/[contactId]/follow-ups`. |
 | 2026-09-11 | Opportunities → Pipeline: each stage tab now shows a two-column stage guide ("What's happened" / "What to do next") between the header and the cards, describing the automatic steps and the planner's next move for New Inquiry, Contacted, Planning, Proposal Sent, Booked, Lost, and Other. Keyed by GHL stage name (`STAGE_GUIDES`). |
 | 2026-09-11 | Conversations drawer: the Email/SMS picker now defaults to the channel of the contact's most recent inbound message (first load only; DND still wins), and every thread message shows an envelope/phone/bubble icon for its channel. |
 | 2026-09-11 | Conversations drawer honors GHL Do Not Disturb: the contact's `dnd` / `dndSettings` are read with the thread (`GET …/conversations` now returns `dnd`), a DND channel is removed from the Email/SMS picker with an explanatory notice (all-channel DND blocks sending entirely), and `POST …/conversations` refuses a DND channel with a 409. `GhlContactSummary` gained `dnd`. |

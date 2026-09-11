@@ -497,6 +497,36 @@ export type Database = {
         >;
         Relationships: [];
       };
+      follow_up_pauses: {
+        Row: {
+          id: string;
+          ghl_contact_id: string;
+          ghl_opportunity_id: string | null;
+          contact_name: string | null;
+          paused_by: string | null;
+          reason: string | null;
+          paused_at: string;
+          resumed_at: string | null;
+          resumed_by: string | null;
+          resumed_reason: string | null;
+        };
+        Insert: {
+          id?: string;
+          ghl_contact_id: string;
+          ghl_opportunity_id?: string | null;
+          contact_name?: string | null;
+          paused_by?: string | null;
+          reason?: string | null;
+          paused_at?: string;
+          resumed_at?: string | null;
+          resumed_by?: string | null;
+          resumed_reason?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["follow_up_pauses"]["Insert"]
+        >;
+        Relationships: [];
+      };
       ghl_contact_badges: {
         Row: {
           ghl_contact_id: string;

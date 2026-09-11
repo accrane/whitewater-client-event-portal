@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { FollowUpPauseButton } from "@/components/admin/follow-up-pause-button";
 import { SlideOver, SlideOverCloseButton } from "@/components/admin/slide-over";
 import { buttonClasses } from "@/components/ui/button";
 
@@ -350,6 +351,13 @@ function ConversationsDrawer({
               Synced live from GoHighLevel. Replies send through GHL and stay
               in the same thread.
             </p>
+            <div className="mt-2">
+              <FollowUpPauseButton
+                contactId={contactId}
+                contactName={contactName}
+                eventId={eventId}
+              />
+            </div>
           </div>
           <SlideOverCloseButton onClick={requestClose} />
         </header>
