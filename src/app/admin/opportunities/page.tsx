@@ -50,6 +50,7 @@ const QUICK_RANGES = [
 type AdminOpportunitiesPageProps = {
   searchParams: Promise<{
     tab?: string;
+    stage?: string;
     range?: string;
     from?: string;
     to?: string;
@@ -102,7 +103,7 @@ export default async function AdminOpportunitiesPage({
       </nav>
 
       {tab === "pipeline" ? (
-        <PipelineView showValues={isAdmin} />
+        <PipelineView showValues={isAdmin} stageParam={params.stage} />
       ) : (
         <WonView
           from={parseDateParam(params.from)}
@@ -121,8 +122,18 @@ function plannerNameById(users: GhlUser[], userId: string | null) {
     : null;
 }
 
-// The GHL board: open opportunities as cards under their stage columns.
-async function PipelineView({ showValues }: { showValues: boolean }) {
+// Open opportunities, one pipeline stage at a time: a row of stage tabs
+// (with counts) above a full-width card grid for the chosen stage. A
+// column-per-stage board forced sideways scrolling and long columns once
+// the pipeline filled up (140-250 open in season); a single stage across
+// the whole screen keeps every card visible on a desktop.
+async function PipelineView({
+  showValues,
+  stageParam,
+}: {
+  showValues: boolean;
+  stageParam: string | undefined;
+}) {
   const [pipeline, opportunities, ghlUsers] = await Promise.all([
     fetchConfiguredPipeline(),
     searchPipelineOpportunities("open"),
@@ -143,7 +154,7 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
     pipeline.stages.map((stage) => [stage.id, []]),
   );
   // Opportunities in stages that were removed from the pipeline still count;
-  // they get a trailing column instead of disappearing.
+  // they get a trailing "Other" tab instead of disappearing.
   const orphaned: GhlPipelineOpportunity[] = [];
 
   for (const opportunity of opportunities) {
@@ -157,7 +168,7 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
     }
   }
 
-  const columns = [
+  const stages = [
     ...pipeline.stages.map((stage) => ({
       key: stage.id,
       name: stage.name,
@@ -168,74 +179,116 @@ async function PipelineView({ showValues }: { showValues: boolean }) {
       : []),
   ];
 
+  // An unknown or missing stage in the URL lands on the first stage, so a
+  // stale bookmark never shows an empty page.
+  const activeStage =
+    stages.find((stage) => stage.key === stageParam) ?? stages[0] ?? null;
+
   // Card badges come from the local ghl_contact_badges cache — instant at
-  // any pipeline size (SF history says 140-250 open in season). Stale rows
-  // refresh after the response: a small backlog inline-ish via after() every
-  // view, so counts converge without ever blocking render or bursting GHL.
-  const boardContactIds = opportunities
+  // any pipeline size. Only the visible stage's contacts are read, but the
+  // stale sweep covers the whole pipeline so the other tabs are already
+  // fresh when the planner switches to them.
+  const allContactIds = opportunities
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
-  const badges = await getStoredContactBadges(boardContactIds);
+  const visibleContactIds = (activeStage?.items ?? [])
+    .map((opportunity) => opportunity.contact?.id)
+    .filter((id): id is string => Boolean(id));
+  const badges = await getStoredContactBadges(visibleContactIds);
 
   after(async () => {
-    const staleIds = await findStaleContactIds(boardContactIds);
+    const staleIds = await findStaleContactIds(allContactIds);
     if (staleIds.length > 0) {
       await refreshContactBadges(staleIds);
     }
   });
 
+  if (!activeStage) {
+    return (
+      <EmptyState
+        description="The GoHighLevel pipeline has no stages yet. Add stages in GHL and they will appear here as tabs."
+        title="No pipeline stages"
+      />
+    );
+  }
+
+  const total = activeStage.items.reduce(
+    (sum, item) => sum + (item.monetaryValue ?? 0),
+    0,
+  );
+
   return (
     <ContactBadgesProvider badges={badges}>
-      <div className="flex gap-4 overflow-x-auto pb-2">
-        {columns.map((column) => {
-          const total = column.items.reduce(
-            (sum, item) => sum + (item.monetaryValue ?? 0),
-            0,
-          );
-
+      <div
+        aria-label="Pipeline stages"
+        className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1"
+        role="group"
+      >
+        {stages.map((stage) => {
+          const active = stage.key === activeStage.key;
           return (
-            <div
-              className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4"
-              key={column.key}
+            <Link
+              aria-current={active ? "page" : undefined}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                active
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-600 hover:text-slate-950"
+              }`}
+              href={
+                stage.key === stages[0]?.key
+                  ? "/admin/opportunities"
+                  : `/admin/opportunities?stage=${encodeURIComponent(stage.key)}`
+              }
+              key={stage.key}
             >
-              <div className="border-b border-slate-200 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="truncate text-sm font-semibold text-slate-950">
-                    {column.name}
-                  </h2>
-                  <span className="inline-flex items-center rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
-                    {column.items.length}
-                  </span>
-                </div>
-                {showValues ? (
-                  <p className="mt-1 text-xs font-medium text-slate-500">
-                    {currency.format(total)}
-                  </p>
-                ) : null}
-              </div>
-              <div className="mt-3 space-y-2">
-                {column.items.length === 0 ? (
-                  <p className="py-2 text-xs text-slate-400">
-                    No open opportunities.
-                  </p>
-                ) : (
-                  column.items.map((opportunity) => (
-                    <OpportunityCard
-                      key={opportunity.id}
-                      opportunity={opportunity}
-                      plannerName={plannerNameById(
-                        ghlUsers,
-                        opportunity.assignedTo,
-                      )}
-                      showValue={showValues}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
+              {stage.name}
+              <span
+                className={`inline-flex min-w-5 items-center justify-center rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
+                  active
+                    ? "bg-slate-100 text-slate-700"
+                    : "bg-white/70 text-slate-500"
+                }`}
+              >
+                {stage.items.length}
+              </span>
+            </Link>
           );
         })}
       </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 pb-3">
+          <h2 className="text-sm font-semibold text-slate-950">
+            {activeStage.name}
+            <span className="ml-2 font-normal text-slate-500">
+              {activeStage.items.length === 1
+                ? "1 open opportunity"
+                : `${activeStage.items.length} open opportunities`}
+            </span>
+          </h2>
+          {showValues ? (
+            <p className="text-xs font-medium text-slate-500">
+              {currency.format(total)} in this stage
+            </p>
+          ) : null}
+        </div>
+        {activeStage.items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-400">
+            No open opportunities in {activeStage.name}.
+          </p>
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {activeStage.items.map((opportunity) => (
+              <OpportunityCard
+                key={opportunity.id}
+                opportunity={opportunity}
+                plannerName={plannerNameById(ghlUsers, opportunity.assignedTo)}
+                showValue={showValues}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </ContactBadgesProvider>
   );
 }
