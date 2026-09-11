@@ -9,17 +9,19 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import Link from "next/link";
 
 import type { UpcomingAssignment } from "@/lib/admin/room-calendar";
+
+import { EventDayChip, type EventDaySummary } from "./event-day-chip";
 
 // Month calendar for Planner Assignments. Server-rendered: month navigation
 // and the planner filter are plain links (?month=YYYY-MM&planners=a,b), so
 // the page needs no client state and a URL always reproduces the view.
 //
-// Color means planner here (the Room Calendar colors by room); the room is
-// text on the chip. Held rooms keep the faded, dashed treatment the column
-// cards use so "held vs booked" reads the same everywhere.
+// Color means planner here (the Room Calendar colors by room). A day shows
+// one chip per event, not per room; the rooms are listed in the chip's
+// pop-up. A chip is faded/dashed only when every room is still held, the
+// same treatment the column cards use.
 
 export type PlannerSwatch = {
   name: string;
@@ -121,6 +123,7 @@ export function PlannerMonthCalendar({
           {days.map((day, index) => {
             const key = format(day, "yyyy-MM-dd");
             const items = byDay.get(key) ?? [];
+            const events = groupByEvent(items, day, colorByPlanner, plannerNameOf);
             const inMonth = isSameMonth(day, month);
             const isToday = isSameDay(day, today);
             const lastColumn = index % 7 === 6;
@@ -145,24 +148,15 @@ export function PlannerMonthCalendar({
                   >
                     {format(day, "d")}
                   </span>
-                  {items.length > 0 ? (
+                  {events.length > 0 ? (
                     <span className="text-[11px] font-medium text-slate-400">
-                      {items.length}
+                      {events.length}
                     </span>
                   ) : null}
                 </div>
                 <div className="mt-1 space-y-1">
-                  {items.map((assignment) => (
-                    <AssignmentChip
-                      assignment={assignment}
-                      color={
-                        colorByPlanner.get(plannerNameOf(assignment)) ??
-                        UNASSIGNED_COLOR
-                      }
-                      day={day}
-                      key={`${assignment.id}-${key}`}
-                      plannerName={plannerNameOf(assignment)}
-                    />
+                  {events.map((summary) => (
+                    <EventDayChip key={summary.key} summary={summary} />
                   ))}
                 </div>
               </div>
@@ -178,63 +172,68 @@ function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function AssignmentChip({
-  assignment,
-  color,
-  day,
-  plannerName,
-}: {
-  assignment: UpcomingAssignment;
-  color: string;
-  day: Date;
-  plannerName: string;
-}) {
-  const isHeld = assignment.status === "held";
-  const startsToday = isSameDay(new Date(assignment.start_datetime), day);
-  const time = startsToday
-    ? format(new Date(assignment.start_datetime), "h:mm a")
-    : "cont.";
-  const room = assignment.rooms?.name ?? "No room";
-  const tooltip = `${assignment.title}\n${plannerName} · ${room}\n${format(
-    new Date(assignment.start_datetime),
-    "EEE, MMM d · h:mm a",
-  )} – ${format(new Date(assignment.end_datetime), "h:mm a")}${
-    isHeld ? "\nHeld (not yet booked)" : ""
-  }`;
+// Reservations for one day, collapsed to one summary per event. Linked
+// reservations group by portal event id; unlinked ones group by title and
+// planner, which is how a multi-room booking made from the Room Calendar
+// looks before it's tied to an event.
+function groupByEvent(
+  items: UpcomingAssignment[],
+  day: Date,
+  colorByPlanner: Map<string, string>,
+  plannerNameOf: (assignment: UpcomingAssignment) => string,
+): EventDaySummary[] {
+  const groups = new Map<string, { summary: EventDaySummary; rows: UpcomingAssignment[] }>();
 
-  const body = (
-    <>
-      <span className="block truncate font-semibold">
-        <span className="font-normal opacity-90">{time}</span> {assignment.title}
-      </span>
-      <span className="block truncate text-[10px] opacity-85">
-        {plannerName} · {room}
-      </span>
-    </>
-  );
+  for (const assignment of items) {
+    const plannerName = plannerNameOf(assignment);
+    const groupKey = assignment.event_id
+      ? `event:${assignment.event_id}`
+      : `title:${assignment.title.trim().toLowerCase()}|${plannerName}`;
+    const existing = groups.get(groupKey);
+    if (existing) {
+      existing.rows.push(assignment);
+      continue;
+    }
+    groups.set(groupKey, {
+      rows: [assignment],
+      summary: {
+        key: `${groupKey}|${format(day, "yyyy-MM-dd")}`,
+        title: assignment.title,
+        plannerName,
+        color: colorByPlanner.get(plannerName) ?? UNASSIGNED_COLOR,
+        eventId: assignment.event_id,
+        clientName: assignment.client_name,
+        dateLabel: format(day, "EEEE, MMM d, yyyy"),
+        timeLabel: "",
+        rooms: [],
+        allHeld: true,
+      },
+    });
+  }
 
-  const className =
-    "block rounded-sm px-1.5 py-1 text-[11px] leading-tight text-white transition hover:brightness-110";
-  const style = {
-    backgroundColor: color,
-    opacity: isHeld ? 0.55 : 1,
-    outline: isHeld ? `1.5px dashed ${color}` : undefined,
-    outlineOffset: isHeld ? "-1.5px" : undefined,
-  };
-
-  // Chips for reservations tied to a portal event open that event.
-  return assignment.event_id ? (
-    <Link
-      className={className}
-      href={`/admin/events/${assignment.event_id}`}
-      style={style}
-      title={tooltip}
-    >
-      {body}
-    </Link>
-  ) : (
-    <div className={className} style={style} title={tooltip}>
-      {body}
-    </div>
-  );
+  return [...groups.values()].map(({ summary, rows }) => {
+    const earliest = rows.reduce((min, row) =>
+      row.start_datetime < min.start_datetime ? row : min,
+    );
+    const startsToday = isSameDay(new Date(earliest.start_datetime), day);
+    return {
+      ...summary,
+      timeLabel: startsToday
+        ? format(new Date(earliest.start_datetime), "h:mm a")
+        : "cont.",
+      allHeld: rows.every((row) => row.status === "held"),
+      rooms: rows
+        .map((row) => ({
+          id: row.id,
+          roomName: row.rooms?.name ?? "No room",
+          roomColor: row.rooms?.color ?? "#64748b",
+          timeRange: `${format(new Date(row.start_datetime), "h:mm a")} – ${format(
+            new Date(row.end_datetime),
+            "h:mm a",
+          )}`,
+          status: row.status,
+        }))
+        .sort((a, b) => a.roomName.localeCompare(b.roomName)),
+    };
+  });
 }
