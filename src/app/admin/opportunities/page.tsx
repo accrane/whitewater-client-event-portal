@@ -5,17 +5,9 @@ import { after } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ContactBadgesProvider } from "@/components/admin/contact-badges";
-import { ContactConversationsButton } from "@/components/admin/contact-conversations";
-import { ContactNotesButton } from "@/components/admin/contact-notes";
-import { ContactTasksButton } from "@/components/admin/contact-tasks";
-import {
-  FollowUpPauseButton,
-  type FollowUpPauseSummary,
-} from "@/components/admin/follow-up-pause-button";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { getEventFlagsByOpportunityIds, type EventFlags } from "@/lib/admin/events";
+import { getEventFlagsByOpportunityIds } from "@/lib/admin/events";
 import { getUserRole } from "@/lib/admin/users";
 import { listGhlUsers, type GhlUser } from "@/lib/ghl/location-data";
 import {
@@ -31,6 +23,8 @@ import {
 } from "@/lib/ghl/opportunities";
 import { getActiveFollowUpPauses } from "@/lib/ghl/follow-up-pauses";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+import { PipelineBoard, type BoardStage } from "./pipeline-board";
 
 // Accept only YYYY-MM-DD values from the query string; anything else is
 // treated as unset.
@@ -115,6 +109,7 @@ type AdminOpportunitiesPageProps = {
   searchParams: Promise<{
     tab?: string;
     stage?: string;
+    q?: string;
     range?: string;
     from?: string;
     to?: string;
@@ -172,7 +167,11 @@ export default async function AdminOpportunitiesPage({
       </nav>
 
       {tab === "pipeline" ? (
-        <PipelineView showValues={isAdmin} stageParam={params.stage} />
+        <PipelineView
+          query={params.q ?? ""}
+          showValues={isAdmin}
+          stageParam={params.stage}
+        />
       ) : (
         <WonView
           from={parseDateParam(params.from)}
@@ -197,9 +196,11 @@ function plannerNameById(users: GhlUser[], userId: string | null) {
 // the pipeline filled up (140-250 open in season); a single stage across
 // the whole screen keeps every card visible on a desktop.
 async function PipelineView({
+  query,
   showValues,
   stageParam,
 }: {
+  query: string;
   showValues: boolean;
   stageParam: string | undefined;
 }) {
@@ -287,204 +288,36 @@ async function PipelineView({
     );
   }
 
-  const total = activeStage.items.reduce(
-    (sum, item) => sum + (item.monetaryValue ?? 0),
-    0,
-  );
-  const guide = stageGuide(activeStage.name);
+  const boardStages: BoardStage[] = stages.map((stage) => ({
+    key: stage.key,
+    name: stage.name,
+    guide: stageGuide(stage.name),
+    items: stage.items.map((opportunity) => ({
+      id: opportunity.id,
+      name: opportunity.name,
+      monetaryValue: opportunity.monetaryValue,
+      eventDate: opportunity.eventDate,
+      plannerName: plannerNameById(ghlUsers, opportunity.assignedTo),
+      contact: opportunity.contact,
+    })),
+  }));
 
   return (
     <ContactBadgesProvider badges={badges}>
-      <div
-        aria-label="Pipeline stages"
-        className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1"
-        role="group"
-      >
-        {stages.map((stage) => {
-          const active = stage.key === activeStage.key;
-          return (
-            <Link
-              aria-current={active ? "page" : undefined}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                active
-                  ? "bg-white text-slate-950 shadow-sm"
-                  : "text-slate-600 hover:text-slate-950"
-              }`}
-              href={
-                stage.key === stages[0]?.key
-                  ? "/admin/opportunities"
-                  : `/admin/opportunities?stage=${encodeURIComponent(stage.key)}`
-              }
-              key={stage.key}
-            >
-              {stage.name}
-              {/* Non-empty stages carry their count in the brand green so a
-                  glance across the row shows where the work is. */}
-              <span
-                className={`inline-flex min-w-5 items-center justify-center rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
-                  active ? "bg-slate-100" : "bg-white/70"
-                } ${
-                  stage.items.length > 0
-                    ? "text-[var(--brand)]"
-                    : active
-                      ? "text-slate-500"
-                      : "text-slate-400"
-                }`}
-              >
-                {stage.items.length}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 pb-3">
-          <h2 className="text-sm font-semibold text-slate-950">
-            {activeStage.name}
-            <span className="ml-2 font-normal text-slate-500">
-              {activeStage.items.length === 1
-                ? "1 open opportunity"
-                : `${activeStage.items.length} open opportunities`}
-            </span>
-          </h2>
-          {showValues ? (
-            <p className="text-xs font-medium text-slate-500">
-              {currency.format(total)} in this stage
-            </p>
-          ) : null}
-        </div>
-        <div className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 md:grid-cols-2">
-          <p>
-            <span className="type-label text-slate-500">What&apos;s happened</span>
-            <span className="mt-0.5 block">{guide.happened}</span>
-          </p>
-          <p>
-            <span className="type-label text-slate-500">What to do next</span>
-            <span className="mt-0.5 block">{guide.next}</span>
-          </p>
-        </div>
-        {activeStage.items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">
-            No open opportunities in {activeStage.name}.
-          </p>
-        ) : (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-            {activeStage.items.map((opportunity) => (
-              <OpportunityCard
-                flags={eventFlags.get(opportunity.id) ?? null}
-                key={opportunity.id}
-                opportunity={opportunity}
-                pause={
-                  opportunity.contact?.id
-                    ? (pauses.get(opportunity.contact.id) ?? null)
-                    : null
-                }
-                plannerName={plannerNameById(ghlUsers, opportunity.assignedTo)}
-                showValue={showValues}
-              />
-            ))}
-          </div>
+      <PipelineBoard
+        activeKey={activeStage.key}
+        eventFlags={Object.fromEntries(eventFlags)}
+        initialQuery={query}
+        pauses={Object.fromEntries(
+          [...pauses.entries()].map(([contactId, pause]) => [
+            contactId,
+            { pausedAt: pause.pausedAt, pausedBy: pause.pausedBy, reason: pause.reason },
+          ]),
         )}
-      </section>
+        showValues={showValues}
+        stages={boardStages}
+      />
     </ContactBadgesProvider>
-  );
-}
-
-function OpportunityCard({
-  flags,
-  opportunity,
-  pause,
-  plannerName,
-  showValue,
-}: {
-  flags: EventFlags | null;
-  opportunity: GhlPipelineOpportunity;
-  pause: FollowUpPauseSummary | null;
-  plannerName: string | null;
-  showValue: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 truncate text-sm font-semibold text-slate-950">
-          {flags ? (
-            <Link
-              className="underline-offset-2 hover:underline"
-              href={`/admin/events/${flags.eventId}`}
-              title="Open the portal event"
-            >
-              {opportunity.name || "Untitled opportunity"}
-            </Link>
-          ) : (
-            opportunity.name || "Untitled opportunity"
-          )}
-        </p>
-        {flags?.expedited ? (
-          <StatusBadge tone="danger">Expedited</StatusBadge>
-        ) : flags?.inquirySource === "phone" ? (
-          <StatusBadge tone="neutral">Phone</StatusBadge>
-        ) : null}
-      </div>
-      {opportunity.contact ? (
-        <div className="mt-0.5 space-y-0.5">
-          <p className="truncate text-xs font-medium text-slate-700">
-            {opportunity.contact.name || "Unnamed contact"}
-          </p>
-          {opportunity.contact.email ? (
-            <p className="truncate text-xs text-slate-500">
-              {opportunity.contact.email}
-            </p>
-          ) : null}
-          {opportunity.contact.phone ? (
-            <p className="truncate text-xs text-slate-500">
-              {opportunity.contact.phone}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
-        {opportunity.eventDate ? (
-          <span>{formatEventDate(opportunity.eventDate)}</span>
-        ) : null}
-        {showValue && opportunity.monetaryValue ? (
-          <span className="font-semibold text-slate-700">
-            {currency.format(opportunity.monetaryValue)}
-          </span>
-        ) : null}
-        {plannerName ? <span>{plannerName}</span> : null}
-      </div>
-      {opportunity.contact ? (
-        <div className="mt-2 flex items-center gap-1.5 border-t border-slate-200 pt-2">
-          <ContactConversationsButton
-            compact
-            contactId={opportunity.contact.id}
-            contactName={opportunity.contact.name}
-          />
-          <ContactNotesButton
-            compact
-            contactId={opportunity.contact.id}
-            contactName={opportunity.contact.name}
-          />
-          <ContactTasksButton
-            compact
-            contactId={opportunity.contact.id}
-            contactName={opportunity.contact.name}
-          />
-          {opportunity.contact.id ? (
-            <div className="ml-auto">
-              <FollowUpPauseButton
-                compact
-                contactId={opportunity.contact.id}
-                contactName={opportunity.contact.name}
-                initialPause={pause}
-                opportunityId={opportunity.id}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
