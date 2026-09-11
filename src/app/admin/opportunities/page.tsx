@@ -12,7 +12,10 @@ import {
   FollowUpPauseButton,
   type FollowUpPauseSummary,
 } from "@/components/admin/follow-up-pause-button";
+import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { getEventFlagsByOpportunityIds, type EventFlags } from "@/lib/admin/events";
 import { getUserRole } from "@/lib/admin/users";
 import { listGhlUsers, type GhlUser } from "@/lib/ghl/location-data";
 import {
@@ -59,7 +62,7 @@ const QUICK_RANGES = [
 const STAGE_GUIDES: Record<string, { happened: string; next: string }> = {
   "new inquiry": {
     happened:
-      "The contact submitted the inquiry form. GoHighLevel created the opportunity and the portal created a draft event for each one — you'll find it under Events and in the Linked Event list when reserving rooms.",
+      "The contact submitted the inquiry form (or a planner took the inquiry by phone on the New inquiry page). GoHighLevel created the opportunity and the portal created a draft event for each one — you'll find it under Events and in the Linked Event list when reserving rooms.",
     next:
       "Reach out from the chat bubble and move the opportunity to Contacted in GHL, or hold rooms right away from the Room Calendar or Events page; saving a reservation moves it to Planning automatically. Spoke to them by phone? Use the pause button on the card so GHL's automated follow-ups stop.",
   },
@@ -136,6 +139,11 @@ export default async function AdminOpportunitiesPage({
 
   return (
     <AdminShell
+      actions={
+        <ButtonLink href="/admin/inquiries/new" variant="primary">
+          New inquiry
+        </ButtonLink>
+      }
       description="The GoHighLevel opportunity pipeline and its history, viewed from the portal. GHL remains the system of record — manage stages and contacts there."
       title="Opportunities"
       userEmail={user.email}
@@ -255,9 +263,12 @@ async function PipelineView({
   const visibleContactIds = (activeStage?.items ?? [])
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
-  const [badges, pauses] = await Promise.all([
+  const [badges, pauses, eventFlags] = await Promise.all([
     getStoredContactBadges(visibleContactIds),
     getActiveFollowUpPauses(visibleContactIds),
+    getEventFlagsByOpportunityIds(
+      (activeStage?.items ?? []).map((opportunity) => opportunity.id),
+    ),
   ]);
 
   after(async () => {
@@ -361,6 +372,7 @@ async function PipelineView({
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {activeStage.items.map((opportunity) => (
               <OpportunityCard
+                flags={eventFlags.get(opportunity.id) ?? null}
                 key={opportunity.id}
                 opportunity={opportunity}
                 pause={
@@ -380,11 +392,13 @@ async function PipelineView({
 }
 
 function OpportunityCard({
+  flags,
   opportunity,
   pause,
   plannerName,
   showValue,
 }: {
+  flags: EventFlags | null;
   opportunity: GhlPipelineOpportunity;
   pause: FollowUpPauseSummary | null;
   plannerName: string | null;
@@ -392,9 +406,26 @@ function OpportunityCard({
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-      <p className="truncate text-sm font-semibold text-slate-950">
-        {opportunity.name || "Untitled opportunity"}
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 truncate text-sm font-semibold text-slate-950">
+          {flags ? (
+            <Link
+              className="underline-offset-2 hover:underline"
+              href={`/admin/events/${flags.eventId}`}
+              title="Open the portal event"
+            >
+              {opportunity.name || "Untitled opportunity"}
+            </Link>
+          ) : (
+            opportunity.name || "Untitled opportunity"
+          )}
+        </p>
+        {flags?.expedited ? (
+          <StatusBadge tone="danger">Expedited</StatusBadge>
+        ) : flags?.inquirySource === "phone" ? (
+          <StatusBadge tone="neutral">Phone</StatusBadge>
+        ) : null}
+      </div>
       {opportunity.contact ? (
         <div className="mt-0.5 space-y-0.5">
           <p className="truncate text-xs font-medium text-slate-700">

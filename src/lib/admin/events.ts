@@ -37,6 +37,11 @@ export type AdminEventListItem = {
   checklistReviewCount: number;
   vendorReviewCount: number;
   createdAt: string;
+  // "form" = website inquiry via the GHL webhook; "phone" = taken on the
+  // portal's New inquiry page.
+  inquirySource: "form" | "phone";
+  // Fast-track event (date inside two weeks, or ticked at intake).
+  expedited: boolean;
 };
 
 export type AdminEventDetail = AdminEventListItem & {
@@ -112,7 +117,7 @@ export async function listAdminEvents(): Promise<AdminEventListItem[]> {
       supabase
         .from("events")
         .select(
-          "id, ghl_event_record_id, status, client_portal_url, launched_at, last_synced_at, last_sync_status, ghl_snapshot, created_at",
+          "id, ghl_event_record_id, status, client_portal_url, launched_at, last_synced_at, last_sync_status, ghl_snapshot, created_at, inquiry_source, expedited",
         )
         .order("created_at", { ascending: false })
         .limit(50),
@@ -160,6 +165,8 @@ export async function listAdminEvents(): Promise<AdminEventListItem[]> {
     | "last_sync_status"
     | "ghl_snapshot"
     | "created_at"
+    | "inquiry_source"
+    | "expedited"
   >[];
 
   return eventRows.map((row) =>
@@ -168,6 +175,41 @@ export async function listAdminEvents(): Promise<AdminEventListItem[]> {
       checklistReviewCount: reviewCounts.get(row.id) ?? 0,
       vendorReviewCount: vendorReviewCounts.get(row.id) ?? 0,
     }),
+  );
+}
+
+export type EventFlags = {
+  eventId: string;
+  inquirySource: "form" | "phone";
+  expedited: boolean;
+};
+
+// Portal-side flags for a set of GHL opportunities, one query — the
+// Opportunities cards use it to badge expedited / phone-taken deals.
+export async function getEventFlagsByOpportunityIds(
+  opportunityIds: string[],
+): Promise<Map<string, EventFlags>> {
+  const unique = [...new Set(opportunityIds.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, ghl_opportunity_id, inquiry_source, expedited")
+    .in("ghl_opportunity_id", unique);
+  if (error) {
+    throw new Error(`Unable to load event flags: ${error.message}`);
+  }
+  const rows = (data ?? []) as Pick<
+    EventRow,
+    "id" | "ghl_opportunity_id" | "inquiry_source" | "expedited"
+  >[];
+  return new Map(
+    rows
+      .filter((row) => row.ghl_opportunity_id)
+      .map((row) => [
+        row.ghl_opportunity_id as string,
+        { eventId: row.id, inquirySource: row.inquiry_source, expedited: row.expedited },
+      ]),
   );
 }
 
@@ -663,6 +705,8 @@ function mapEventRowToListItem({
     | "last_sync_status"
     | "ghl_snapshot"
     | "created_at"
+    | "inquiry_source"
+    | "expedited"
   >;
   checklistReviewCount?: number;
   vendorReviewCount?: number;
@@ -684,6 +728,8 @@ function mapEventRowToListItem({
     checklistReviewCount,
     vendorReviewCount,
     createdAt: row.created_at,
+    inquirySource: row.inquiry_source,
+    expedited: row.expedited,
   };
 }
 

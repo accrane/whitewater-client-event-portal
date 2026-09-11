@@ -73,6 +73,48 @@ what the systems do automatically in response.
 - The app writes the new portal event id back to the opportunity's
   **Event Planning App ID** custom field, so GHL knows a portal event exists.
 
+### Step 1b — Phone inquiry, and the expedited fast track
+
+**Human:** a planner takes an inquiry by phone (or any way other than the
+website form) on **New inquiry** (`/admin/inquiries/new`, linked from the
+Opportunities and Events page headers). The form asks the same questions
+as the website form — caller, company, group/event name, inquiry type,
+location, date of interest, guests, activity interest, notes, and the
+yes/no questions — plus the event coordinator and an **Expedited** box.
+Expedited starts ticked when the date of interest is within 14 days and
+can be flipped either way; it requires an email (the portal link goes out
+by email) and a coordinator.
+
+**Automatic, on save:**
+- GHL contact upserted (deduped by email/phone; tagged `inquiry-phone`,
+  source "Phone inquiry (portal)"). If that contact already has an open
+  opportunity in the pipeline, the save stops and offers a link to it
+  instead of creating a second deal.
+- GHL opportunity created in **New Inquiry** with the same custom fields
+  the web form fills (`source: phone`), assigned to the coordinator.
+- Draft portal event created directly (no webhook involved) and the event
+  id written back to the opportunity — same code path as Step 1.
+- Event stamped `inquiry_source = phone` and `expedited` as chosen; a GHL
+  note records who took the call and the notes.
+- Expedited: the planner lands on the event page with the **Add room**
+  modal already open. Saving the hold moves the opportunity to Planning
+  (Step 3) — New Inquiry and Contacted are skipped.
+- Neither phone nor expedited inquiries enter GHL's chase workflows (those
+  trigger on form submission): the planner who took the call owns the
+  follow-up. The pause button is there if needed.
+
+**Expedited everywhere else:** a red **Expedited** badge on the event
+page, the Events list, the Opportunities card, and the dashboard's
+upcoming and contract lists. The dashboard's contract rule changes for
+them: instead of "signed and paid two weeks out", an expedited event is
+flagged only if unsigned inside three days of the event or unpaid inside
+one.
+
+**Backfill:** the same page lists open pipeline opportunities that have no
+portal event (entered straight into GHL, or a webhook that never arrived)
+with a **Create draft event** button that does exactly what the webhook
+would have.
+
 ### Step 2 — Proposal (PandaDoc, via GHL)
 
 **Human:** sales builds and sends the proposal from PandaDoc/GHL.
@@ -318,6 +360,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | --- | --- | --- |
 | Dashboard | `/admin` | Four metric tiles, then: **Vendor submissions** awaiting planner approval (links to the event's vendors section); **Upcoming events** split into *Today's events* and *This week's events* (next seven days); **Contracts** with *Recently signed* and a red *Needs attention* list — launched events within three weeks with no signed contract (no contract sent / awaiting PandaDoc approval / awaiting signature) and, inside two weeks, signed-but-unpaid ones (PandaDoc `waiting_pay`) |
 | Events | `/admin/events` | All portal events; open one to work it |
+| New inquiry | `/admin/inquiries/new` | Phone intake form (creates GHL contact + opportunity in New Inquiry, then the draft event; Expedited fast track opens the room-hold modal on the event page) and the backfill list of GHL opportunities without a portal event |
 | Event detail | `/admin/events/<id>` | Summary (incl. contracts list under Portal URL), planner, primary contact with conversations/notes/tasks buttons and the follow-ups pause switch, room bookings, launch, review queues |
 | Contracts | `/admin/events/<id>/contracts` | PandaDoc contracts for the event: create (template, terms, line items, recipient), edit unsigned ones in place (re-sent as a new revision), history with status/totals/links, signed PDF, refresh status |
 | — Checklist | `/admin/events/<id>/checklist` | Event-specific checklist editing |
@@ -365,6 +408,8 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 | Trigger | Direction | What moves |
 | --- | --- | --- |
 | Inquiry webhook | GHL → app | Creates draft event; app writes event id back |
+| Phone inquiry | app → GHL | Contact upsert (`/contacts/upsert`, tag `inquiry-phone`), opportunity create (`POST /opportunities`, New Inquiry stage, form custom fields, `assignedTo`), contact note; then the draft event is created locally and its id written back. `events.inquiry_source` / `events.expedited` record the path |
+| Inquiry backfill | GHL → app | `GET /opportunities/{id}` → same draft-event creator as the webhook (`inquiry_event_backfill` log) |
 | Admin event page load | GHL → app | Opportunity snapshot refresh (name, date, planner, links, counts, value) |
 | Event summary save | app → GHL | Guest/pass/bin counts, Value |
 | Facilitator save (admin or client portal) | app → GHL | Facilitator name/email/phone custom fields + `facilitator`-tagged contact upsert (one-way; GHL never writes back). "Same as current contact" saves instead read the primary GHL contact and skip the upsert |
@@ -565,6 +610,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-11 | New inquiry page (`/admin/inquiries/new`): phone intake that creates the GHL contact (upsert, `inquiry-phone` tag) and opportunity (New Inquiry, web-form custom fields, coordinator) then the draft event directly, with a duplicate-opportunity guard; **Expedited** fast track (auto-ticked inside 14 days; needs email + coordinator; lands on the event page with the room-hold modal open) stored as `events.expedited` with `events.inquiry_source`; Expedited badges on event page, Events list, Opportunities cards, dashboard; expedited contract rule (unsigned inside 3 days / unpaid inside 1). Same page backfills draft events for GHL opportunities the webhook never delivered. "New inquiry" buttons on Opportunities and Events. |
 | 2026-09-11 | Follow-ups pause: a pause switch on Opportunities cards, in the conversations drawer, and on the event page's contact card adds the `follow-ups-paused` tag to the GHL contact (which the chase workflows check before each send — see the section 6 checklist), writes a GHL note with who/why, and records the pause in the new `follow_up_pauses` table. Amber Paused badge + Resume. Lifted on contract signature (Booked), by the dashboard's reconcile pass when GHL shows the deal Booked/Lost/won/lost, or manually — never by a timer. New dashboard section **Paused follow-ups** lists contacts paused over 14 days with a Resume control. API: `GET`/`POST /api/ghl/contacts/[contactId]/follow-ups`. |
 | 2026-09-11 | Opportunities → Pipeline: each stage tab now shows a two-column stage guide ("What's happened" / "What to do next") between the header and the cards, describing the automatic steps and the planner's next move for New Inquiry, Contacted, Planning, Proposal Sent, Booked, Lost, and Other. Keyed by GHL stage name (`STAGE_GUIDES`). |
 | 2026-09-11 | Conversations drawer: the Email/SMS picker now defaults to the channel of the contact's most recent inbound message (first load only; DND still wins), and every thread message shows an envelope/phone/bubble icon for its channel. |

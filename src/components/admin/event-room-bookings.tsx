@@ -76,6 +76,9 @@ type AddRoomBookingButtonProps = {
   // coordinator so bookings added here don't show as Unassigned.
   plannerName: string | null;
   rooms: RoomOption[];
+  // Open the modal on mount — the expedited intake lands here so rooms get
+  // held without another click.
+  autoOpen?: boolean;
 };
 
 export function AddRoomBookingButton({
@@ -84,8 +87,9 @@ export function AddRoomBookingButton({
   eventDate,
   plannerName,
   rooms,
+  autoOpen = false,
 }: AddRoomBookingButtonProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
 
   return (
     <>

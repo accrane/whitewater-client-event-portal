@@ -10,6 +10,17 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 
 ## Opportunity fields in use (already created)
 
+> **Phone inquiries (portal → GHL):** the New inquiry page writes the web
+> form's fields onto the opportunity it creates — Inquiry Type, Group/Event
+> Name, Company/Organization Name (`BurRW64PbpWhzSd8M3To`), Number of
+> Guests, Location (`r8hIpkhPXXCqxW2jRWRY`), Activity Interest
+> (`PPoj8o6YqJepvZ0tWb7K`), Message (`qkRcSQCMM154RyxMY7qk`), Catering
+> (`40ZnHRqKXvMWJdKfwRgo`), Venue Rental (`gEXbzg2PVYwZz8atUvOa`), Visited
+> Prior (`0IJUpiCD9Kc9VM79SVBk`), Date Flexibility (`5pycOyTRrNdm9WtZX6G1`),
+> Accommodation Interest (`pZkLs15V95Zm4KDgXM5T`), and Date of Interest.
+> Ids live in `INQUIRY_FIELD_IDS` (`src/lib/ghl/phone-inquiries.ts`).
+
+
 | Field | Field ID | Key | How the portal uses it |
 | --- | --- | --- | --- |
 | Event Planning App ID | `IDk5IeH17B5bpEqcHvkK` | `opportunity.event_planning_app_id` | App **writes** the portal event id here after the inquiry webhook creates the event (`GHL_OPPORTUNITY_EVENT_FIELD_ID`). |

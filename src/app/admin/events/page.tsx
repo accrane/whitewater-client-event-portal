@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { CreateEventButton } from "@/components/admin/create-event-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { ButtonLink } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { formatDisplayDate } from "@/lib/dates";
 import { listAdminEvents, type AdminEventListItem } from "@/lib/admin/events";
@@ -101,7 +102,14 @@ export default async function AdminEventsPage({
 
   return (
     <AdminShell
-      actions={<CreateEventButton />}
+      actions={
+        <>
+          <ButtonLink href="/admin/inquiries/new" variant="primary">
+            New inquiry
+          </ButtonLink>
+          <CreateEventButton />
+        </>
+      }
       description="Every portal event, from new GHL inquiries through launched client portals."
       title="Events"
       userEmail={user.email}
@@ -199,6 +207,9 @@ export default async function AdminEventsPage({
                       {event.plannerName || "Not assigned"}
                     </span>
                     <span>
+                      {event.expedited ? (
+                        <StatusBadge tone="danger">Expedited</StatusBadge>
+                      ) : null}
                       <StatusBadge tone={statusTones[event.status]}>
                         {statusLabels[event.status]}
                       </StatusBadge>

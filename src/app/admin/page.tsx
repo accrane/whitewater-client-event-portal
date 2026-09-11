@@ -110,6 +110,7 @@ export default async function AdminDashboardPage() {
       state: contractDeadlineState(
         contractsByEvent.get(item.event.id) ?? [],
         item.daysOut,
+        item.event.expedited,
       ),
     }))
     .filter(
@@ -444,7 +445,14 @@ function UpcomingEventsSection({
               detail={detail(event)}
               event={event}
               key={event.id}
-              right={<StatusBadge tone="success">Today</StatusBadge>}
+              right={
+                <>
+                  {event.expedited ? (
+                    <StatusBadge tone="danger">Expedited</StatusBadge>
+                  ) : null}
+                  <StatusBadge tone="success">Today</StatusBadge>
+                </>
+              }
             />
           ))}
         </ul>
@@ -460,9 +468,14 @@ function UpcomingEventsSection({
               event={event}
               key={event.id}
               right={
-                <span className="text-xs text-slate-500 tabular-nums">
-                  {daysOut === 1 ? "Tomorrow" : `In ${daysOut} days`}
-                </span>
+                <>
+                  {event.expedited ? (
+                    <StatusBadge tone="danger">Expedited</StatusBadge>
+                  ) : null}
+                  <span className="text-xs text-slate-500 tabular-nums">
+                    {daysOut === 1 ? "Tomorrow" : `In ${daysOut} days`}
+                  </span>
+                </>
               }
             />
           ))}
@@ -490,7 +503,7 @@ function ContractsSection({
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <SectionHeader
-        description="Contracts must be signed and paid two weeks before the event. Anything three weeks out without a signature is flagged below."
+        description="Contracts must be signed and paid two weeks before the event. Anything three weeks out without a signature is flagged below; expedited events are flagged only inside three days."
         title="Contracts"
       />
       <div className="grid xl:grid-cols-2 xl:divide-x xl:divide-slate-200">
@@ -557,9 +570,14 @@ function ContractsSection({
                   href={`/admin/events/${event.id}/contracts`}
                   key={event.id}
                   right={
-                    <StatusBadge tone={deadlineCopy[state].tone}>
+                    <>
+                      {event.expedited ? (
+                        <StatusBadge tone="danger">Expedited</StatusBadge>
+                      ) : null}
+                      <StatusBadge tone={deadlineCopy[state].tone}>
                       {deadlineCopy[state].label}
                     </StatusBadge>
+                    </>
                   }
                 />
               ))}

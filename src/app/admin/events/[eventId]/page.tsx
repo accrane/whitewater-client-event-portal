@@ -115,11 +115,18 @@ function getFlashMessage(params: {
   checklist?: string;
   details?: string;
   facilitator?: string;
+  inquiry?: string;
   launched?: string;
   planner?: string;
   upload?: string;
   vendor?: string;
 }): string | null {
+  if (params.inquiry === "phone") {
+    return "Phone inquiry created: the GHL contact and opportunity are in New Inquiry and this draft event is linked to them. Hold rooms below to move the deal to Planning.";
+  }
+  if (params.inquiry === "backfilled") {
+    return "Draft event created for the existing GHL opportunity and the event id written back to it.";
+  }
   if (params.planner === "updated") {
     return "Planner updated. The GHL opportunity's assigned user was changed to match.";
   }
@@ -168,8 +175,10 @@ type AdminEventDetailPageProps = {
     checklist?: string;
     details?: string;
     facilitator?: string;
+    inquiry?: string;
     launched?: string;
     planner?: string;
+    rooms?: string;
     upload?: string;
     vendor?: string;
   }>;
@@ -195,8 +204,10 @@ export default async function AdminEventDetailPage({
     checklist,
     details,
     facilitator,
+    inquiry,
     launched,
     planner,
+    rooms: roomsParam,
     upload,
     vendor,
   } = await searchParams;
@@ -243,6 +254,7 @@ export default async function AdminEventDetailPage({
     checklist,
     details,
     facilitator,
+    inquiry,
     launched,
     planner,
     upload,
@@ -281,9 +293,17 @@ export default async function AdminEventDetailPage({
           : "Not synced"
       }`}
       meta={
-        <StatusBadge tone={statusTones[event.status]}>
-          {statusLabels[event.status]}
-        </StatusBadge>
+        <>
+          <StatusBadge tone={statusTones[event.status]}>
+            {statusLabels[event.status]}
+          </StatusBadge>
+          {event.expedited ? (
+            <StatusBadge tone="danger">Expedited</StatusBadge>
+          ) : null}
+          {event.inquirySource === "phone" ? (
+            <StatusBadge tone="neutral">Phone inquiry</StatusBadge>
+          ) : null}
+        </>
       }
       title={event.eventName}
       userEmail={user.email}
@@ -547,6 +567,7 @@ export default async function AdminEventDetailPage({
       />
 
       <RoomBookingsSection
+        autoOpenBookings={roomsParam === "open"}
         eventDate={event.eventDate}
         eventId={event.id}
         eventName={event.eventName}
@@ -880,6 +901,7 @@ function FacilitatorSection({
 }
 
 function RoomBookingsSection({
+  autoOpenBookings = false,
   eventDate,
   eventId,
   eventName,
@@ -887,6 +909,7 @@ function RoomBookingsSection({
   reservations,
   rooms,
 }: {
+  autoOpenBookings?: boolean;
   eventDate: string | null;
   eventId: string;
   eventName: string;
@@ -921,6 +944,7 @@ function RoomBookingsSection({
             {reservations.length} booking{reservations.length === 1 ? "" : "s"}
           </span>
           <AddRoomBookingButton
+            autoOpen={autoOpenBookings}
             eventDate={eventDate}
             eventId={eventId}
             eventName={eventName}

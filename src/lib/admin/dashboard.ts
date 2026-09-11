@@ -253,11 +253,16 @@ export type ContractDeadlineState =
 // Whitewater needs contracts signed and paid two weeks before the event.
 // From three weeks out, an event whose contracts aren't signed shows on the
 // dashboard; from two weeks out, one that is signed but not yet paid in
-// PandaDoc does too. Returns null when the event is in the clear.
+// PandaDoc does too. Expedited events can't meet that timeline by
+// definition, so their rule is "signed and paid before the event day":
+// unsigned inside three days, or unpaid inside one. Returns null when the
+// event is in the clear.
 export function contractDeadlineState(
   contracts: DashboardContract[],
   daysOut: number,
+  expedited = false,
 ): ContractDeadlineState | null {
+  if (expedited && daysOut > 3) return null;
   const live = contracts.filter(
     (contract) =>
       !["declined", "voided", "error", "creating"].includes(contract.status),
@@ -275,7 +280,7 @@ export function contractDeadlineState(
   const unsigned = live.filter((contract) => contract.status !== "completed");
   if (unsigned.length > 0) return "awaiting_signature";
   if (
-    daysOut <= 14 &&
+    daysOut <= (expedited ? 1 : 14) &&
     signed.some(
       (contract) => contract.pandadocStatus === "document.waiting_pay",
     )

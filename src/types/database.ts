@@ -120,6 +120,8 @@ export type Database = {
             Database["public"]["Enums"]["integration_status"] | null;
           last_sync_error: string | null;
           ghl_snapshot: Json;
+          inquiry_source: "form" | "phone";
+          expedited: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -143,6 +145,8 @@ export type Database = {
             Database["public"]["Enums"]["integration_status"] | null;
           last_sync_error?: string | null;
           ghl_snapshot?: Json;
+          inquiry_source?: "form" | "phone";
+          expedited?: boolean;
           created_at?: string;
           updated_at?: string;
         };
