@@ -11,6 +11,7 @@ export type GhlContactSummary = {
   lastName: string | null;
   email: string | null;
   phone: string | null;
+  companyName: string | null;
 };
 
 export async function fetchGhlContact(
@@ -36,6 +37,7 @@ export async function fetchGhlContact(
         lastName?: string;
         email?: string;
         phone?: string;
+        companyName?: string;
       };
     };
     const contact = data.contact;
@@ -54,6 +56,7 @@ export async function fetchGhlContact(
       lastName: contact.lastName?.trim() || null,
       email: contact.email?.trim() || null,
       phone: contact.phone?.trim() || null,
+      companyName: contact.companyName?.trim() || null,
     };
   } catch (error) {
     console.error("GHL contact fetch failed", error);

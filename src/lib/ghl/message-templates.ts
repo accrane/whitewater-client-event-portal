@@ -79,7 +79,10 @@ async function fetchSnippets(): Promise<TemplateListResult<GhlSnippet>> {
 
   try {
     const response = await fetch(
-      `${apiBaseUrl}/locations/${encodeURIComponent(locationId)}/templates?originId=${encodeURIComponent(locationId)}&deleted=false&limit=100`,
+      // No `originId`: GHL treats it as a filter on the snippet's origin
+      // record (an agency/parent id), not the location, and setting it to the
+      // location id returns an empty list even when snippets exist.
+      `${apiBaseUrl}/locations/${encodeURIComponent(locationId)}/templates?deleted=false&limit=100`,
       { headers: getGhlApiHeaders(accessToken) },
     );
 
@@ -246,6 +249,7 @@ export type SnippetMergeContext = {
     lastName: string | null;
     email: string | null;
     phone: string | null;
+    companyName: string | null;
   } | null;
   user: { name: string | null; email: string | null } | null;
 };
@@ -266,6 +270,7 @@ export function renderSnippetMergeTags(
     "contact.email": contact?.email,
     "contact.phone": contact?.phone,
     "contact.phone_raw": contact?.phone,
+    "contact.company_name": contact?.companyName,
     "user.name": user?.name,
     "user.full_name": user?.name,
     "user.first_name": userFirst || null,
