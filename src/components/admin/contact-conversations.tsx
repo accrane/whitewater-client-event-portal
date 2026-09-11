@@ -372,34 +372,37 @@ function ConversationsDrawer({
                 key={message.id}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                  className={`max-w-[85%] min-w-[60%] overflow-hidden rounded-2xl text-sm ${
                     message.direction === "outbound"
                       ? "rounded-br-md bg-slate-900 text-slate-100"
                       : "rounded-bl-md border border-slate-200 bg-white text-slate-800"
                   }`}
                 >
-                  <p
-                    className={`mb-1 flex items-center gap-1.5 type-label ${
-                      message.direction === "outbound"
-                        ? "text-slate-400"
-                        : "text-slate-500"
-                    }`}
-                  >
+                  {/* Title bar: fixed dark gray + white regardless of theme,
+                      so it reads as a header on both bubble colors. */}
+                  <p className="flex items-center gap-1.5 border-t-2 border-[var(--brand)] bg-[#404040] px-4 py-2 type-label text-[#ffffff]">
                     <ChannelIcon messageType={message.messageType} />
-                    {message.direction === "outbound" ? "Whitewater" : contactName || "Contact"}
-                    {" · "}
-                    {channelLabels[message.messageType] ?? "Message"}
-                    {" · "}
-                    {formatMessageDate(message.dateAdded)}
+                    <span className="truncate">
+                      {message.direction === "outbound"
+                        ? "Whitewater"
+                        : contactName || "Contact"}
+                      {" · "}
+                      {channelLabels[message.messageType] ?? "Message"}
+                    </span>
+                    <span className="ml-auto shrink-0 pl-3 text-[#ffffff]/75">
+                      {formatMessageDate(message.dateAdded)}
+                    </span>
                   </p>
-                  {message.subject ? (
-                    <p className="mb-1 text-xs font-semibold">
-                      {message.subject}
+                  <div className="px-4 py-3">
+                    {message.subject ? (
+                      <p className="mb-1.5 text-xs font-semibold">
+                        {message.subject}
+                      </p>
+                    ) : null}
+                    <p className="whitespace-pre-wrap break-words leading-5">
+                      {message.body || "(no text content)"}
                     </p>
-                  ) : null}
-                  <p className="whitespace-pre-wrap break-words leading-5">
-                    {message.body || "(no text content)"}
-                  </p>
+                  </div>
                 </div>
               </div>
             ))
