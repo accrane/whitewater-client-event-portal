@@ -47,6 +47,62 @@ const QUICK_RANGES = [
   { key: "1y", label: "Past year", months: 12 },
 ] as const;
 
+// What each pipeline stage means for a planner: what already happened
+// (much of it automatic) and what to do next. Keyed by the stage's name in
+// GHL, so renaming a stage there needs a matching update here; unknown
+// stages get the generic line.
+const STAGE_GUIDES: Record<string, { happened: string; next: string }> = {
+  "new inquiry": {
+    happened:
+      "The contact submitted the inquiry form. GoHighLevel created the opportunity and the portal created a draft event for each one — you'll find it under Events and in the Linked Event list when reserving rooms.",
+    next:
+      "Reach out from the chat bubble and move the opportunity to Contacted in GHL, or hold rooms right away from the Room Calendar or Events page; saving a reservation moves it to Planning automatically.",
+  },
+  contacted: {
+    happened:
+      "Someone has been in touch with the contact and is gathering dates, headcount, and what they want to do.",
+    next:
+      "Keep the conversation going from the chat bubble. Once dates are settled, reserve rooms from the Room Calendar or Events page and pick the coordinator; saving moves the opportunity to Planning and assigns it to that coordinator.",
+  },
+  planning: {
+    happened:
+      "Rooms are held or booked and a coordinator is assigned. The draft event is ready to work.",
+    next:
+      "Open the event page to confirm room bookings, fill in the event summary, and build the proposal in PandaDoc. When the proposal goes out, move the opportunity to Proposal Sent in GHL.",
+  },
+  "proposal sent": {
+    happened:
+      "The proposal is with the client. Its link appears on the event page and in the client portal once GHL records it.",
+    next:
+      "Follow up from the chat bubble. When they're ready, send the contract from the event page's Contracts tab; a signed contract moves the opportunity to Booked automatically.",
+  },
+  booked: {
+    happened:
+      "The contract is signed and the event value is written back to the opportunity.",
+    next:
+      "Launch the client's portal from the bottom of the event page so they can work their checklist, then review vendor and upload submissions as they come in. Mark the opportunity Won in GHL after the event.",
+  },
+  lost: {
+    happened: "The inquiry didn't go ahead.",
+    next:
+      "Nothing further happens in the portal. The draft event stays under Events until it's archived.",
+  },
+  other: {
+    happened:
+      "These opportunities sit in a stage that was removed from the pipeline in GHL.",
+    next: "Move each one to a current stage in GHL so it shows up under the right tab.",
+  },
+};
+
+const DEFAULT_STAGE_GUIDE = {
+  happened: "This stage is managed in GoHighLevel; the portal mirrors it here.",
+  next: "Use the chat, notes, and tasks buttons on each card to work the contact.",
+};
+
+function stageGuide(name: string) {
+  return STAGE_GUIDES[name.trim().toLowerCase()] ?? DEFAULT_STAGE_GUIDE;
+}
+
 type AdminOpportunitiesPageProps = {
   searchParams: Promise<{
     tab?: string;
@@ -216,6 +272,7 @@ async function PipelineView({
     (sum, item) => sum + (item.monetaryValue ?? 0),
     0,
   );
+  const guide = stageGuide(activeStage.name);
 
   return (
     <ContactBadgesProvider badges={badges}>
@@ -277,6 +334,16 @@ async function PipelineView({
               {currency.format(total)} in this stage
             </p>
           ) : null}
+        </div>
+        <div className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 md:grid-cols-2">
+          <p>
+            <span className="type-label text-slate-500">What&apos;s happened</span>
+            <span className="mt-0.5 block">{guide.happened}</span>
+          </p>
+          <p>
+            <span className="type-label text-slate-500">What to do next</span>
+            <span className="mt-0.5 block">{guide.next}</span>
+          </p>
         </div>
         {activeStage.items.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-400">
