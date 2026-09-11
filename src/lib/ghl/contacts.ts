@@ -3,8 +3,18 @@ import { getGhlApiHeaders } from "@/lib/ghl/client";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 
 // Reads one GHL contact's name/email/phone — used to fill the facilitator
-// from the event's primary contact when "same as current contact" is picked.
-// Degrades to null when GHL is unconfigured or the lookup fails.
+// from the event's primary contact when "same as current contact" is picked,
+// and by the conversations drawer for Do Not Disturb. Degrades to null when
+// GHL is unconfigured or the lookup fails.
+export type GhlContactDnd = {
+  // GHL's contact-level DND switch: every channel is off.
+  all: boolean;
+  // Per-channel DND (GHL Contact → DND settings), including opt-outs GHL
+  // records itself when someone replies STOP.
+  sms: boolean;
+  email: boolean;
+};
+
 export type GhlContactSummary = {
   name: string | null;
   firstName: string | null;
@@ -12,7 +22,23 @@ export type GhlContactSummary = {
   email: string | null;
   phone: string | null;
   companyName: string | null;
+  dnd: GhlContactDnd;
 };
+
+// A contact that has never had DND touched carries no dnd fields at all.
+function parseDnd(contact: {
+  dnd?: boolean;
+  dndSettings?: Record<string, { status?: string } | undefined>;
+}): GhlContactDnd {
+  const all = contact.dnd === true;
+  const channelActive = (key: string) =>
+    contact.dndSettings?.[key]?.status?.toLowerCase() === "active";
+  return {
+    all,
+    sms: all || channelActive("SMS"),
+    email: all || channelActive("Email"),
+  };
+}
 
 export async function fetchGhlContact(
   contactId: string,
@@ -38,6 +64,8 @@ export async function fetchGhlContact(
         email?: string;
         phone?: string;
         companyName?: string;
+        dnd?: boolean;
+        dndSettings?: Record<string, { status?: string } | undefined>;
       };
     };
     const contact = data.contact;
@@ -57,6 +85,7 @@ export async function fetchGhlContact(
       email: contact.email?.trim() || null,
       phone: contact.phone?.trim() || null,
       companyName: contact.companyName?.trim() || null,
+      dnd: parseDnd(contact),
     };
   } catch (error) {
     console.error("GHL contact fetch failed", error);

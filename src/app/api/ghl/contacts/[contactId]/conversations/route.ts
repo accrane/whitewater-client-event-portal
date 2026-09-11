@@ -3,6 +3,7 @@ import {
   requireAdminUser,
 } from "@/lib/admin/calendar-api";
 import { appConfig } from "@/lib/env";
+import { fetchGhlContact, type GhlContactDnd } from "@/lib/ghl/contacts";
 import {
   listContactConversations,
   sendConversationMessage,
@@ -10,9 +11,17 @@ import {
 
 // Conversations drawer backend, keyed by GHL contact id so the drawer works
 // anywhere a contact appears (admin event page, opportunities board). GET
-// loads the contact's full GHL conversation history; POST sends a typed
-// reply through GHL. An optional eventId in the POST body links the
-// integration log row to a portal event when the drawer was opened from one.
+// loads the contact's full GHL conversation history plus the contact's Do
+// Not Disturb state; POST sends a typed reply through GHL, refusing a
+// channel the contact has DND on (the drawer hides it, but this is the
+// backstop). An optional eventId in the POST body links the integration log
+// row to a portal event when the drawer was opened from one.
+
+const NO_DND: GhlContactDnd = { all: false, sms: false, email: false };
+
+function dndBlocks(dnd: GhlContactDnd, channel: "Email" | "SMS"): boolean {
+  return channel === "SMS" ? dnd.sms : dnd.email;
+}
 
 export async function GET(
   _request: Request,
@@ -21,8 +30,11 @@ export async function GET(
   try {
     await requireAdminUser();
     const { contactId } = await params;
-    const conversations = await listContactConversations(contactId);
-    return Response.json({ conversations });
+    const [conversations, contact] = await Promise.all([
+      listContactConversations(contactId),
+      fetchGhlContact(contactId),
+    ]);
+    return Response.json({ conversations, dnd: contact?.dnd ?? NO_DND });
   } catch (error) {
     return calendarErrorResponse(error);
   }
@@ -49,6 +61,16 @@ export async function POST(
 
     if (!body) {
       return Response.json({ error: "Enter a message to send." }, { status: 400 });
+    }
+
+    const contact = await fetchGhlContact(contactId);
+    if (contact && dndBlocks(contact.dnd, channel)) {
+      return Response.json(
+        {
+          error: `This contact has Do Not Disturb for ${channel} in GoHighLevel, so the message was not sent.`,
+        },
+        { status: 409 },
+      );
     }
 
     const outcome = await sendConversationMessage({

@@ -32,6 +32,8 @@ type DrawerConversation = {
   messages: DrawerMessage[];
 };
 
+type ContactDnd = { all: boolean; sms: boolean; email: boolean };
+
 type Snippet = {
   id: string;
   name: string;
@@ -127,6 +129,13 @@ function ConversationsDrawer({
   const [conversations, setConversations] = useState<DrawerConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // GHL Do Not Disturb for this contact; a channel with DND on is removed
+  // from the reply box rather than left to fail at send time.
+  const [dnd, setDnd] = useState<ContactDnd>({
+    all: false,
+    sms: false,
+    email: false,
+  });
 
   const [channel, setChannel] = useState<"Email" | "SMS">("Email");
   const [subject, setSubject] = useState("");
@@ -150,12 +159,25 @@ function ConversationsDrawer({
       const res = await fetch(`/api/ghl/contacts/${contactId}/conversations`);
       const data = (await res.json()) as {
         conversations?: DrawerConversation[];
+        dnd?: ContactDnd;
         error?: string;
       };
       if (!res.ok) {
         throw new Error(data.error || "Unable to load conversations");
       }
       setConversations(data.conversations ?? []);
+      if (data.dnd) {
+        setDnd(data.dnd);
+        // Never leave the compose box on a channel that just became
+        // unavailable.
+        setChannel((current) =>
+          current === "SMS" && data.dnd?.sms
+            ? "Email"
+            : current === "Email" && data.dnd?.email && !data.dnd?.sms
+              ? "SMS"
+              : current,
+        );
+      }
       setLoadError(null);
     } catch (error) {
       setLoadError(
@@ -232,7 +254,8 @@ function ConversationsDrawer({
     });
   };
 
-  const canSend = Boolean(body.trim());
+  const channelBlocked = channel === "SMS" ? dnd.sms : dnd.email;
+  const canSend = Boolean(body.trim()) && !channelBlocked;
 
   const handleSend = async () => {
     if (!canSend || sending) return;
@@ -371,14 +394,31 @@ function ConversationsDrawer({
               {sentNotice}
             </p>
           ) : null}
+          {dnd.all || (dnd.sms && dnd.email) ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              This contact has Do Not Disturb turned on in GoHighLevel for
+              every channel. Messages can&apos;t be sent from here until it is
+              lifted on the GHL contact.
+            </p>
+          ) : dnd.sms ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Texting is off: this contact has Do Not Disturb for SMS in
+              GoHighLevel. Email is still available.
+            </p>
+          ) : dnd.email ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Email is off: this contact has Do Not Disturb for email in
+              GoHighLevel. SMS is still available.
+            </p>
+          ) : null}
           <div className="flex items-center gap-2">
             <select
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-800"
               onChange={(e) => setChannel(e.target.value === "SMS" ? "SMS" : "Email")}
               value={channel}
             >
-              <option value="Email">Email</option>
-              <option value="SMS">SMS</option>
+              {!dnd.email ? <option value="Email">Email</option> : null}
+              {!dnd.sms ? <option value="SMS">SMS</option> : null}
             </select>
             {channel === "Email" ? (
               <input
