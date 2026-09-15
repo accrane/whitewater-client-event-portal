@@ -67,9 +67,24 @@ what the systems do automatically in response.
   Event Sales pipeline (GHL-side workflow).
 - A GHL workflow webhook posts the opportunity to
   `POST /api/ghl/opportunities/inquiry` (secured by the
-  `x-portal-webhook-secret` header matching `GHL_WEBHOOK_SECRET`).
+  `x-portal-webhook-secret` header matching `GHL_WEBHOOK_SECRET`). The
+  delivery only has to carry `ghl_opportunity_id` — the app reads the
+  contact and event details (name, inquiry type, date of interest) from
+  GHL itself, and any field GHL does send wins over what it reads.
 - The app creates a **draft portal event** (idempotent on
   `events.ghl_opportunity_id` — duplicate webhook deliveries are safe).
+- **Setting up the GHL side** (once per environment): in the Event Sales
+  workflow that runs on a new website inquiry, add a *Webhook* action after
+  the opportunity is created. Method `POST`, URL
+  `https://<app host>/api/ghl/opportunities/inquiry`, header
+  `x-portal-webhook-secret` = the app's `GHL_WEBHOOK_SECRET`, custom data
+  `ghl_opportunity_id` = `{{opportunity.id}}`. The app must be reachable
+  from the internet: the Vercel deployment in production, or for local
+  testing a tunnel to port 3000
+  (`cloudflared tunnel --url http://localhost:3000`, then use the
+  `trycloudflare.com` host it prints — it changes every run). Success shows
+  as a `create_inquiry_event` row in the integration log; if nothing
+  arrives, the New inquiry page's backfill list is the fallback.
 - The app writes the new portal event id back to the opportunity's
   **Event Planning App ID** custom field, so GHL knows a portal event exists.
 
@@ -407,7 +422,7 @@ in Supabase Storage. GHL contact/opportunity are untouched otherwise.
 
 | Trigger | Direction | What moves |
 | --- | --- | --- |
-| Inquiry webhook | GHL → app | Creates draft event; app writes event id back |
+| Inquiry webhook | GHL → app | `POST /api/ghl/opportunities/inquiry` with `ghl_opportunity_id` (location defaults to config; contact/event details read via `GET /opportunities/{id}` when not in the delivery) → draft event; app writes event id back |
 | Phone inquiry | app → GHL | Contact upsert (`/contacts/upsert`, tag `inquiry-phone`), opportunity create (`POST /opportunities`, New Inquiry stage, form custom fields, `assignedTo`), contact note; then the draft event is created locally and its id written back. `events.inquiry_source` / `events.expedited` record the path |
 | Inquiry backfill | GHL → app | `GET /opportunities/{id}` → same draft-event creator as the webhook (`inquiry_event_backfill` log) |
 | Admin event page load | GHL → app | Opportunity snapshot refresh (name, date, planner, links, counts, value) |
@@ -610,6 +625,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-15 | Inquiry webhook made self-sufficient: a delivery carrying only `ghl_opportunity_id` now works — the location defaults to `GHL_LOCATION_ID` and the contact, event name, inquiry type and date of interest are read from GHL (same reader as the New inquiry backfill, `buildInquiryPayloadFromOpportunity`); fields GHL sends still win. Reason: website form submissions were reaching GHL but no draft events appeared — the workflow webhook had never reached the app (no public URL). Step 1 now documents the GHL webhook action setup and the tunnel option for local testing. |
 | 2026-09-11 | Opportunities → Pipeline search: a box beside the stage tabs filters the current stage's tiles as you type (name, contact, email, phone, planner; highlighted matches, non-matches hidden), stage tabs switch to per-stage match counts while a term is active, empty results link to the stages that do match, and `?q=` keeps the term across stage switches. The tabs + grid moved into a client component (`pipeline-board.tsx`); data loading stays server-side. |
 | 2026-09-11 | New inquiry page (`/admin/inquiries/new`): phone intake that creates the GHL contact (upsert, `inquiry-phone` tag) and opportunity (New Inquiry, web-form custom fields, coordinator) then the draft event directly, with a duplicate-opportunity guard; **Expedited** fast track (auto-ticked inside 14 days; needs email + coordinator; lands on the event page with the room-hold modal open) stored as `events.expedited` with `events.inquiry_source`; Expedited badges on event page, Events list, Opportunities cards, dashboard; expedited contract rule (unsigned inside 3 days / unpaid inside 1). Same page backfills draft events for GHL opportunities the webhook never delivered. "New inquiry" buttons on Opportunities and Events. |
 | 2026-09-11 | Follow-ups pause: a pause switch on Opportunities cards, in the conversations drawer, and on the event page's contact card adds the `follow-ups-paused` tag to the GHL contact (which the chase workflows check before each send — see the section 6 checklist), writes a GHL note with who/why, and records the pause in the new `follow_up_pauses` table. Amber Paused badge + Resume. Lifted on contract signature (Booked), by the dashboard's reconcile pass when GHL shows the deal Booked/Lost/won/lost, or manually — never by a timer. New dashboard section **Paused follow-ups** lists contacts paused over 14 days with a Resume control. API: `GET`/`POST /api/ghl/contacts/[contactId]/follow-ups`. |

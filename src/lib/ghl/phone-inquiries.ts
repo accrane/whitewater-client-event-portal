@@ -419,12 +419,13 @@ function customFieldValue(customFields: unknown, id: string): string | null {
   return null;
 }
 
-// Creates the draft event for an existing GHL opportunity, exactly as the
-// webhook would have: same payload shape, same idempotent creator.
-export async function backfillInquiryEvent(
+// Reads an existing GHL opportunity and shapes it like the inquiry webhook
+// payload. Shared by the webhook (GHL's workflow webhook sends flat custom
+// data, often just the opportunity id) and the New inquiry backfill, so both
+// doors produce the same draft event.
+export async function buildInquiryPayloadFromOpportunity(
   opportunityId: string,
-  byEmail: string | null,
-): Promise<{ ok: true; eventId: string; created: boolean } | { ok: false; error: string }> {
+): Promise<{ ok: true; payload: InquiryPayload } | { ok: false; error: string }> {
   const { accessToken, apiBaseUrl, locationId, dateOfInterestFieldId } = appConfig.ghl;
   if (!accessToken || !locationId) return { ok: false, error: "GHL is not configured." };
 
@@ -477,17 +478,29 @@ export async function backfillInquiryEvent(
     },
   };
 
-  const result = await createOrReuseInquiryEvent(payload);
+  return { ok: true, payload };
+}
+
+// Creates the draft event for an existing GHL opportunity, exactly as the
+// webhook would have: same payload shape, same idempotent creator.
+export async function backfillInquiryEvent(
+  opportunityId: string,
+  byEmail: string | null,
+): Promise<{ ok: true; eventId: string; created: boolean } | { ok: false; error: string }> {
+  const built = await buildInquiryPayloadFromOpportunity(opportunityId);
+  if (!built.ok) return built;
+
+  const result = await createOrReuseInquiryEvent(built.payload);
   await logIntegrationEvent({
     direction: "GHL_TO_PORTAL",
     eventType: "inquiry_event_backfill",
-    ghlLocationId: locationId,
+    ghlLocationId: built.payload.ghl_location_id,
     portalEventId: result.event.id,
     status: "success",
     message: result.created
       ? "Draft event created for an existing GHL opportunity from the New inquiry page."
       : "Backfill found an existing draft event for this opportunity.",
-    details: { ghl_opportunity_id: opportunity.id, by: byEmail },
+    details: { ghl_opportunity_id: built.payload.ghl_opportunity_id, by: byEmail },
   });
   return { ok: true, eventId: result.event.id, created: result.created };
 }
