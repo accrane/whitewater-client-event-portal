@@ -366,7 +366,7 @@ Payment, the wedding ones) work as they are. If you build a new one:
 
 | What you see | What to check |
 | --- | --- |
-| A website inquiry is in GHL but not under Events | New inquiry → the backfill list at the bottom. **Create draft event** does what the automation should have. |
+| A website inquiry is in GHL but not under Events | New inquiry → the backfill list at the bottom. **Create draft event** does what the automation should have. To see why it was missed, check Admin → Integration Logs: a "rejected" inquiry webhook row means the automation reached the portal but was turned away; no row at all means the GHL automation never sent it. |
 | The event page shows old details | It refreshes from GHL on every open. If it still disagrees with GHL, check Admin → Integration Logs for a failed sync. |
 | Planner and coordinator lists are empty or read-only | The portal can't reach GHL right now. Tell an admin; the connection needs attention. |
 | A reply from the conversations drawer won't send | The message explains why — a Do Not Disturb channel, or a GHL permission an admin needs to grant. |

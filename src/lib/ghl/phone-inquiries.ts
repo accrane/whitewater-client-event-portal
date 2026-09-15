@@ -200,6 +200,37 @@ async function findOpenOpportunityForContact(
   };
 }
 
+// The inquiry webhook's fallback when a delivery arrives without an
+// opportunity id: GHL's form-submission trigger doesn't always populate
+// `{{opportunity.id}}`, but `{{contact.id}}` is always there. The contact's
+// newest open opportunity in the sales pipeline is the one the form just
+// created.
+export async function findNewestOpenOpportunityIdForContact(
+  contactId: string,
+): Promise<string | null> {
+  const { accessToken, apiBaseUrl, locationId, pipelineId } = appConfig.ghl;
+  if (!accessToken || !locationId) return null;
+  const params = new URLSearchParams({
+    location_id: locationId,
+    contact_id: contactId,
+    status: "open",
+    limit: "20",
+  });
+  if (pipelineId) params.set("pipeline_id", pipelineId);
+  const response = await fetch(
+    `${apiBaseUrl}/opportunities/search?${params.toString()}`,
+    { headers: getGhlApiHeaders(accessToken) },
+  );
+  if (!response.ok) return null;
+  const data = (await response.json()) as {
+    opportunities?: { id?: string; createdAt?: string }[];
+  };
+  const newest = (data.opportunities ?? [])
+    .filter((o) => o.id)
+    .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))[0];
+  return newest?.id ?? null;
+}
+
 async function newInquiryStageId(): Promise<string | null> {
   const pipeline = await fetchConfiguredPipeline();
   if (!pipeline || pipeline.stages.length === 0) return null;

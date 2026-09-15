@@ -73,7 +73,7 @@ Admin → Users (service role), so users can't escalate themselves.
 
 | Trigger | Direction | What moves |
 | --- | --- | --- |
-| Inquiry webhook | GHL → app | `POST /api/ghl/opportunities/inquiry` with `ghl_opportunity_id` (location defaults to config; contact/event details read via `GET /opportunities/{id}` when not in the delivery) → draft event; app writes event id back |
+| Inquiry webhook | GHL → app | `POST /api/ghl/opportunities/inquiry` with `ghl_opportunity_id` (location defaults to config; contact/event details read via `GET /opportunities/{id}` when not in the delivery; an empty opportunity id is resolved from `ghl_contact_id` via `GET /opportunities/search?contact_id=` → newest open) → draft event; app writes event id back. Rejected deliveries (bad secret, bad payload, failure) log `inquiry_webhook_rejected` |
 | Phone inquiry | app → GHL | Contact upsert (`/contacts/upsert`, tag `inquiry-phone`), opportunity create (`POST /opportunities`, New Inquiry stage, form custom fields, `assignedTo`), contact note; then the draft event is created locally and its id written back. `events.inquiry_source` / `events.expedited` record the path |
 | Inquiry backfill | GHL → app | `GET /opportunities/{id}` → same draft-event creator as the webhook (`inquiry_event_backfill` log) |
 | Admin event page load | GHL → app | Opportunity snapshot refresh (name, date, planner, links, counts, value) |
@@ -249,17 +249,28 @@ action right after *Create opportunity*, named "Portal: create draft event".
 - Method `POST`, URL `https://<app host>/api/ghl/opportunities/inquiry`
   (production: `https://whitewater-client-event-portal.vercel.app`).
 - Header `x-portal-webhook-secret` = the app's `GHL_WEBHOOK_SECRET`.
-- Custom data `ghl_opportunity_id` = `{{opportunity.id}}` (the only required
-  field; `ghl_location_id` = `{{location.id}}` is sent too but defaults to
-  config). The app reads contact and event details from GHL itself; any
-  field the delivery carries wins.
+- Custom data `ghl_opportunity_id` = `{{opportunity.id}}` **and**
+  `ghl_contact_id` = `{{contact.id}}` (`ghl_location_id` = `{{location.id}}`
+  is sent too but defaults to config). The app reads contact and event
+  details from GHL itself; any field the delivery carries wins. The contact
+  id is the safety net: on a form-submission trigger GHL does not reliably
+  fill `{{opportunity.id}}`, and a delivery with an empty opportunity id is
+  resolved to that contact's newest open opportunity in the pipeline.
 - The app must be reachable from the internet. For local testing,
   `cloudflared tunnel --url http://localhost:3000` prints a temporary
   `trycloudflare.com` host (new every run).
 - Success is a `create_inquiry_event` row in the integration log; a
   duplicate delivery logs `create_inquiry_event_duplicate` and reuses the
-  event. If nothing arrives, the New inquiry page's backfill list uses the
-  same code path (`inquiry_event_backfill`).
+  event. Any delivery the route turns away — wrong or missing secret,
+  invalid payload, or a failure while creating the event — logs
+  `inquiry_webhook_rejected` (status error) with the HTTP status and a
+  summary of what the delivery carried, so a missing draft is diagnosable
+  from Admin → Integration Logs without Vercel logs. No row at all means
+  GHL never called the app: check the workflow's Execution logs and its
+  re-entry setting (a contact that already went through the workflow —
+  e.g. a second test with the same email — is not re-enrolled unless
+  "Allow re-entry" is on). If nothing arrives, the New inquiry page's
+  backfill list uses the same code path (`inquiry_event_backfill`).
 
 Wired for the Event Sales pipeline on 2026-09-15. Any other form or pipeline
 that should produce portal events needs its own workflow with the same
@@ -309,6 +320,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-15 | **Inquiry webhook: rejected deliveries logged, contact-id fallback.** A test submission created the GHL opportunity but no draft appeared and the integration log had no row for it — the route returned 401/400 before logging anything, so a GHL-side miss and an app-side rejection looked identical. Every rejected delivery now logs `inquiry_webhook_rejected` with the HTTP status and a summary of the received fields. A delivery whose `ghl_opportunity_id` merge field is empty is resolved from `ghl_contact_id` (the contact's newest open opportunity in the pipeline, `findNewestOpenOpportunityIdForContact`); the GHL webhook action should send `{{contact.id}}` alongside `{{opportunity.id}}`. Missing drafts are still recoverable from the New inquiry backfill list. |
 | 2026-09-15 | **Docs split into two audiences.** `docs/manual.md` is the planner-facing user guide (roles, lifecycle how-to, screen guide, contracts, troubleshooting — no code paths, env vars, or history) and is the only doc the in-app Manual page renders. `docs/ecosystem-manual.md` became this file, `docs/developer-notes.md`: big picture, data/sync reference, PandaDoc internals, configuration, GHL-side setup (inquiry webhook action, scopes, pause checklist), and the changelog — six 2026-09-09 changelog rows that had been pasted into the section-1 table are back where they belong. `§4`/`§6` pointers in code comments now read `developer-notes.md §2`/`§4`; AGENTS.md describes both docs. |
 | 2026-09-15 | **Manual in the app**: `/admin/manual` renders the user guide from the repo's `docs/` folder with `marked`, heading anchors, an "On this page" list, and doc-to-doc links rewritten to in-app routes (`src/lib/admin/manual.ts`, allowlisted docs only). A **?** icon beside the theme switch opens it in a new tab. `outputFileTracingIncludes` ships the Markdown with the Vercel function. |
 | 2026-09-15 | Inquiry webhook made self-sufficient: a delivery carrying only `ghl_opportunity_id` now works — the location defaults to `GHL_LOCATION_ID` and the contact, event name, inquiry type and date of interest are read from GHL (same reader as the New inquiry backfill, `buildInquiryPayloadFromOpportunity`); fields GHL sends still win. Reason: website form submissions were reaching GHL but no draft events appeared — the workflow webhook had never reached the app (no public URL). Step 1 now documents the GHL webhook action setup and the tunnel option for local testing. |
