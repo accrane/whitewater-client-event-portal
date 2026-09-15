@@ -16,7 +16,7 @@ import {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // Companies directory: the app's permanent archive of booking history,
-// seeded from Salesforce (docs/ecosystem-manual.md §4). Stats are computed
+// seeded from Salesforce (docs/developer-notes.md §2). Stats are computed
 // live from staged opportunities, replacing the Salesforce roll-up fields
 // that GHL has no equivalent for.
 

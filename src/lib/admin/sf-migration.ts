@@ -2,7 +2,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 // Data access for the Salesforce → GHL migration review screen
-// (docs/ecosystem-manual.md §4). All reads/writes go through the service
+// (docs/developer-notes.md §2). All reads/writes go through the service
 // role; pages guard with requireAdminUser().
 
 export type SfPushStatus = Database["public"]["Enums"]["sf_push_status"];

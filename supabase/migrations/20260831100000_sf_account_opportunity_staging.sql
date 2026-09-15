@@ -1,4 +1,4 @@
--- Expand the Salesforce → GHL staging middleman (docs/ecosystem-manual.md §4)
+-- Expand the Salesforce → GHL staging middleman (docs/developer-notes.md §2)
 -- with Accounts and Opportunities, so the app preserves the client's full
 -- booking history (companies, contacts per company, past opportunities,
 -- booking roll-ups) beyond the Salesforce cutover. Same pattern as

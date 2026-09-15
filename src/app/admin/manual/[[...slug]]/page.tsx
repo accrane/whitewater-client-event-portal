@@ -12,7 +12,7 @@ import {
 } from "@/lib/admin/manual";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-// The training manual, rendered from docs/*.md. Reached from the "?" in the
+// The user guide, rendered from docs/manual.md. Reached from the "?" in the
 // top bar (opens in a new tab so it can sit beside the screen being learned).
 
 export default async function ManualPage({
@@ -37,30 +37,32 @@ export default async function ManualPage({
 
   return (
     <AdminShell
-      description="How the portal, GoHighLevel, and PandaDoc work together, step by step. Kept up to date with every release."
+      description="How to work an event in the portal, and what GoHighLevel and PandaDoc do automatically along the way."
       eyebrow="Help"
       title="Manual"
       userEmail={user.email}
     >
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-3">
-        {docSlugs.map((docSlug) => {
-          const active = docSlug === slug;
-          return (
-            <Link
-              aria-current={active ? "page" : undefined}
-              className={`rounded-md px-2.5 py-1 text-[13px] font-medium transition ${
-                active
-                  ? "bg-slate-100 text-slate-950"
-                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
-              }`}
-              href={manualDocHref(docSlug)}
-              key={docSlug}
-            >
-              {MANUAL_DOCS[docSlug].title}
-            </Link>
-          );
-        })}
-      </div>
+      {docSlugs.length > 1 ? (
+        <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-3">
+          {docSlugs.map((docSlug) => {
+            const active = docSlug === slug;
+            return (
+              <Link
+                aria-current={active ? "page" : undefined}
+                className={`rounded-md px-2.5 py-1 text-[13px] font-medium transition ${
+                  active
+                    ? "bg-slate-100 text-slate-950"
+                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+                }`}
+                href={manualDocHref(docSlug)}
+                key={docSlug}
+              >
+                {MANUAL_DOCS[docSlug].title}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
 
       <div className="flex items-start gap-10">
         <article

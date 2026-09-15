@@ -11,7 +11,7 @@ import {
 } from "@/lib/salesforce/pull-engine";
 import type { Database } from "@/types/database";
 
-// Salesforce Contact → sf_contacts staging pull (docs/ecosystem-manual.md §4).
+// Salesforce Contact → sf_contacts staging pull (docs/developer-notes.md §2).
 
 const CONTACT_FIELDS = [
   "Id",

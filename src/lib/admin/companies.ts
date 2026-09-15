@@ -2,7 +2,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 // Data access for the Companies directory (/admin/companies) — the app's
-// permanent archive of pre-GHL booking history (docs/ecosystem-manual.md §4).
+// permanent archive of pre-GHL booking history (docs/developer-notes.md §2).
 // Stats come live from sf_opportunities via the sf_company_directory view,
 // not from the account's frozen Salesforce roll-up snapshots. All reads go
 // through the service role; pages guard with a signed-in portal user.

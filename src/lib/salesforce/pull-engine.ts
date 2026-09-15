@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { querySoql, type SoqlRecord } from "@/lib/salesforce/client";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
-// Shared engine for Salesforce → staging pulls (docs/ecosystem-manual.md §4).
+// Shared engine for Salesforce → staging pulls (docs/developer-notes.md §2).
 // Each object (Contact, Account, Opportunity) supplies a spec: the SOQL
 // fields, a mapper to its staging row, and typed hash-load/upsert callbacks.
 // The engine handles watermarks, run logging, and change detection, so all

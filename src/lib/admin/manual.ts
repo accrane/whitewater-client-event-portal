@@ -5,21 +5,20 @@ import path from "node:path";
 
 import { Marked, type Tokens } from "marked";
 
-// The training manual lives in docs/ as Markdown so it stays next to the
-// code that changes it (see docs/ecosystem-manual.md §7). This renders those
-// files for the in-app Manual page: only the allowlisted docs are served,
-// headings get stable ids for the table of contents, and links between the
-// docs are rewritten to their in-app routes.
+// The user guide lives in docs/manual.md so it stays next to the code that
+// changes it (see docs/developer-notes.md §6). This renders it for the
+// in-app Manual page: only allowlisted docs are served (the developer
+// notes, field map and roadmap are deliberately not — they are for us, not
+// planners), headings get stable ids for the table of contents, and links
+// between allowlisted docs are rewritten to their in-app routes.
 
 export const MANUAL_DOCS = {
-  "ecosystem-manual": { title: "Ecosystem manual" },
-  "ghl-custom-fields": { title: "GHL custom fields" },
-  roadmap: { title: "Roadmap" },
+  manual: { title: "Manual" },
 } as const;
 
 export type ManualDocSlug = keyof typeof MANUAL_DOCS;
 
-export const DEFAULT_MANUAL_DOC: ManualDocSlug = "ecosystem-manual";
+export const DEFAULT_MANUAL_DOC: ManualDocSlug = "manual";
 
 export function isManualDocSlug(value: string): value is ManualDocSlug {
   return Object.hasOwn(MANUAL_DOCS, value);

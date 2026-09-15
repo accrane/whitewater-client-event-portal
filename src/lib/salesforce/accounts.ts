@@ -12,7 +12,7 @@ import {
 } from "@/lib/salesforce/pull-engine";
 import type { Database } from "@/types/database";
 
-// Salesforce Account → sf_accounts staging pull (docs/ecosystem-manual.md §4).
+// Salesforce Account → sf_accounts staging pull (docs/developer-notes.md §2).
 // Number_of_Booked_Opportunities__c and Last_Booking_Date__c are roll-up
 // summaries over the account's opportunities — snapshots at pull time; live
 // equivalents are recomputed in-app from sf_opportunities.

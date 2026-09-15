@@ -6,7 +6,16 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Living docs
 
-`docs/ecosystem-manual.md` is the training manual for the app + GoHighLevel +
-PandaDoc ecosystem. When you ship a feature that changes a workflow, screen,
-GHL field, or config, update it (its section 7 says exactly what to check)
-in the same change. GHL field details belong in `docs/ghl-custom-fields.md`.
+Two docs, two audiences — keep them separate:
+
+- `docs/manual.md` is the **user guide**, rendered inside the app at
+  `/admin/manual` for planners. Plain language: what a screen is for, how a
+  step works, what happens automatically. No code paths, env vars, log
+  names, or history.
+- `docs/developer-notes.md` is the **engineering record**: architecture,
+  data/sync reference, PandaDoc internals, configuration, GHL-side setup,
+  and the changelog. GHL field details belong in `docs/ghl-custom-fields.md`.
+
+When you ship a feature that changes a workflow, screen, GHL field, or
+config, update the right doc(s) in the same change — developer-notes.md
+section 6 says exactly what to check.

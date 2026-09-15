@@ -1,7 +1,7 @@
 import { appConfig } from "@/lib/env";
 
 // Read-only Salesforce client for the SF → GHL contact migration
-// (docs/ecosystem-manual.md §4). Auth is the OAuth client-credentials flow
+// (docs/developer-notes.md §2). Auth is the OAuth client-credentials flow
 // against the "Contact Export" External Client App; the token's run-as user
 // only needs read access.
 

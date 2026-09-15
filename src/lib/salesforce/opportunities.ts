@@ -14,7 +14,7 @@ import {
 import type { Database } from "@/types/database";
 
 // Salesforce Opportunity → sf_opportunities staging pull
-// (docs/ecosystem-manual.md §4). Beyond the flattened columns, the query
+// (docs/developer-notes.md §2). Beyond the flattened columns, the query
 // keeps their event-detail custom fields (rentals, adventures, catering
 // totals, program times) in `raw` for anything the app wants to surface
 // later — raw only ever contains what this query selects.

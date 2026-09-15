@@ -210,7 +210,7 @@ PORTAL_BASE_URL=https://<preview-domain>
 
 GoHighLevel variables (the full set as of 2026-09-10 — the Opportunities
 board, planner assignment, portal-link write-back and the Booked move all
-need these; see `docs/ecosystem-manual.md` §6 for what each one is):
+need these; see `docs/developer-notes.md` §4 for what each one is):
 
 ```text
 GHL_LOCATION_ID

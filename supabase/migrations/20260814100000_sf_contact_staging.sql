@@ -1,5 +1,5 @@
 -- Staging middleman for the Salesforce → GHL contact migration
--- (docs/ecosystem-manual.md §4). Contacts are pulled here from Salesforce,
+-- (docs/developer-notes.md §2). Contacts are pulled here from Salesforce,
 -- reviewed and mapped in the admin portal, then pushed to GHL. One-way sync:
 -- Salesforce is the source of truth until cutover.
 
