@@ -419,6 +419,27 @@ export function ThemeSwitch() {
   );
 }
 
+// "?" beside the theme switch. Opens the in-app manual in a new tab so it can
+// sit next to the screen a planner is learning.
+export function HelpLink() {
+  return (
+    <a
+      aria-label="Open the manual (new tab)"
+      className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 transition hover:text-slate-950"
+      href="/admin/manual"
+      rel="noopener"
+      target="_blank"
+      title="Manual"
+    >
+      <Icon className="h-3.5 w-3.5">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+        <path d="M12 17h.01" />
+      </Icon>
+    </a>
+  );
+}
+
 function SignOutButton({ iconOnly = false }: { iconOnly?: boolean }) {
   return (
     <form action={logoutAction}>
@@ -450,7 +471,10 @@ function DrawerFooter({ userEmail }: { userEmail?: string | null }) {
         ) : (
           <span />
         )}
-        <ThemeSwitch />
+        <div className="flex items-center gap-1.5">
+          <ThemeSwitch />
+          <HelpLink />
+        </div>
       </div>
       <SignOutButton />
     </div>
@@ -533,7 +557,10 @@ export function AdminTopBar({
       </nav>
 
       <div className="flex shrink-0 items-center gap-3">
-        <ThemeSwitch />
+        <div className="flex items-center gap-1.5">
+          <ThemeSwitch />
+          <HelpLink />
+        </div>
         {userEmail ? (
           <span
             className="hidden max-w-[220px] truncate text-xs text-slate-500 xl:inline"

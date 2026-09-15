@@ -1,0 +1,98 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+
+import { AdminShell } from "@/components/admin/admin-shell";
+import {
+  DEFAULT_MANUAL_DOC,
+  MANUAL_DOCS,
+  isManualDocSlug,
+  manualDocHref,
+  renderManualDoc,
+  type ManualDocSlug,
+} from "@/lib/admin/manual";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+// The training manual, rendered from docs/*.md. Reached from the "?" in the
+// top bar (opens in a new tab so it can sit beside the screen being learned).
+
+export default async function ManualPage({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>;
+}) {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
+
+  const { slug: segments = [] } = await params;
+  if (segments.length > 1) notFound();
+  const requested = segments[0] ?? DEFAULT_MANUAL_DOC;
+  if (!isManualDocSlug(requested)) notFound();
+  const slug: ManualDocSlug = requested;
+
+  const doc = await renderManualDoc(slug);
+  const docSlugs = Object.keys(MANUAL_DOCS) as ManualDocSlug[];
+
+  return (
+    <AdminShell
+      description="How the portal, GoHighLevel, and PandaDoc work together, step by step. Kept up to date with every release."
+      eyebrow="Help"
+      title="Manual"
+      userEmail={user.email}
+    >
+      <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-3">
+        {docSlugs.map((docSlug) => {
+          const active = docSlug === slug;
+          return (
+            <Link
+              aria-current={active ? "page" : undefined}
+              className={`rounded-md px-2.5 py-1 text-[13px] font-medium transition ${
+                active
+                  ? "bg-slate-100 text-slate-950"
+                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+              }`}
+              href={manualDocHref(docSlug)}
+              key={docSlug}
+            >
+              {MANUAL_DOCS[docSlug].title}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="flex items-start gap-10">
+        <article
+          className="manual-prose min-w-0 max-w-3xl flex-1"
+          dangerouslySetInnerHTML={{ __html: doc.html }}
+        />
+
+        {doc.headings.length > 0 ? (
+          <nav
+            aria-label="On this page"
+            className="sticky top-16 hidden w-60 shrink-0 xl:block"
+          >
+            <p className="type-label mb-2 text-slate-500">On this page</p>
+            <ol className="max-h-[calc(100vh-7rem)] space-y-0.5 overflow-y-auto border-l border-slate-200 text-[13px]">
+              {doc.headings.map((heading) => (
+                <li key={heading.id}>
+                  <a
+                    className={`block border-l py-1 pr-2 leading-5 text-slate-500 transition hover:text-slate-950 ${
+                      heading.depth === 2
+                        ? "-ml-px border-transparent pl-3 font-medium"
+                        : "-ml-px border-transparent pl-6"
+                    }`}
+                    href={`#${heading.id}`}
+                  >
+                    {heading.text}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        ) : null}
+      </div>
+    </AdminShell>
+  );
+}
