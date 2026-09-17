@@ -13,6 +13,8 @@ Related references (kept separate on purpose):
 - [ghl-custom-fields.md](ghl-custom-fields.md) — the authoritative field-by-field
   list of every GHL custom field the app reads/writes, with field ids.
 - [roadmap.md](roadmap.md) — planned work.
+- [domain-cutover.md](domain-cutover.md) — checklist for moving production
+  from the vercel.app URL to a whitewater.org subdomain.
 
 ---
 
@@ -320,6 +322,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-15 | `docs/domain-cutover.md`: checklist for moving production to a whitewater.org subdomain (DNS + Vercel domain, `PORTAL_BASE_URL`, the GHL webhook action URL, PandaDoc webhook, Portal Link fields, sign-in again). Audit found no host hardcoded in code; absolute URLs come from the request host or `PORTAL_BASE_URL`. |
 | 2026-09-15 | **Inquiry webhook: rejected deliveries logged, contact-id fallback.** A test submission created the GHL opportunity but no draft appeared and the integration log had no row for it — the route returned 401/400 before logging anything, so a GHL-side miss and an app-side rejection looked identical. Every rejected delivery now logs `inquiry_webhook_rejected` with the HTTP status and a summary of the received fields. A delivery whose `ghl_opportunity_id` merge field is empty is resolved from `ghl_contact_id` (the contact's newest open opportunity in the pipeline, `findNewestOpenOpportunityIdForContact`); the GHL webhook action should send `{{contact.id}}` alongside `{{opportunity.id}}`. Missing drafts are still recoverable from the New inquiry backfill list. |
 | 2026-09-15 | **Docs split into two audiences.** `docs/manual.md` is the planner-facing user guide (roles, lifecycle how-to, screen guide, contracts, troubleshooting — no code paths, env vars, or history) and is the only doc the in-app Manual page renders. `docs/ecosystem-manual.md` became this file, `docs/developer-notes.md`: big picture, data/sync reference, PandaDoc internals, configuration, GHL-side setup (inquiry webhook action, scopes, pause checklist), and the changelog — six 2026-09-09 changelog rows that had been pasted into the section-1 table are back where they belong. `§4`/`§6` pointers in code comments now read `developer-notes.md §2`/`§4`; AGENTS.md describes both docs. |
 | 2026-09-15 | **Manual in the app**: `/admin/manual` renders the user guide from the repo's `docs/` folder with `marked`, heading anchors, an "On this page" list, and doc-to-doc links rewritten to in-app routes (`src/lib/admin/manual.ts`, allowlisted docs only). A **?** icon beside the theme switch opens it in a new tab. `outputFileTracingIncludes` ships the Markdown with the Vercel function. |
