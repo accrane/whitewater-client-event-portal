@@ -120,7 +120,7 @@ tables don't.
 
 - **Pull:** `npx tsx --env-file=.env.local scripts/sf-pull.ts` (incremental,
   each object resumes from its own watermark; `--full` re-pulls everything,
-  `--only=contacts|accounts|opportunities` limits the run). Unchanged
+  `--only=contacts|accounts|opportunities|documents` limits the run). Unchanged
   records are hash-skipped, so re-runs are cheap. Runs are logged in
   `sf_pull_runs` (one row per object per run). Shared engine:
   `src/lib/salesforce/pull-engine.ts`.
@@ -131,8 +131,20 @@ tables don't.
   trusting these), and `sf_opportunities` (Opportunities incl. stage,
   amount, `Date__c` "Date of Event", head count, primary `ContactId`; the
   event-detail custom fields — rentals, adventures, catering totals — ride
-  along in `raw`). Auth is the client-credentials flow against the
-  "Contact Export" External Client App (read-only run-as user).
+  along in `raw`), and `sf_pandadoc_documents` (the PandaDoc managed
+  package's `pandadoc__PandaDocDocument__c`: one row per document with its
+  Opportunity, PandaDoc UUID, status string, template name, and the
+  total / sent / completed dates lifted from the package's stored webhook
+  JSON). That JSON is **deliberately dropped** after parsing — it embeds
+  each recipient's tokenized `shared_link`, which opens the document
+  without a login. Rows flagged `pandadoc__Is_Deleted__c` are staged but
+  never linked (dead in PandaDoc). Auth is the client-credentials flow
+  against the "Contact Export" External Client App (read-only run-as user).
+- **Contract links:** the company detail timeline links each archived
+  opportunity to its documents via `pandaDocDocumentUrl(uuid)` —
+  `app.pandadoc.com`, so the viewer needs a seat in Whitewater's PandaDoc
+  workspace. Nothing is fetched from PandaDoc; the UUIDs outlive the
+  Salesforce cutover as long as the PandaDoc workspace does.
 - **Push to GHL:** not built yet — `sf_contacts.push_status` tracks each
   contact through `staged → approved/excluded → pushed`. Accounts and
   opportunities are **not** planned for wholesale push: GHL has no real
@@ -322,6 +334,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-17 | **Booking history links to PandaDoc contracts.** Their Salesforce org runs the PandaDoc managed package, so every document is a `pandadoc__PandaDocDocument__c` row tied to its Opportunity with the PandaDoc UUID. New staging table `sf_pandadoc_documents` (migration `20260917100000`, pull `--only=documents`, `sf_pull_runs.sf_object = 'pandadoc_document'`); first pull staged 6,293 documents (6,240 on an opportunity, 677 deleted in PandaDoc, 2019 → today). Company detail → Booking history lists each opportunity's documents (template name, status, admin-only total) as links into the PandaDoc app. The package's stored webhook JSON is parsed for total/sent/completed and not kept — it contains tokenized signer links. |
 | 2026-09-15 | `docs/domain-cutover.md`: checklist for moving production to a whitewater.org subdomain (DNS + Vercel domain, `PORTAL_BASE_URL`, the GHL webhook action URL, PandaDoc webhook, Portal Link fields, sign-in again). Audit found no host hardcoded in code; absolute URLs come from the request host or `PORTAL_BASE_URL`. |
 | 2026-09-15 | **Inquiry webhook: rejected deliveries logged, contact-id fallback.** A test submission created the GHL opportunity but no draft appeared and the integration log had no row for it — the route returned 401/400 before logging anything, so a GHL-side miss and an app-side rejection looked identical. Every rejected delivery now logs `inquiry_webhook_rejected` with the HTTP status and a summary of the received fields. A delivery whose `ghl_opportunity_id` merge field is empty is resolved from `ghl_contact_id` (the contact's newest open opportunity in the pipeline, `findNewestOpenOpportunityIdForContact`); the GHL webhook action should send `{{contact.id}}` alongside `{{opportunity.id}}`. Missing drafts are still recoverable from the New inquiry backfill list. |
 | 2026-09-15 | **Docs split into two audiences.** `docs/manual.md` is the planner-facing user guide (roles, lifecycle how-to, screen guide, contracts, troubleshooting — no code paths, env vars, or history) and is the only doc the in-app Manual page renders. `docs/ecosystem-manual.md` became this file, `docs/developer-notes.md`: big picture, data/sync reference, PandaDoc internals, configuration, GHL-side setup (inquiry webhook action, scopes, pause checklist), and the changelog — six 2026-09-09 changelog rows that had been pasted into the section-1 table are back where they belong. `§4`/`§6` pointers in code comments now read `developer-notes.md §2`/`§4`; AGENTS.md describes both docs. |

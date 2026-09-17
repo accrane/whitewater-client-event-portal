@@ -17,8 +17,10 @@ import {
   type SfAccountRow,
   type SfContactRow,
   type SfOpportunityRow,
+  type SfPandaDocDocumentRow,
 } from "@/lib/admin/companies";
 import { getUserRole } from "@/lib/admin/users";
+import { pandaDocDocumentUrl } from "@/lib/pandadoc/documents";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // Company detail: the Salesforce-account view their sales team is used to,
@@ -38,6 +40,22 @@ const stageTones: Record<string, BadgeTone> = {
   "Event Occured": "info",
   "Sent Proposal": "warning",
   "Did Not Book": "neutral",
+};
+
+// PandaDoc's status strings as the Salesforce package recorded them. Their
+// templates end in a payment step, so "paid" is the fully finished state.
+const documentStatusLabels: Record<string, string> = {
+  "document.draft": "Draft",
+  "document.waiting_approval": "Awaiting approval",
+  "document.approved": "Approved",
+  "document.rejected": "Approval rejected",
+  "document.sent": "Sent",
+  "document.viewed": "Viewed",
+  "document.waiting_pay": "Signed, awaiting payment",
+  "document.completed": "Signed",
+  "document.paid": "Signed and paid",
+  "document.declined": "Declined",
+  "document.voided": "Voided",
 };
 
 // Same GHL-migration status flow as /admin/system/sf-migration, keyed off
@@ -82,7 +100,14 @@ export default async function CompanyDetailPage({
   const detail = await getCompanyDetail(sfId);
   if (!detail) notFound();
 
-  const { account, stats, contacts, opportunities, duplicates } = detail;
+  const {
+    account,
+    stats,
+    contacts,
+    opportunities,
+    documentsByOpportunity,
+    duplicates,
+  } = detail;
 
   const wonValue = opportunities
     .filter((opp) => opp.is_won)
@@ -217,7 +242,12 @@ export default async function CompanyDetailPage({
           {opportunities.length > 0 ? (
             <ul className="divide-y divide-slate-200">
               {opportunities.map((opp) => (
-                <OpportunityRow isAdmin={isAdmin} key={opp.sf_id} opp={opp} />
+                <OpportunityRow
+                  documents={documentsByOpportunity.get(opp.sf_id) ?? []}
+                  isAdmin={isAdmin}
+                  key={opp.sf_id}
+                  opp={opp}
+                />
               ))}
             </ul>
           ) : (
@@ -413,9 +443,11 @@ function CompanyFacts({ account }: { account: SfAccountRow }) {
 
 function OpportunityRow({
   opp,
+  documents,
   isAdmin,
 }: {
   opp: SfOpportunityRow;
+  documents: SfPandaDocDocumentRow[];
   isAdmin: boolean;
 }) {
   const date = opp.event_date ?? opp.close_date;
@@ -443,6 +475,56 @@ function OpportunityRow({
       <StatusBadge tone={stageTones[opp.stage_name ?? ""] ?? "neutral"}>
         {opp.stage_name || "No stage"}
       </StatusBadge>
+      {documents.length > 0 ? (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm sm:col-span-2">
+          {documents.map((doc) => (
+            <DocumentLink doc={doc} isAdmin={isAdmin} key={doc.sf_id} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+// One PandaDoc document on an opportunity — contracts, additions, and final
+// payments each get their own. Opens in the PandaDoc app (staff login).
+function DocumentLink({
+  doc,
+  isAdmin,
+}: {
+  doc: SfPandaDocDocumentRow;
+  isAdmin: boolean;
+}) {
+  if (!doc.pandadoc_uuid) return null;
+
+  const dead = ["document.voided", "document.declined"].includes(
+    doc.status ?? "",
+  );
+  const facts = [
+    documentStatusLabels[doc.status ?? ""] ?? doc.status,
+    isAdmin && doc.total ? currency.format(doc.total) : null,
+  ].filter(Boolean);
+
+  return (
+    <li className="flex min-w-0 items-baseline gap-1.5">
+      <a
+        className={`inline-flex min-w-0 items-center gap-1 font-semibold underline underline-offset-4 ${dead ? "text-slate-500 hover:text-slate-700" : "text-slate-900 hover:text-slate-600"}`}
+        href={pandaDocDocumentUrl(doc.pandadoc_uuid)}
+        rel="noreferrer"
+        target="_blank"
+        title={doc.name ? `Open "${doc.name}" in PandaDoc` : "Open in PandaDoc"}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+        </Icon>
+        <span className="truncate">
+          {doc.template_name || doc.name || "PandaDoc document"}
+        </span>
+      </a>
+      {facts.length > 0 ? (
+        <span className="shrink-0 text-slate-500">{facts.join(" · ")}</span>
+      ) : null}
     </li>
   );
 }

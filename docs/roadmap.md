@@ -50,7 +50,14 @@ the client review as the switch approaches.
   amounts stop when proposals moved to PandaDoc/GHL — recent won events
   report $0 in the archive. GHL-era value must come from GHL
   `monetaryValue` / PandaDoc totals; historic revenue reporting is only
-  complete through ~2023.
+  complete through ~2023. The archive now stages each opportunity's
+  PandaDoc document totals (`sf_pandadoc_documents.total`, 2024 onward is
+  well covered) — a candidate source for backfilling those values, but
+  an event usually has several documents (contract + final payment +
+  voided revisions), so they cannot simply be summed.
+- **Final PandaDoc documents pull**: run `sf-pull.ts --only=documents`
+  with the last pull before Salesforce access ends — statuses are a
+  snapshot from the Salesforce package, not live from PandaDoc.
 - **Campaign texting**: the SF org has no SMS capability (no Digital
   Engagement, no SMS packages — checked 2026-08-31). Texting comes from
   GHL's native SMS; needs a phone number + A2P 10DLC registration in the

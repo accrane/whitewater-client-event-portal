@@ -297,7 +297,7 @@ contact and opportunity are otherwise untouched.
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
 | **Planner Assignments** | Month calendar of every planner's events, colored by planner. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by planner and show that month's workload. A **Columns** toggle shows the original one-column-per-planner view with a date range. |
 | **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or planner (the tabs switch to per-stage match counts while you type), and a **stage guide** explaining what has happened and what to do next. Each card has the conversations, notes, and tasks buttons and the pause switch. The **Won** tab is the contact list for rebooking. |
-| **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Dollar values are admin-only. |
+| **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Past events list their PandaDoc documents (contract, additions, final payment) with each one's status; click one to open it in PandaDoc, where you need to be signed in. Dollar values are admin-only. |
 | **Settings** | Checklist and schedule templates that new events start from. Changes never touch events already set up. |
 | **Manual** | This guide. Opens in a new tab from the **?** beside the theme switch. |
 

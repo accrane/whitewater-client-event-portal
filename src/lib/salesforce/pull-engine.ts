@@ -4,12 +4,16 @@ import { querySoql, type SoqlRecord } from "@/lib/salesforce/client";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
 // Shared engine for Salesforce → staging pulls (docs/developer-notes.md §2).
-// Each object (Contact, Account, Opportunity) supplies a spec: the SOQL
+// Each object (Contact, Account, Opportunity, PandaDoc Document) supplies a spec: the SOQL
 // fields, a mapper to its staging row, and typed hash-load/upsert callbacks.
 // The engine handles watermarks, run logging, and change detection, so all
 // pulls stay idempotent: unchanged records (same content hash) are skipped.
 
-export type SfPullObject = "contact" | "account" | "opportunity";
+export type SfPullObject =
+  | "contact"
+  | "account"
+  | "opportunity"
+  | "pandadoc_document";
 
 type ServiceClient = ReturnType<typeof createServiceRoleSupabaseClient>;
 

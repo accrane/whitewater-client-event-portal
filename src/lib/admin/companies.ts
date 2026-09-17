@@ -13,6 +13,17 @@ export type SfAccountRow = Database["public"]["Tables"]["sf_accounts"]["Row"];
 export type SfContactRow = Database["public"]["Tables"]["sf_contacts"]["Row"];
 export type SfOpportunityRow =
   Database["public"]["Tables"]["sf_opportunities"]["Row"];
+export type SfPandaDocDocumentRow = Pick<
+  Database["public"]["Tables"]["sf_pandadoc_documents"]["Row"],
+  | "sf_id"
+  | "name"
+  | "opportunity_id"
+  | "pandadoc_uuid"
+  | "status"
+  | "template_name"
+  | "total"
+  | "sf_created_at"
+>;
 
 export const COMPANY_SORTS = [
   "recent",
@@ -132,6 +143,8 @@ export type CompanyDetail = {
   stats: CompanyDirectoryRow | null;
   contacts: SfContactRow[];
   opportunities: SfOpportunityRow[];
+  /** PandaDoc documents from the archive, keyed by opportunity sf_id. */
+  documentsByOpportunity: Map<string, SfPandaDocDocumentRow[]>;
   /** Other staged accounts sharing this account's name (case-insensitive). */
   duplicates: CompanyDirectoryRow[];
 };
@@ -139,6 +152,48 @@ export type CompanyDetail = {
 // Opportunity history is rendered in full; cap defensively far above the
 // busiest account seen (Wells Fargo: 115).
 const OPPORTUNITY_LIMIT = 500;
+
+// Keeps each .in() filter well inside PostgREST's URL length limit.
+const DOCUMENT_LOOKUP_CHUNK = 150;
+
+// PandaDoc documents for a set of opportunities, oldest first per
+// opportunity. Documents deleted in PandaDoc are skipped — their links are
+// dead.
+async function loadDocumentsByOpportunity(
+  supabase: ReturnType<typeof createServiceRoleSupabaseClient>,
+  opportunityIds: string[],
+): Promise<Map<string, SfPandaDocDocumentRow[]>> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < opportunityIds.length; i += DOCUMENT_LOOKUP_CHUNK) {
+    chunks.push(opportunityIds.slice(i, i + DOCUMENT_LOOKUP_CHUNK));
+  }
+
+  const pages = await Promise.all(
+    chunks.map((ids) =>
+      supabase
+        .from("sf_pandadoc_documents")
+        .select(
+          "sf_id, name, opportunity_id, pandadoc_uuid, status, template_name, total, sf_created_at",
+        )
+        .in("opportunity_id", ids)
+        .not("pandadoc_uuid", "is", null)
+        .not("is_deleted", "is", true)
+        .order("sf_created_at", { ascending: true }),
+    ),
+  );
+
+  const byOpportunity = new Map<string, SfPandaDocDocumentRow[]>();
+  for (const { data, error } of pages) {
+    if (error) throw new Error(`Could not load documents: ${error.message}`);
+    for (const doc of data) {
+      if (!doc.opportunity_id) continue;
+      const docs = byOpportunity.get(doc.opportunity_id) ?? [];
+      docs.push(doc);
+      byOpportunity.set(doc.opportunity_id, docs);
+    }
+  }
+  return byOpportunity;
+}
 
 export async function getCompanyDetail(
   sfId: string,
@@ -199,11 +254,17 @@ export async function getCompanyDetail(
     throw new Error(`Could not load duplicates: ${duplicates.error.message}`);
   }
 
+  const documentsByOpportunity = await loadDocumentsByOpportunity(
+    supabase,
+    opportunities.data.map((opp) => opp.sf_id),
+  );
+
   return {
     account,
     stats: stats.data,
     contacts: contacts.data,
     opportunities: opportunities.data,
+    documentsByOpportunity,
     duplicates: duplicates.data ?? [],
   };
 }

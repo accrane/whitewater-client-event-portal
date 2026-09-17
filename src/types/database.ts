@@ -825,6 +825,50 @@ export type Database = {
         >;
         Relationships: [];
       };
+      sf_pandadoc_documents: {
+        Row: {
+          sf_id: string;
+          name: string | null;
+          opportunity_id: string | null;
+          account_id: string | null;
+          pandadoc_uuid: string | null;
+          status: string | null;
+          template_name: string | null;
+          total: number | null;
+          date_sent: string | null;
+          date_completed: string | null;
+          is_deleted: boolean | null;
+          sf_created_at: string | null;
+          sf_modified_at: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at: string;
+          pulled_at: string;
+        };
+        Insert: {
+          sf_id: string;
+          name?: string | null;
+          opportunity_id?: string | null;
+          account_id?: string | null;
+          pandadoc_uuid?: string | null;
+          status?: string | null;
+          template_name?: string | null;
+          total?: number | null;
+          date_sent?: string | null;
+          date_completed?: string | null;
+          is_deleted?: boolean | null;
+          sf_created_at?: string | null;
+          sf_modified_at?: string | null;
+          raw: Json;
+          content_hash: string;
+          first_pulled_at?: string;
+          pulled_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["sf_pandadoc_documents"]["Insert"]
+        >;
+        Relationships: [];
+      };
       sf_pull_runs: {
         Row: {
           id: string;
@@ -914,7 +958,11 @@ export type Database = {
       // Text column with a check constraint, typed here as an enum for safety.
       sf_push_status: "staged" | "approved" | "excluded" | "pushed" | "error";
       // Text column with a check constraint, typed here as an enum for safety.
-      sf_pull_object: "contact" | "account" | "opportunity";
+      sf_pull_object:
+        | "contact"
+        | "account"
+        | "opportunity"
+        | "pandadoc_document";
     };
   };
 };

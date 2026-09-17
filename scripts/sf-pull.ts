@@ -1,11 +1,13 @@
-// Salesforce → staging pulls (contacts, accounts, opportunities), runnable
+// Salesforce → staging pulls (contacts, accounts, opportunities, PandaDoc
+// documents), runnable
 // outside Next:
-//   npx tsx --env-file=.env.local scripts/sf-pull.ts [--full] [--only=contacts|accounts|opportunities]
+//   npx tsx --env-file=.env.local scripts/sf-pull.ts [--full] [--only=contacts|accounts|opportunities|documents]
 // Incremental by default (each object resumes from its own last watermark).
 
 import { pullSalesforceAccounts } from "../src/lib/salesforce/accounts";
 import { pullSalesforceContacts } from "../src/lib/salesforce/contacts";
 import { pullSalesforceOpportunities } from "../src/lib/salesforce/opportunities";
+import { pullSalesforcePandaDocDocuments } from "../src/lib/salesforce/pandadoc-documents";
 import type { PullResult } from "../src/lib/salesforce/pull-engine";
 
 const mode = process.argv.includes("--full") ? "full" : "incremental";
@@ -17,6 +19,7 @@ const pulls: Record<string, () => Promise<PullResult>> = {
   accounts: () => pullSalesforceAccounts(mode),
   contacts: () => pullSalesforceContacts(mode),
   opportunities: () => pullSalesforceOpportunities(mode),
+  documents: () => pullSalesforcePandaDocDocuments(mode),
 };
 
 if (only && !pulls[only]) {
