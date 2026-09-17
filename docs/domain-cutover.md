@@ -60,7 +60,7 @@ given the old URL.
 ## Things that need no change (checked)
 
 - **Password-reset emails** — the link is built from the request's host, so
-  it follows whatever domain the planner used. Mailgun sends from
+  it follows whatever domain the coordinator used. Mailgun sends from
   `mg.whitewater.org`, unrelated to the app host.
 - **Supabase Auth URL configuration** — the app never uses Supabase's
   redirect URLs (resets are verified by token hash on our own
@@ -76,7 +76,7 @@ given the old URL.
 ## After the switch
 
 - [ ] **Everyone signs in again.** Sessions are cookies scoped to the host;
-      the new domain starts with none. Tell the planners, and update any
+      the new domain starts with none. Tell the coordinators, and update any
       shared bookmark or the link in GHL's launchpad/notes if one exists.
 - [ ] **Update the docs:** `docs/developer-notes.md` §5 names the production
       URL; replace it. Also the "?" manual link needs nothing (relative).

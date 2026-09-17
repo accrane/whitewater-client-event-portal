@@ -2,7 +2,7 @@
 
 A custom external client portal for booked events, integrated with GoHighLevel.
 
-GoHighLevel remains the CRM/system of record. This app provides the client-facing portal and planner-facing admin workflow for event checklists, uploads, vendor submissions, portal launch, and readiness review.
+GoHighLevel remains the CRM/system of record. This app provides the client-facing portal and coordinator-facing admin workflow for event checklists, uploads, vendor submissions, portal launch, and readiness review.
 
 ## Current build phase
 

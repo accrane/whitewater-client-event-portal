@@ -267,7 +267,7 @@ export function ReservationModal({
       }
 
       // Keep only the blocks that failed, annotated with their errors, so
-      // the planner can adjust and resubmit without redoing the rest.
+      // the coordinator can adjust and resubmit without redoing the rest.
       setBlocks((prev) =>
         failures.map(({ index, message }) => ({
           ...prev[index],

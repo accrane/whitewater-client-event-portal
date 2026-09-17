@@ -23,7 +23,7 @@ test("buildEventChecklistItemInserts copies template fields and calculates due d
       },
       {
         id: "template-item-2",
-        title: "Planner final review",
+        title: "Coordinator final review",
         description: null,
         item_type: "admin",
         required: true,
@@ -56,7 +56,7 @@ test("buildEventChecklistItemInserts copies template fields and calculates due d
     {
       event_id: "event-1",
       source_template_item_id: "template-item-2",
-      title: "Planner final review",
+      title: "Coordinator final review",
       description: null,
       item_type: "admin",
       required: true,

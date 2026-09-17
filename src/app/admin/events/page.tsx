@@ -50,7 +50,7 @@ function matchesFilter(event: AdminEventListItem, filter: FilterKey): boolean {
 }
 
 function matchesQuery(event: AdminEventListItem, query: string): boolean {
-  const haystack = [event.eventName, event.eventType, event.plannerName]
+  const haystack = [event.eventName, event.eventType, event.coordinatorName]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -169,7 +169,7 @@ export default async function AdminEventsPage({
                 <span>Event</span>
                 <span>Event date</span>
                 <span>Type</span>
-                <span>Planner</span>
+                <span>Coordinator</span>
                 <span>Status</span>
                 <span>Needs review</span>
               </div>
@@ -202,9 +202,9 @@ export default async function AdminEventsPage({
                       {event.eventType || "Not set"}
                     </span>
                     <span
-                      className={`truncate ${event.plannerName ? "text-slate-800" : "text-slate-400"}`}
+                      className={`truncate ${event.coordinatorName ? "text-slate-800" : "text-slate-400"}`}
                     >
-                      {event.plannerName || "Not assigned"}
+                      {event.coordinatorName || "Not assigned"}
                     </span>
                     <span>
                       {event.expedited ? (

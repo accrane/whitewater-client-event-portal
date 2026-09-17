@@ -63,7 +63,7 @@ import {
   type EventRoomReservation,
 } from "@/lib/admin/room-calendar";
 import { syncEventFromGhl } from "@/lib/ghl/event-sync";
-import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
+import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
 
 import {
   applyChecklistTemplateAction,
@@ -75,7 +75,7 @@ import {
   updateChecklistItemAction,
   updateEventDetailsAction,
   updateEventFacilitatorAction,
-  updateEventPlannerAction,
+  updateEventCoordinatorAction,
   updateRoomBookingStatusAction,
 } from "./actions";
 
@@ -117,7 +117,7 @@ function getFlashMessage(params: {
   facilitator?: string;
   inquiry?: string;
   launched?: string;
-  planner?: string;
+  coordinator?: string;
   upload?: string;
   vendor?: string;
 }): string | null {
@@ -127,8 +127,8 @@ function getFlashMessage(params: {
   if (params.inquiry === "backfilled") {
     return "Draft event created for the existing GHL opportunity and the event id written back to it.";
   }
-  if (params.planner === "updated") {
-    return "Planner updated. The GHL opportunity's assigned user was changed to match.";
+  if (params.coordinator === "updated") {
+    return "Coordinator updated. The GHL opportunity's assigned user was changed to match.";
   }
   if (params.bookings === "booked" || params.bookings === "held") {
     return `Room booking status updated to ${params.bookings}. The room calendar reflects the change immediately.`;
@@ -142,7 +142,7 @@ function getFlashMessage(params: {
   }
 
   if (params.checklist === "applied") {
-    return "Checklist template applied. Event-specific checklist items are now available for planner review.";
+    return "Checklist template applied. Event-specific checklist items are now available for coordinator review.";
   }
 
   if (params.checklist === "updated") {
@@ -177,7 +177,7 @@ type AdminEventDetailPageProps = {
     facilitator?: string;
     inquiry?: string;
     launched?: string;
-    planner?: string;
+    coordinator?: string;
     rooms?: string;
     upload?: string;
     vendor?: string;
@@ -206,13 +206,13 @@ export default async function AdminEventDetailPage({
     facilitator,
     inquiry,
     launched,
-    planner,
+    coordinator,
     rooms: roomsParam,
     upload,
     vendor,
   } = await searchParams;
 
-  // Pull current opportunity data (Date of Interest, assigned planner,
+  // Pull current opportunity data (Date of Interest, assigned coordinator,
   // contact, event type) from GHL before rendering; degrades quietly.
   await Promise.all([syncEventFromGhl(eventId), syncEventContracts(eventId)]);
 
@@ -234,7 +234,7 @@ export default async function AdminEventDetailPage({
     listEventUploads(eventId),
     listRooms(),
     listEventReservations(eventId),
-    listGhlPlannerUsers(),
+    listGhlCoordinatorUsers(),
     listEventContracts(eventId),
   ]);
 
@@ -256,7 +256,7 @@ export default async function AdminEventDetailPage({
     facilitator,
     inquiry,
     launched,
-    planner,
+    coordinator,
     upload,
     vendor,
   });
@@ -314,28 +314,28 @@ export default async function AdminEventDetailPage({
         <DetailRow label="Event type" value={event.eventType} />
         <DetailRow label="Payment status" value={event.paymentStatus} />
         <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
-          <dt className="font-semibold text-slate-500">Planner</dt>
+          <dt className="font-semibold text-slate-500">Coordinator</dt>
           <dd className="space-y-0.5 sm:col-span-2">
             {ghlUsers.length > 0 ? (
               <form
-                action={updateEventPlannerAction}
+                action={updateEventCoordinatorAction}
                 className="flex flex-wrap items-center gap-2"
               >
                 <input name="eventId" type="hidden" value={event.id} />
                 <select
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-                  defaultValue={event.plannerGhlUserId ?? ""}
+                  defaultValue={event.coordinatorGhlUserId ?? ""}
                   name="ghlUserId"
                 >
-                  {/* Shows the current planner when they aren't a pickable
-                      staff planner (legacy snapshot without an id, or an
+                  {/* Shows the current coordinator when they aren't a pickable
+                      staff coordinator (legacy snapshot without an id, or an
                       account admin assigned directly in GHL). */}
                   <option disabled value="">
-                    {event.plannerName &&
+                    {event.coordinatorName &&
                     !ghlUsers.some(
-                      (ghlUser) => ghlUser.id === event.plannerGhlUserId,
+                      (ghlUser) => ghlUser.id === event.coordinatorGhlUserId,
                     )
-                      ? `${event.plannerName} (current)`
+                      ? `${event.coordinatorName} (current)`
                       : "Not assigned"}
                   </option>
                   {ghlUsers.map((ghlUser) => (
@@ -344,18 +344,18 @@ export default async function AdminEventDetailPage({
                     </option>
                   ))}
                 </select>
-                <DirtySaveButton>Update planner</DirtySaveButton>
+                <DirtySaveButton>Update coordinator</DirtySaveButton>
               </form>
             ) : (
               <p className="text-slate-800">
-                {event.plannerName || "Not assigned"}
+                {event.coordinatorName || "Not assigned"}
               </p>
             )}
-            {event.plannerEmail ? (
-              <p className="text-slate-600">{event.plannerEmail}</p>
+            {event.coordinatorEmail ? (
+              <p className="text-slate-600">{event.coordinatorEmail}</p>
             ) : null}
-            {event.plannerPhone ? (
-              <p className="text-slate-600">{event.plannerPhone}</p>
+            {event.coordinatorPhone ? (
+              <p className="text-slate-600">{event.coordinatorPhone}</p>
             ) : null}
           </dd>
         </div>
@@ -528,7 +528,7 @@ export default async function AdminEventDetailPage({
                   <span className="type-label text-slate-500">
                     Value{" "}
                     <span className="font-normal text-slate-400">
-                      (visible to admins only)
+                      (visible to managers only)
                     </span>
                   </span>
                   <div className="relative mt-1">
@@ -585,7 +585,7 @@ export default async function AdminEventDetailPage({
         eventDate={event.eventDate}
         eventId={event.id}
         eventName={event.eventName}
-        plannerName={event.plannerName}
+        coordinatorName={event.coordinatorName}
         reservations={roomReservations}
         rooms={rooms.map((room) => ({
           id: room.id,
@@ -610,7 +610,7 @@ export default async function AdminEventDetailPage({
         />
         <DetailRow
           label="Client notification"
-          value="Not sent by this app. GoHighLevel remains responsible for client email/SMS after planner approval."
+          value="Not sent by this app. GoHighLevel remains responsible for client email/SMS after coordinator approval."
         />
         <DetailRow
           label="Next launch action"
@@ -636,10 +636,10 @@ export default async function AdminEventDetailPage({
                     name="launchConfirmation"
                     required
                     type="checkbox"
-                    value="planner-approved-launch"
+                    value="coordinator-approved-launch"
                   />
                   <span>
-                    Planner has reviewed this event and approves preparing the
+                    Coordinator has reviewed this event and approves preparing the
                     portal link.
                   </span>
                 </label>
@@ -919,7 +919,7 @@ function RoomBookingsSection({
   eventDate,
   eventId,
   eventName,
-  plannerName,
+  coordinatorName,
   reservations,
   rooms,
 }: {
@@ -927,7 +927,7 @@ function RoomBookingsSection({
   eventDate: string | null;
   eventId: string;
   eventName: string;
-  plannerName: string | null;
+  coordinatorName: string | null;
   reservations: EventRoomReservation[];
   rooms: { id: string; name: string; color: string; capacity: number | null }[];
 }) {
@@ -962,7 +962,7 @@ function RoomBookingsSection({
             eventDate={eventDate}
             eventId={eventId}
             eventName={eventName}
-            plannerName={plannerName}
+            coordinatorName={coordinatorName}
             rooms={rooms}
           />
         </span>
@@ -1099,7 +1099,7 @@ function ChecklistSetupSection({
             Checklist setup
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Apply one seeded template, then make event-specific planner edits to
+            Apply one seeded template, then make event-specific coordinator edits to
             item status, title, description, and visibility. Reordering and full
             template editing are intentionally deferred.
           </p>
@@ -1121,7 +1121,7 @@ function ChecklistSetupSection({
           {reviewSummary.hasItemsNeedingReview ? (
             <p className="mt-1">
               Client-submitted items are highlighted below. Review them and set
-              status to Completed when planner approval is done.
+              status to Completed when coordinator approval is done.
             </p>
           ) : null}
         </div>
@@ -1137,7 +1137,7 @@ function ChecklistSetupSection({
               >
                 {item.status === "needs_review" ? (
                   <p className="rounded-xl bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900">
-                    Needs planner review from client submission
+                    Needs coordinator review from client submission
                   </p>
                 ) : null}
                 <input name="eventId" type="hidden" value={eventId} />
@@ -1284,7 +1284,7 @@ function VendorSubmissionsSection({
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Review vendor details submitted through the client portal. This view
-            is read-only for now; planner approval, editing, GHL writeback, and
+            is read-only for now; coordinator approval, editing, GHL writeback, and
             file uploads remain separate future workflows.
           </p>
         </div>
@@ -1304,7 +1304,7 @@ function VendorSubmissionsSection({
           <p className="font-semibold">{reviewSummary.label}</p>
           {reviewSummary.hasVendorsNeedingReview ? (
             <p className="mt-1">
-              Client-submitted vendors are highlighted below so planners can
+              Client-submitted vendors are highlighted below so coordinators can
               review before using them in final event materials.
             </p>
           ) : null}
@@ -1396,7 +1396,7 @@ function UploadReviewSection({
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Review files submitted through the client portal. Download links are
-            temporary signed URLs for planner review only.
+            temporary signed URLs for coordinator review only.
           </p>
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
@@ -1416,7 +1416,7 @@ function UploadReviewSection({
           {reviewSummary.hasUploadsNeedingReview ? (
             <p className="mt-1">
               Client-submitted uploads are highlighted below. Review the file,
-              then mark it reviewed when planner approval is done.
+              then mark it reviewed when coordinator approval is done.
             </p>
           ) : null}
         </div>

@@ -33,9 +33,9 @@ export type ClientPortalEvent = {
   activityPassCount: number | null;
   numberOfParkingPasses: number | null;
   numberOfStorageBins: number | null;
-  plannerName: string | null;
-  plannerEmail: string | null;
-  plannerPhone: string | null;
+  coordinatorName: string | null;
+  coordinatorEmail: string | null;
+  coordinatorPhone: string | null;
   proposalUrl: string | null;
   contractUrl: string | null;
   invoiceUrl: string | null;
@@ -156,9 +156,9 @@ export async function completeClientChecklistItemForToken({
   }
 }
 
-// Client "Mark ready for planner review" on an FAQ checklist section. Only
+// Client "Mark ready for coordinator review" on an FAQ checklist section. Only
 // open sections can be submitted; completed or already-submitted sections
-// wait on the planner.
+// wait on the coordinator.
 export async function markClientChecklistSectionReadyForToken({
   sectionId,
   token,
@@ -222,7 +222,7 @@ export async function submitClientVendorForToken({
 
 // Client "here's our facilitator" form. Saves through the shared admin-side
 // helper (local snapshot + GHL fields + tagged GHL contact) with the
-// needs_review status so planners spot the submission on the event page.
+// needs_review status so coordinators spot the submission on the event page.
 export async function submitClientFacilitatorForToken({
   facilitator,
   token,
@@ -379,9 +379,9 @@ function mapEventToClientPortalEvent(
     activityPassCount: snapshot.activityPassCount ?? null,
     numberOfParkingPasses: snapshot.numberOfParkingPasses ?? null,
     numberOfStorageBins: snapshot.numberOfStorageBins ?? null,
-    plannerName: snapshot.planner?.name ?? null,
-    plannerEmail: snapshot.planner?.email ?? null,
-    plannerPhone: snapshot.planner?.phone ?? null,
+    coordinatorName: snapshot.planner?.name ?? null,
+    coordinatorEmail: snapshot.planner?.email ?? null,
+    coordinatorPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
     contractUrl: snapshot.links?.contract ?? null,
     invoiceUrl: snapshot.links?.invoice ?? null,
@@ -415,7 +415,7 @@ function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
   }
 
   const raw = snapshot as Record<string, Json | undefined>;
-  const planner = raw.planner;
+  const coordinator = raw.planner;
 
   return {
     eventName: getString(raw.eventName),
@@ -428,12 +428,12 @@ function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     numberOfParkingPasses: getNumber(raw.numberOfParkingPasses),
     numberOfStorageBins: getNumber(raw.numberOfStorageBins),
     planner:
-      planner && typeof planner === "object" && !Array.isArray(planner)
+      coordinator && typeof coordinator === "object" && !Array.isArray(coordinator)
         ? {
-            name: getString((planner as Record<string, Json | undefined>).name),
-            email: getString((planner as Record<string, Json | undefined>).email),
+            name: getString((coordinator as Record<string, Json | undefined>).name),
+            email: getString((coordinator as Record<string, Json | undefined>).email),
             phone:
-              getString((planner as Record<string, Json | undefined>).phone) ?? null,
+              getString((coordinator as Record<string, Json | undefined>).phone) ?? null,
           }
         : undefined,
     facilitator: parseFacilitator(raw.facilitator),

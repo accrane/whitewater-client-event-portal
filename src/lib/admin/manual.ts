@@ -9,7 +9,7 @@ import { Marked, type Tokens } from "marked";
 // changes it (see docs/developer-notes.md §6). This renders it for the
 // in-app Manual page: only allowlisted docs are served (the developer
 // notes, field map and roadmap are deliberately not — they are for us, not
-// planners), headings get stable ids for the table of contents, and links
+// coordinators), headings get stable ids for the table of contents, and links
 // between allowlisted docs are rewritten to their in-app routes.
 
 export const MANUAL_DOCS = {

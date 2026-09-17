@@ -57,8 +57,8 @@ export function buildClientChecklistDisplayItems(
         : "No due date set",
       clientCompletable: item.client_completable,
       clientCompletableLabel: item.client_completable
-        ? "You can mark this complete with your planner"
-        : "Your planner will update this item",
+        ? "You can mark this complete with your coordinator"
+        : "Your coordinator will update this item",
     }));
 }
 

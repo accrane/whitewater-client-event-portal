@@ -66,7 +66,7 @@ test("buildClientUploadStoragePath creates an event-scoped sanitized path", () =
   );
 });
 
-test("buildClientUploadInsert records private storage metadata for planner review", () => {
+test("buildClientUploadInsert records private storage metadata for coordinator review", () => {
   const insert = buildClientUploadInsert({
     eventId: "event-1",
     fileName: "floor plan.pdf",

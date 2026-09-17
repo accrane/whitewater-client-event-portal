@@ -78,7 +78,7 @@ export default async function AdminLoginPage({
 
   return (
     <LoginLayout
-      description="Sign in with your planner admin account."
+      description="Sign in with your coordinator admin account."
       title="Sign in"
     >
       {errorMessage ? <ErrorCallout message={errorMessage} /> : null}

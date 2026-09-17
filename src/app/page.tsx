@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const sections = [
   "GoHighLevel Event record sync",
-  "Planner setup and client preview",
+  "Coordinator setup and client preview",
   "Secure client portal launch",
 ];
 
@@ -21,7 +21,7 @@ export default function Home() {
             This app shell will become the external portal connected to
             GoHighLevel Event records. GHL remains the system of record while
             this portal handles client-facing checklists, uploads, vendors, and
-            planner readiness views.
+            coordinator readiness views.
           </p>
         </div>
 

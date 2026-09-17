@@ -21,7 +21,7 @@ test("buildClientChecklistDisplayItems keeps only client-visible items and forma
     },
     {
       id: "admin-only",
-      title: "Internal planner review",
+      title: "Internal coordinator review",
       description: null,
       required: true,
       client_visible: false,
@@ -44,7 +44,7 @@ test("buildClientChecklistDisplayItems keeps only client-visible items and forma
       dueDate: "2026-08-01",
       dueDateLabel: "August 1, 2026",
       clientCompletable: true,
-      clientCompletableLabel: "You can mark this complete with your planner",
+      clientCompletableLabel: "You can mark this complete with your coordinator",
     },
   ]);
 });
@@ -68,7 +68,7 @@ test("buildClientChecklistDisplayItems handles optional items without due dates"
   assert.equal(displayItem.requiredLabel, "Optional");
   assert.equal(displayItem.statusLabel, "Not completed");
   assert.equal(displayItem.dueDateLabel, "No due date set");
-  assert.equal(displayItem.clientCompletableLabel, "Your planner will update this item");
+  assert.equal(displayItem.clientCompletableLabel, "Your coordinator will update this item");
 });
 
 test("buildClientChecklistCompletionUpdate moves client-completable items to needs review", () => {

@@ -29,7 +29,7 @@ type SectionEditorProps = {
   onSetStatus?: (status: ChecklistSectionStatus) => void;
 };
 
-// Every state is always clickable so the planner can move a section anywhere:
+// Every state is always clickable so the coordinator can move a section anywhere:
 // reopen a submitted or completed section, or check one off directly.
 const STATUS_OPTIONS: Array<{
   value: ChecklistSectionStatus;

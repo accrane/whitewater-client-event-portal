@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { buttonClasses } from "@/components/ui/button";
-import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
+import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
 import {
   fetchInquiryFieldOptions,
   listOpportunitiesWithoutPortalEvent,
@@ -25,8 +25,8 @@ export default async function NewInquiryPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/admin/login");
 
-  const [planners, options, missing] = await Promise.all([
-    listGhlPlannerUsers(),
+  const [coordinators, options, missing] = await Promise.all([
+    listGhlCoordinatorUsers(),
     fetchInquiryFieldOptions(),
     listOpportunitiesWithoutPortalEvent(),
   ]);
@@ -50,7 +50,7 @@ export default async function NewInquiryPage() {
           <PhoneInquiryForm
             inquiryTypes={options.inquiryTypes}
             locations={options.locations}
-            planners={planners.map((planner) => ({ id: planner.id, name: planner.name }))}
+            coordinators={coordinators.map((coordinator) => ({ id: coordinator.id, name: coordinator.name }))}
           />
         </div>
       </section>

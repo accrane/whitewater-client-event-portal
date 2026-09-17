@@ -236,9 +236,13 @@ export function buildContractTokens(
     "contact.name": text(event.contactName),
     "contact.email": text(event.contactEmail),
     "contact.phone": text(event.contactPhone),
-    "planner.name": text(event.plannerName),
-    "planner.email": text(event.plannerEmail),
-    "planner.phone": text(event.plannerPhone),
+    "coordinator.name": text(event.coordinatorName),
+    "coordinator.email": text(event.coordinatorEmail),
+    "coordinator.phone": text(event.coordinatorPhone),
+    // Templates built before planners were renamed coordinators use these.
+    "planner.name": text(event.coordinatorName),
+    "planner.email": text(event.coordinatorEmail),
+    "planner.phone": text(event.coordinatorPhone),
     "facilitator.name": text(event.facilitatorName),
     "facilitator.email": text(event.facilitatorEmail),
     "facilitator.phone": text(event.facilitatorPhone),
@@ -340,7 +344,7 @@ function pickClientRole(roles: string[]): string {
 // template with the app's line items as its pricing table, waits for
 // PandaDoc to finish building it, and sends it (silently by default). The
 // row persists even when PandaDoc fails, carrying the error, so the
-// planner can see what happened and retry.
+// coordinator can see what happened and retry.
 export async function createEventContract(
   input: CreateEventContractInput,
 ): Promise<CreateEventContractOutcome> {
@@ -622,7 +626,7 @@ export async function updateEventContract(
   if (!updated.ok) return fail(updated.error);
 
   // The app's record now matches what PandaDoc holds, even if the send
-  // below fails and the planner has to retry.
+  // below fails and the coordinator has to retry.
   row = await updateContractRow(row.id, {
     name,
     description,
@@ -780,7 +784,7 @@ export async function syncContractFromPandaDoc(
 
   // Approval workflow: once someone approves in PandaDoc the document sits
   // in document.approved until it is sent again. Do that here so the
-  // client can sign without the planner having to touch PandaDoc.
+  // client can sign without the coordinator having to touch PandaDoc.
   if (details.data.status === "document.approved") {
     const sent = await sendPandaDocDocument(row.pandadoc_document_id, {
       subject: row.name,
@@ -1019,7 +1023,7 @@ async function applySignedContractActions(
   return updated;
 }
 
-// Planner-side refresh button.
+// Coordinator-side refresh button.
 export async function refreshEventContract(
   eventId: string,
   contractId: string,
@@ -1116,7 +1120,7 @@ export async function createContractSigningSession(
         synced.status === "completed"
           ? "This contract is already signed."
           : synced.status === "draft" || synced.status === "approval"
-            ? "Your planner is finalizing this contract. Please check back a little later."
+            ? "Your coordinator is finalizing this contract. Please check back a little later."
             : "This contract is no longer open for signing.",
     };
   }

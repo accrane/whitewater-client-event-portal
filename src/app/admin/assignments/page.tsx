@@ -9,16 +9,16 @@ import {
   listUpcomingAssignments,
   type UpcomingAssignment,
 } from "@/lib/admin/room-calendar";
-import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
+import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import {
   monthGridRange,
   parseMonthParam,
-  plannerColor,
-  PlannerMonthCalendar,
+  coordinatorColor,
+  CoordinatorMonthCalendar,
   UNASSIGNED_COLOR,
-} from "./planner-calendar";
+} from "./coordinator-calendar";
 
 const UNASSIGNED = "Unassigned";
 
@@ -28,12 +28,12 @@ function parseDateParam(value: string | undefined): string | null {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
-function groupByPlanner(
-  plannerNames: string[],
+function groupByCoordinator(
+  coordinatorNames: string[],
   assignments: UpcomingAssignment[],
 ) {
   const groups = new Map<string, UpcomingAssignment[]>(
-    plannerNames.map((name) => [name, []]),
+    coordinatorNames.map((name) => [name, []]),
   );
 
   for (const assignment of assignments) {
@@ -130,7 +130,7 @@ function AssignmentCard({ assignment }: { assignment: UpcomingAssignment }) {
   );
 }
 
-function plannerNameOf(assignment: UpcomingAssignment): string {
+function coordinatorNameOf(assignment: UpcomingAssignment): string {
   return assignment.coordinator_name?.trim() || UNASSIGNED;
 }
 
@@ -138,7 +138,7 @@ type AdminAssignmentsPageProps = {
   searchParams: Promise<{
     view?: string;
     month?: string;
-    planners?: string;
+    coordinators?: string;
     from?: string;
     to?: string;
   }>;
@@ -163,14 +163,14 @@ export default async function AdminAssignmentsPage({
     <AdminShell
       description={
         view === "calendar"
-          ? "Every planner's assigned events on one month calendar, colored by planner. Faded chips are held rooms; solid chips are confirmed bookings."
-          : "Every planner with their upcoming assigned events, side by side, so it's easy to spot anyone carrying too many at once. Faded cards are held rooms; solid cards are confirmed bookings."
+          ? "Every coordinator's assigned events on one month calendar, colored by coordinator. Faded chips are held rooms; solid chips are confirmed bookings."
+          : "Every coordinator with their upcoming assigned events, side by side, so it's easy to spot anyone carrying too many at once. Faded cards are held rooms; solid cards are confirmed bookings."
       }
-      title="Planner Assignments"
+      title="Coordinator Assignments"
       userEmail={user.email}
     >
       {view === "calendar" ? (
-        <CalendarView monthParam={params.month} plannersParam={params.planners} />
+        <CalendarView monthParam={params.month} coordinatorsParam={params.coordinators} />
       ) : (
         <ColumnsView
           from={parseDateParam(params.from)}
@@ -182,7 +182,7 @@ export default async function AdminAssignmentsPage({
 }
 
 // Calendar | Columns switch, shared by both views. Each side keeps its own
-// query state (month/planners vs from/to) so switching back restores it.
+// query state (month/coordinators vs from/to) so switching back restores it.
 function ViewToggle({ view }: { view: "calendar" | "columns" }) {
   return (
     <div
@@ -211,54 +211,54 @@ function ViewToggle({ view }: { view: "calendar" | "columns" }) {
   );
 }
 
-// Month grid of every planner's assignments. The month and the planner
-// filter live in the URL (?month=YYYY-MM&planners=Name,Name) so the arrows
+// Month grid of every coordinator's assignments. The month and the coordinator
+// filter live in the URL (?month=YYYY-MM&coordinators=Name,Name) so the arrows
 // and chips are plain links and a view can be bookmarked or shared.
 async function CalendarView({
   monthParam,
-  plannersParam,
+  coordinatorsParam,
 }: {
   monthParam: string | undefined;
-  plannersParam: string | undefined;
+  coordinatorsParam: string | undefined;
 }) {
   const month = parseMonthParam(monthParam);
   const { start, end } = monthGridRange(month);
 
   const [ghlUsers, assignments] = await Promise.all([
-    listGhlPlannerUsers(),
+    listGhlCoordinatorUsers(),
     listUpcomingAssignments({
       from: format(start, "yyyy-MM-dd"),
       to: format(end, "yyyy-MM-dd"),
     }),
   ]);
 
-  // Planner order: GHL staff planners first, then anyone else who still
+  // Coordinator order: GHL staff coordinators first, then anyone else who still
   // has assignments this month, then Unassigned. Colors follow that order
-  // so a planner keeps the same color from month to month.
-  const plannerNames = [...ghlUsers.map((u) => u.name)];
+  // so a coordinator keeps the same color from month to month.
+  const coordinatorNames = [...ghlUsers.map((u) => u.name)];
   for (const assignment of assignments) {
-    const name = plannerNameOf(assignment);
-    if (name !== UNASSIGNED && !plannerNames.includes(name)) {
-      plannerNames.push(name);
+    const name = coordinatorNameOf(assignment);
+    if (name !== UNASSIGNED && !coordinatorNames.includes(name)) {
+      coordinatorNames.push(name);
     }
   }
-  const colorByPlanner = new Map<string, string>(
-    plannerNames.map((name, index) => [name, plannerColor(index)]),
+  const colorByCoordinator = new Map<string, string>(
+    coordinatorNames.map((name, index) => [name, coordinatorColor(index)]),
   );
-  colorByPlanner.set(UNASSIGNED, UNASSIGNED_COLOR);
+  colorByCoordinator.set(UNASSIGNED, UNASSIGNED_COLOR);
 
-  const countByPlanner = new Map<string, number>();
+  const countByCoordinator = new Map<string, number>();
   for (const assignment of assignments) {
-    const name = plannerNameOf(assignment);
-    countByPlanner.set(name, (countByPlanner.get(name) ?? 0) + 1);
+    const name = coordinatorNameOf(assignment);
+    countByCoordinator.set(name, (countByCoordinator.get(name) ?? 0) + 1);
   }
-  const hasUnassigned = (countByPlanner.get(UNASSIGNED) ?? 0) > 0;
-  const chipNames = hasUnassigned ? [...plannerNames, UNASSIGNED] : plannerNames;
+  const hasUnassigned = (countByCoordinator.get(UNASSIGNED) ?? 0) > 0;
+  const chipNames = hasUnassigned ? [...coordinatorNames, UNASSIGNED] : coordinatorNames;
 
-  // Selected planners come from the URL; unknown names are ignored, and an
+  // Selected coordinators come from the URL; unknown names are ignored, and an
   // empty selection means everyone.
   const selected = new Set(
-    (plannersParam ?? "")
+    (coordinatorsParam ?? "")
       .split(",")
       .map((name) => name.trim())
       .filter((name) => name && chipNames.includes(name)),
@@ -267,7 +267,7 @@ async function CalendarView({
     selected.size === 0
       ? assignments
       : assignments.filter((assignment) =>
-          selected.has(plannerNameOf(assignment)),
+          selected.has(coordinatorNameOf(assignment)),
         );
 
   const hrefFor = (nextMonth: Date, nextSelected: Set<string>) => {
@@ -276,7 +276,7 @@ async function CalendarView({
       query.set("month", format(nextMonth, "yyyy-MM"));
     }
     if (nextSelected.size > 0) {
-      query.set("planners", [...nextSelected].join(","));
+      query.set("coordinators", [...nextSelected].join(","));
     }
     const qs = query.toString();
     return qs ? `/admin/assignments?${qs}` : "/admin/assignments";
@@ -323,8 +323,8 @@ async function CalendarView({
 
       {chipNames.length === 0 ? (
         <EmptyState
-          description="Planners come from your GoHighLevel users. Once GHL is configured and reservations are assigned a coordinator, their events appear here."
-          title="No planners yet"
+          description="Coordinators come from your GoHighLevel users. Once GHL is configured and reservations are assigned a coordinator, their events appear here."
+          title="No coordinators yet"
         />
       ) : (
         <div className="flex flex-wrap items-center gap-2">
@@ -337,11 +337,11 @@ async function CalendarView({
             }`}
             href={hrefFor(month, new Set())}
           >
-            All planners
+            All coordinators
           </Link>
           {chipNames.map((name) => {
             const active = selected.size === 0 || selected.has(name);
-            const count = countByPlanner.get(name) ?? 0;
+            const count = countByCoordinator.get(name) ?? 0;
             return (
               <Link
                 aria-pressed={selected.has(name)}
@@ -362,7 +362,7 @@ async function CalendarView({
                   aria-hidden
                   className="h-2.5 w-2.5 rounded-full"
                   style={{
-                    backgroundColor: colorByPlanner.get(name),
+                    backgroundColor: colorByCoordinator.get(name),
                     opacity: active ? 1 : 0.4,
                   }}
                 />
@@ -389,11 +389,11 @@ async function CalendarView({
         </div>
       )}
 
-      <PlannerMonthCalendar
+      <CoordinatorMonthCalendar
         assignments={visible}
-        colorByPlanner={colorByPlanner}
+        colorByCoordinator={colorByCoordinator}
         month={month}
-        plannerNameOf={plannerNameOf}
+        coordinatorNameOf={coordinatorNameOf}
       />
     </>
   );
@@ -419,7 +419,7 @@ function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   );
 }
 
-// One column per planner: the original workload comparison, kept behind
+// One column per coordinator: the original workload comparison, kept behind
 // the Columns toggle.
 async function ColumnsView({
   from,
@@ -430,16 +430,16 @@ async function ColumnsView({
 }) {
   const hasRange = Boolean(from || to);
 
-  // Planner columns are the GHL staff planners — the same list the
+  // Coordinator columns are the GHL staff coordinators — the same list the
   // reservation modal's Event Coordinator dropdown offers. Events assigned
   // to someone outside that list still get their own column via
-  // groupByPlanner.
+  // groupByCoordinator.
   const [ghlUsers, assignments] = await Promise.all([
-    listGhlPlannerUsers(),
+    listGhlCoordinatorUsers(),
     listUpcomingAssignments({ from, to }),
   ]);
 
-  const groups = groupByPlanner(
+  const groups = groupByCoordinator(
     [...ghlUsers.map((u) => u.name), UNASSIGNED],
     assignments,
   );
@@ -492,19 +492,19 @@ async function ColumnsView({
 
       {groups.size === 0 ? (
         <EmptyState
-          description="Planners come from your GoHighLevel users. Once GHL is configured and reservations are assigned a coordinator, workloads appear here."
-          title="No planners yet"
+          description="Coordinators come from your GoHighLevel users. Once GHL is configured and reservations are assigned a coordinator, workloads appear here."
+          title="No coordinators yet"
         />
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-2">
-          {[...groups.entries()].map(([plannerName, items]) => (
+          {[...groups.entries()].map(([coordinatorName, items]) => (
             <div
-              key={plannerName}
+              key={coordinatorName}
               className="w-72 shrink-0 rounded-xl border border-slate-200 bg-white p-4"
             >
               <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
                 <h2 className="truncate text-sm font-semibold text-slate-950">
-                  {plannerName}
+                  {coordinatorName}
                 </h2>
                 <span className="inline-flex items-center rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
                   {items.length}

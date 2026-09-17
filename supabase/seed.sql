@@ -75,7 +75,7 @@ begin
     (
       generic_template_id,
       'Upload requested documents',
-      'Placeholder upload task. Uploads move to Needs Review and require planner confirmation before completion.',
+      'Placeholder upload task. Uploads move to Needs Review and require coordinator confirmation before completion.',
       'upload',
       true,
       true,
@@ -87,8 +87,8 @@ begin
     ),
     (
       generic_template_id,
-      'Planner final review',
-      'Internal placeholder task for planner review before the event. This should not be visible to the client.',
+      'Coordinator final review',
+      'Internal placeholder task for coordinator review before the event. This should not be visible to the client.',
       'admin',
       true,
       false,

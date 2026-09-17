@@ -7,7 +7,7 @@ import { SlideOverCloseButton } from "@/components/admin/slide-over";
 import { buttonClasses } from "@/components/ui/button";
 
 // One calendar chip per event per day (not per room): the chip only says
-// "this planner has this event today"; clicking it opens a summary of every
+// "this coordinator has this event today"; clicking it opens a summary of every
 // room booked for the event, with a link out to the event page. Keeps a
 // four-room event from stacking four tiles in one cell.
 
@@ -22,7 +22,7 @@ export type EventDayRoom = {
 export type EventDaySummary = {
   key: string;
   title: string;
-  plannerName: string;
+  coordinatorName: string;
   color: string;
   eventId: string | null;
   clientName: string | null;
@@ -53,7 +53,7 @@ export function EventDayChip({ summary }: { summary: EventDaySummary }) {
           outline: summary.allHeld ? `1.5px dashed ${summary.color}` : undefined,
           outlineOffset: summary.allHeld ? "-1.5px" : undefined,
         }}
-        title={`${summary.title} · ${summary.plannerName} · ${roomsLabel}`}
+        title={`${summary.title} · ${summary.coordinatorName} · ${roomsLabel}`}
         type="button"
       >
         <span className="block truncate font-semibold">
@@ -61,7 +61,7 @@ export function EventDayChip({ summary }: { summary: EventDaySummary }) {
           {summary.title}
         </span>
         <span className="block truncate text-[10px] opacity-85">
-          {summary.plannerName} · {roomsLabel}
+          {summary.coordinatorName} · {roomsLabel}
         </span>
       </button>
       {open ? (
@@ -117,7 +117,7 @@ function EventSummaryDialog({
               {summary.title}
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              {summary.dateLabel} · {summary.plannerName}
+              {summary.dateLabel} · {summary.coordinatorName}
               {summary.clientName ? ` · ${summary.clientName}` : ""}
             </p>
           </div>

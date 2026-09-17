@@ -11,13 +11,14 @@ import {
 
 // Roles live in Supabase auth app_metadata.role — only the service role can
 // write it, so a signed-in user cannot escalate themselves. Anyone without an
-// explicit role is treated as a planner (least privilege).
-export type PortalRole = "admin" | "planner";
+// explicit role is treated as a coordinator (least privilege). The "admin"
+// role is shown to people as "Manager"; "admin" stays the stored value.
+export type PortalRole = "admin" | "coordinator";
 
-export const PORTAL_ROLES: PortalRole[] = ["admin", "planner"];
+export const PORTAL_ROLES: PortalRole[] = ["admin", "coordinator"];
 
 export function getUserRole(user: User): PortalRole {
-  return user.app_metadata?.role === "admin" ? "admin" : "planner";
+  return user.app_metadata?.role === "admin" ? "admin" : "coordinator";
 }
 
 export async function getSignedInPortalUser(): Promise<{
@@ -37,7 +38,7 @@ export async function getSignedInPortalUser(): Promise<{
 }
 
 // Page/action guard for the admin-only section: signed out lands on login,
-// planners land back on the dashboard.
+// coordinators land back on the dashboard.
 export async function requireAdminUser(): Promise<{
   user: User;
   role: PortalRole;

@@ -13,7 +13,7 @@ import {
 import type { ContractLineItem, EventContract } from "@/lib/contracts/shared";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-async function requirePlanner() {
+async function requireCoordinator() {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -44,7 +44,7 @@ export async function createContractAction(
   eventId: string,
   input: CreateContractFormInput,
 ): Promise<CreateEventContractOutcome> {
-  const user = await requirePlanner();
+  const user = await requireCoordinator();
   const outcome = await createEventContract({
     eventId,
     name: input.name,
@@ -72,7 +72,7 @@ export async function updateContractAction(
   contractId: string,
   input: UpdateContractFormInput,
 ): Promise<CreateEventContractOutcome> {
-  const user = await requirePlanner();
+  const user = await requireCoordinator();
   const outcome = await updateEventContract({
     eventId,
     contractId,
@@ -90,7 +90,7 @@ export async function refreshContractAction(
   eventId: string,
   contractId: string,
 ): Promise<EventContract | null> {
-  await requirePlanner();
+  await requireCoordinator();
   const contract = await refreshEventContract(eventId, contractId);
   revalidateContracts(eventId);
   return contract;
@@ -100,7 +100,7 @@ export async function deleteFailedContractAction(
   eventId: string,
   contractId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requirePlanner();
+  await requireCoordinator();
   try {
     await deleteFailedEventContract(eventId, contractId);
     revalidateContracts(eventId);

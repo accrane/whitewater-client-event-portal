@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { RoomCalendarError } from "@/lib/admin/room-calendar";
 
 // /api routes are outside the /admin proxy matcher, so each calendar handler
-// authenticates the planner session itself.
+// authenticates the coordinator session itself.
 export async function requireAdminUser() {
   const supabase = await createServerSupabaseClient();
   const {

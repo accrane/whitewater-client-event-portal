@@ -27,7 +27,7 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | Date of Interest | `EMDW0kB1fSuaq8Lixzpq` | `opportunity.date_of_interest` | App **reads** this live from GHL (`GHL_DATE_OF_INTEREST_FIELD_ID`) when loading the calendar's event list; the reservation modal auto-fills the booking date from it. Mapping it into the webhook as `event.date` remains a useful fallback. |
 | Group/Event Name | `Yz2CcYRaCRvjHK3FlekO` | `opportunity.groupevent_name` | **Read** (by key) when the admin event page auto-syncs from GHL; becomes the portal event name. Also map into the webhook as `event.name`. |
 | Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | **Read** (by key) on event-page auto-sync as the event type. Also map into the webhook as `event.type`. |
-| Portal Link | `qV1K4voPyXZt2O5UiRBT` | `opportunity.portal_link` | App **writes** the absolute client portal URL (`PORTAL_BASE_URL` + path) when the planner prepares the portal launch (`GHL_PORTAL_LINK_FIELD_ID`), so GHL workflows can email/SMS the link. Blanked again when the event is deleted. |
+| Portal Link | `qV1K4voPyXZt2O5UiRBT` | `opportunity.portal_link` | App **writes** the absolute client portal URL (`PORTAL_BASE_URL` + path) when the coordinator prepares the portal launch (`GHL_PORTAL_LINK_FIELD_ID`), so GHL workflows can email/SMS the link. Blanked again when the event is deleted. |
 | Number of Guests | `WxC5gg3NuLHGBrdMx9YX` | `opportunity.number_of_guests` | **Two-way** (by key): read on event-page auto-sync into the Event summary's guest count; written back when the count is edited in the app. |
 | Activity Pass Count | `vFV0AVNqJTnzrO3miuHq` | `opportunity.activity_pass_count` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
 | Number of Parking Passes | `HfiRFH4P3jgBo0OCMw0F` | `opportunity.number_of_parking_passes` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
@@ -46,7 +46,7 @@ page blanks its Event Planning App ID on the opportunity.
 
 | Property | How the portal uses it |
 | --- | --- |
-| Opportunity `assignedTo` | App **writes** it when a planner picks an Event Coordinator on a reservation — the coordinator dropdown lists the location's GHL users, and the selected user is assigned to the opportunity. |
+| Opportunity `assignedTo` | App **writes** it when an Event Coordinator is picked on a reservation — the coordinator dropdown lists the location's GHL users, and the selected user is assigned to the opportunity. |
 | Opportunity `pipelineStageId` | App **writes** it twice in the lifecycle: to Planning (`GHL_PLANNING_STAGE_ID`) when a room is reserved, and to Booked (`GHL_BOOKED_STAGE_ID` = `7b569908-d031-4442-aba1-7805efebedd8` in Event Sales) when the client signs a PandaDoc contract in the portal. |
 | Opportunity `monetaryValue` | **Two-way**: read on event-page auto-sync into the admin-only "Value" field on the Event summary; written back when an admin edits it in the app. Once the event has PandaDoc contracts, the app sets it to the **sum of the contracts** (PandaDoc total, else app subtotal; declined/voided/failed excluded) after every contract create, edit, or status change (`opportunity_value_write_back` log) — a manual edit is overwritten by the next contract change. |
 | Location users | **Read** to populate the Event Coordinator dropdown (replaces the app's manual coordinator list). |
@@ -54,8 +54,8 @@ page blanks its Event Planning App ID on the opportunity.
 | Contacts (`GET /contacts/:id`) | App **reads** the opportunity's contact on event-page sync into `ghl_snapshot.contact` (shown as the Primary contact on the event page), and to resolve "same as current contact" facilitator saves. |
 | Conversations (`GET /conversations/search`, `GET /conversations/:id/messages`) | App **reads** the primary contact's conversation history live for the event page's conversations drawer. Never stored locally. |
 | Conversations (`POST /conversations/messages`) | App **sends** email/SMS replies from the conversations drawer through GHL, threading into the contact's existing conversation. Requires the Private Integration's *write conversation messages* scope. |
-| Contact notes (`GET`/`POST /contacts/:id/notes`) | App **reads** the primary contact's notes live for the event page's notes drawer (count badges the notepad button) and **writes** new notes, attributed via `userId` to the GHL user whose email matches the signed-in planner. |
-| Contact tasks (`GET`/`POST /contacts/:id/tasks`, `PUT .../tasks/:taskId/completed`) | App **reads** the primary contact's tasks live for the event page's tasks drawer (open-task count badges the button), **creates** tasks (GHL requires a due date; assignee defaults to the planner's matching GHL user), and **toggles** completion. |
+| Contact notes (`GET`/`POST /contacts/:id/notes`) | App **reads** the primary contact's notes live for the event page's notes drawer (count badges the notepad button) and **writes** new notes, attributed via `userId` to the GHL user whose email matches the signed-in coordinator. |
+| Contact tasks (`GET`/`POST /contacts/:id/tasks`, `PUT .../tasks/:taskId/completed`) | App **reads** the primary contact's tasks live for the event page's tasks drawer (open-task count badges the button), **creates** tasks (GHL requires a due date; assignee defaults to the coordinator's matching GHL user), and **toggles** completion. |
 
 ## Candidate fields (not created yet)
 
@@ -63,7 +63,7 @@ Create these in GHL when the corresponding push-back feature is built:
 
 | Field (suggested) | Type | Would be used for |
 | --- | --- | --- |
-| Reserved Rooms | TEXT | App writes the room name(s) after a planner books calendar blocks, so sales sees the venue from GHL. |
+| Reserved Rooms | TEXT | App writes the room name(s) after a coordinator books calendar blocks, so sales sees the venue from GHL. |
 
 ## Looking up field ids
 

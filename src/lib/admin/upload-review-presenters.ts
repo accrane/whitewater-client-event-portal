@@ -32,8 +32,8 @@ export function buildUploadReviewSummary(
     needsReviewCount,
     label:
       needsReviewCount > 0
-        ? `${needsReviewCount} upload${needsReviewCount === 1 ? "" : "s"} need planner review`
-        : "No uploads need planner review",
+        ? `${needsReviewCount} upload${needsReviewCount === 1 ? "" : "s"} need coordinator review`
+        : "No uploads need coordinator review",
     hasUploadsNeedingReview: needsReviewCount > 0,
   };
 }

@@ -415,7 +415,7 @@ export async function moveScheduleTemplateItem(
   }
 }
 
-// Standard whitewater group-event day, from the planners' spreadsheet template.
+// Standard whitewater group-event day, from the coordinators' spreadsheet template.
 // Times are minutes from midnight; null group = spans all groups.
 const TEMPLATE_GROUPS: Array<Pick<GroupInsert, "name" | "size" | "sort_order">> = [
   { name: "Group 1", size: 10, sort_order: 0 },

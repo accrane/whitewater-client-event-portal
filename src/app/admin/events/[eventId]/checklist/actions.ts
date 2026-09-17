@@ -14,7 +14,7 @@ import {
 import type { ChecklistSectionStatus } from "@/lib/checklist";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-async function requirePlanner() {
+async function requireCoordinator() {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -31,7 +31,7 @@ function revalidateChecklist(eventId: string) {
 }
 
 export async function applyChecklistSectionsTemplateAction(eventId: string) {
-  await requirePlanner();
+  await requireCoordinator();
   await applyChecklistSectionsTemplate(eventId);
   revalidateChecklist(eventId);
 }
@@ -40,7 +40,7 @@ export async function saveEventChecklistSectionAction(
   eventId: string,
   input: ChecklistSectionInput,
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await saveEventChecklistSection(eventId, input);
   revalidateChecklist(eventId);
 }
@@ -49,7 +49,7 @@ export async function deleteEventChecklistSectionAction(
   eventId: string,
   sectionId: string,
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await deleteEventChecklistSection(eventId, sectionId);
   revalidateChecklist(eventId);
 }
@@ -59,7 +59,7 @@ export async function setEventChecklistSectionStatusAction(
   sectionId: string,
   status: ChecklistSectionStatus,
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await setEventChecklistSectionStatus(eventId, sectionId, status);
   revalidateChecklist(eventId);
 }
@@ -69,7 +69,7 @@ export async function moveEventChecklistSectionAction(
   sectionId: string,
   direction: "up" | "down",
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await moveEventChecklistSection(eventId, sectionId, direction);
   revalidateChecklist(eventId);
 }

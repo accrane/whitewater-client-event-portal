@@ -9,7 +9,7 @@ import { buttonClasses } from "@/components/ui/button";
 // Tasks button + slide-in drawer for the primary contact's GHL tasks. Reads
 // live from GHL, creates tasks, and checks them off exactly like GHL's own
 // task list — every change writes straight back. The badge counts OPEN
-// tasks so planners see outstanding work before opening the drawer.
+// tasks so coordinators see outstanding work before opening the drawer.
 
 type ContactTask = {
   id: string;
@@ -170,7 +170,7 @@ function TasksDrawer({
       setUsers(data.users ?? []);
       setLoadError(null);
       onTasksChanged((data.tasks ?? []).filter((task) => !task.completed).length);
-      // Default new tasks to the signed-in planner's GHL user; a picked
+      // Default new tasks to the signed-in coordinator's GHL user; a picked
       // assignee is never overwritten.
       if (data.currentGhlUserId) {
         setAssignedTo((current) => current || data.currentGhlUserId || "");

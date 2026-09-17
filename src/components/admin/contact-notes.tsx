@@ -9,7 +9,7 @@ import { buttonClasses } from "@/components/ui/button";
 // Notepad button + slide-in drawer for the primary contact's GHL notes.
 // Notes are read live from GHL and new ones write straight back, so the
 // event page and GHL always show the same list. The button wears a
-// notification badge with the note count so planners see there's something
+// notification badge with the note count so coordinators see there's something
 // to read before opening the drawer.
 
 type ContactNote = {

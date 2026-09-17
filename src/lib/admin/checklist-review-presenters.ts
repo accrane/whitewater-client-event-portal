@@ -29,8 +29,8 @@ export function buildChecklistReviewSummary(
     needsReviewCount,
     label:
       needsReviewCount > 0
-        ? `${needsReviewCount} item${needsReviewCount === 1 ? "" : "s"} need planner review`
-        : "No checklist items need planner review",
+        ? `${needsReviewCount} item${needsReviewCount === 1 ? "" : "s"} need coordinator review`
+        : "No checklist items need coordinator review",
     hasItemsNeedingReview: needsReviewCount > 0,
   };
 }

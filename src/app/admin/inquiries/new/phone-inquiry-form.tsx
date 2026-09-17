@@ -20,11 +20,11 @@ const labelClass = "grid gap-1 text-xs font-semibold text-slate-500";
 export function PhoneInquiryForm({
   inquiryTypes,
   locations,
-  planners,
+  coordinators,
 }: {
   inquiryTypes: string[];
   locations: string[];
-  planners: { id: string; name: string }[];
+  coordinators: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<PhoneInquiryFormState, FormData>(
     createPhoneInquiryAction,
@@ -32,7 +32,7 @@ export function PhoneInquiryForm({
   );
   const [date, setDate] = useState("");
   const [expedited, setExpedited] = useState(false);
-  // Once the planner touches the checkbox, the date no longer overrides it.
+  // Once the coordinator touches the checkbox, the date no longer overrides it.
   const [expeditedTouched, setExpeditedTouched] = useState(false);
 
   const onDateChange = (value: string) => {
@@ -160,8 +160,8 @@ export function PhoneInquiryForm({
           Event coordinator {expedited ? <span className="text-amber-700">(required for expedited)</span> : null}
           <select className={inputClass} defaultValue="" name="coordinatorGhlUserId" required={expedited}>
             <option value="">Assign later</option>
-            {planners.map((planner) => (
-              <option key={planner.id} value={planner.id}>{planner.name}</option>
+            {coordinators.map((coordinator) => (
+              <option key={coordinator.id} value={coordinator.id}>{coordinator.name}</option>
             ))}
           </select>
         </label>

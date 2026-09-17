@@ -18,7 +18,7 @@ const USERS_PATH = "/admin/system/users";
 const MIN_PASSWORD_LENGTH = 8;
 
 function parseRole(value: FormDataEntryValue | null): PortalRole {
-  return value === "admin" ? "admin" : "planner";
+  return value === "admin" ? "admin" : "coordinator";
 }
 
 function done(message: string): never {
@@ -95,7 +95,7 @@ export async function setUserRoleAction(formData: FormData) {
 
   // Guard against locking everyone out by demoting the last admin.
   if (userId === currentUser.id && role !== "admin") {
-    fail("You cannot remove your own admin role while signed in.");
+    fail("You cannot remove your own manager role while signed in.");
   }
 
   try {

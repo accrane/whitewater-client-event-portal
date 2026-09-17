@@ -113,7 +113,7 @@ webhook is a later add-on. Questions for the Whitewater PandaDoc meeting
    *document_state_changed* + *recipient_completed*, set
    `PANDADOC_WEBHOOK_KEY`, and verify one delivery in the integration logs
    (`contract_signed` should fire without anyone opening the event).
-3. Planner notification on signature (email via Mailgun and/or a GHL task)
+3. Coordinator notification on signature (email via Mailgun and/or a GHL task)
    — nothing alerts staff today beyond the Contracts tab and integration
    log.
 4. Decide on a *Void* action for superseded unsigned contracts.
@@ -125,13 +125,13 @@ webhook is a later add-on. Questions for the Whitewater PandaDoc meeting
 - **Standalone schedule route** (2026-07-14) — `/e/[token]/schedule` is the
   dedicated client-facing page for the event-day schedule grid and sectioned
   event notes. The portal overview page no longer shows them; both pages share
-  a top navigation (Overview | Event Schedule). Planners build the schedule
+  a top navigation (Overview | Event Schedule). Coordinators build the schedule
   and notes at `/admin/events/[eventId]/schedule`, seeded from the standard
   whitewater day template.
 
 ## Room booking calendar (merged from ww-booking-cal)
 
-The standalone `ww-booking-cal` app (room scheduling board for event planners) is
+The standalone `ww-booking-cal` app (room scheduling board for event coordinators) is
 being merged into this portal under the admin area.
 
 ### In progress
@@ -140,15 +140,15 @@ being merged into this portal under the admin area.
   admin section of this app.
 - Migrate rooms / reservations / coordinators from better-sqlite3 to Supabase.
 - Schema is designed ahead for the items below: `reservations` carries nullable
-  links to a portal event and a planner, plus a `source` field
+  links to a portal event and a coordinator, plus a `source` field
   (`manual` vs `ghl`), so neither future item requires a schema migration.
 
 ### Planned
 
-- **Planner Assignments view** (renamed from "planner workload") — shipped
-  2026-07-14 at `/admin/assignments`: one column per planner with upcoming
+- **Coordinator Assignments view** (renamed from "planner workload") — shipped
+  2026-07-14 at `/admin/assignments`: one column per coordinator with upcoming
   assigned events as room-colored cards (held = faded/dashed, booked = solid),
-  so a manager can spot planners who are overloaded.
+  so a manager can spot coordinators who are overloaded.
 
 ### Shipped
 
@@ -164,7 +164,7 @@ being merged into this portal under the admin area.
   3. The app writes the portal event id back onto the opportunity custom
      field `GHL_OPPORTUNITY_EVENT_FIELD_ID` (retried on duplicate webhook
      deliveries until it succeeds; outcome recorded in `events.last_sync_*`).
-  4. A planner creates the calendar block and picks the event in the
+  4. A coordinator creates the calendar block and picks the event in the
      reservation modal's "Linked Event" select
      (`GET /api/calendar/portal-events` feeds the options).
   5. Linking the event moves the GHL opportunity into the Planning stage

@@ -1,5 +1,5 @@
 import { fetchGhlContact, upsertFacilitatorContact } from "@/lib/ghl/contacts";
-import { listGhlPlannerUsers } from "@/lib/ghl/location-data";
+import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
 import {
   assignOpportunityCoordinator,
   clearEventIdFromOpportunity,
@@ -29,7 +29,7 @@ export type AdminEventListItem = {
   eventName: string;
   eventType: string | null;
   eventDate: string | null;
-  plannerName: string | null;
+  coordinatorName: string | null;
   clientPortalUrl: string | null;
   launchedAt: string | null;
   lastSyncedAt: string | null;
@@ -62,9 +62,9 @@ export type AdminEventDetail = AdminEventListItem & {
   activityPassCount: number | null;
   numberOfParkingPasses: number | null;
   numberOfStorageBins: number | null;
-  plannerGhlUserId: string | null;
-  plannerEmail: string | null;
-  plannerPhone: string | null;
+  coordinatorGhlUserId: string | null;
+  coordinatorEmail: string | null;
+  coordinatorPhone: string | null;
   proposalUrl: string | null;
   contractUrl: string | null;
   invoiceUrl: string | null;
@@ -108,7 +108,7 @@ export type AdminEventUpload = {
 
 // Lists every portal event, with or without rooms reserved on the calendar —
 // webhook intake creates an event row for each GHL inquiry opportunity, and
-// planners may work an event that never books a room.
+// coordinators may work an event that never books a room.
 export async function listAdminEvents(): Promise<AdminEventListItem[]> {
   const supabase = createServiceRoleSupabaseClient();
 
@@ -399,7 +399,7 @@ export async function mergeEventSnapshot(
 
 // Saves the Event summary form in one shot: arrival time and meeting
 // location stay app-only, while guest count and Value (admin-only; omit the
-// key for planners) also mirror to the GHL opportunity in a single PUT. The
+// key for coordinators) also mirror to the GHL opportunity in a single PUT. The
 // GHL writeback is non-fatal — its outcome lands in integration_logs.
 export async function updateEventSummary(
   eventId: string,
@@ -448,7 +448,7 @@ export type EventFacilitatorInput = {
 // message them from Conversations. The app is authoritative — GHL never
 // writes these back. Both GHL calls are non-fatal; outcomes land in
 // integration_logs. Status: "needs_review" for client submissions,
-// "confirmed" for planner saves.
+// "confirmed" for coordinator saves.
 export async function saveEventFacilitator(
   eventId: string,
   facilitator: EventFacilitatorInput,
@@ -481,7 +481,7 @@ export async function saveEventFacilitator(
   if (sameAsContact) {
     // The facilitator IS the primary contact: copy their live GHL details
     // (may resolve to nothing when GHL is unreachable — the flag still tells
-    // planners who to talk to) and skip the tagged-contact upsert, since
+    // coordinators who to talk to) and skip the tagged-contact upsert, since
     // their contact already exists and is linked to the opportunity.
     const contact = row.ghl_contact_id
       ? await fetchGhlContact(row.ghl_contact_id)
@@ -514,7 +514,7 @@ export async function saveEventFacilitator(
   await writeOpportunityFacilitator(row, { name, email, phone });
 }
 
-// Planner "Mark reviewed" on a client-submitted facilitator: keeps the
+// Coordinator "Mark reviewed" on a client-submitted facilitator: keeps the
 // contact info, flips the status so the review highlight clears.
 export async function markEventFacilitatorConfirmed(
   eventId: string,
@@ -550,21 +550,21 @@ export async function markEventFacilitatorConfirmed(
   });
 }
 
-// Reassigns the event's planner. GHL stays the system of record (the planner
+// Reassigns the event's coordinator. GHL stays the system of record (the coordinator
 // is the opportunity's assigned user, re-read on every page sync), so the GHL
 // writeback must succeed before the local snapshot updates — otherwise the
 // next sync would silently revert the change. Events with no linked
 // opportunity update locally only.
-export async function updateEventPlanner(
+export async function updateEventCoordinator(
   eventId: string,
   ghlUserId: string,
 ): Promise<void> {
-  const users = await listGhlPlannerUsers();
-  const planner = users.find((user) => user.id === ghlUserId);
+  const users = await listGhlCoordinatorUsers();
+  const coordinator = users.find((user) => user.id === ghlUserId);
 
-  if (!planner) {
+  if (!coordinator) {
     throw new Error(
-      "Unable to update planner: user is not a staff planner in GoHighLevel",
+      "Unable to update coordinator: user is not a staff coordinator in GoHighLevel",
     );
   }
 
@@ -572,15 +572,15 @@ export async function updateEventPlanner(
 
   if (!outcome.ok && !outcome.skipped) {
     throw new Error(
-      `Unable to update planner in GoHighLevel: ${outcome.error ?? "Unknown GHL error"}`,
+      `Unable to update coordinator in GoHighLevel: ${outcome.error ?? "Unknown GHL error"}`,
     );
   }
 
   await mergeEventSnapshot(eventId, {
     planner: {
-      id: planner.id,
-      name: planner.name,
-      email: planner.email,
+      id: coordinator.id,
+      name: coordinator.name,
+      email: coordinator.email,
       phone: null,
     },
   });
@@ -720,7 +720,7 @@ function mapEventRowToListItem({
     eventName: snapshot.eventName || "Untitled event",
     eventType: snapshot.eventType ?? null,
     eventDate: snapshot.eventDate ?? null,
-    plannerName: snapshot.planner?.name ?? null,
+    coordinatorName: snapshot.planner?.name ?? null,
     clientPortalUrl: row.client_portal_url,
     launchedAt: row.launched_at,
     lastSyncedAt: row.last_synced_at,
@@ -755,9 +755,9 @@ function mapEventRowToDetail(row: EventRow): AdminEventDetail {
     activityPassCount: snapshot.activityPassCount ?? null,
     numberOfParkingPasses: snapshot.numberOfParkingPasses ?? null,
     numberOfStorageBins: snapshot.numberOfStorageBins ?? null,
-    plannerGhlUserId: snapshot.planner?.id ?? null,
-    plannerEmail: snapshot.planner?.email ?? null,
-    plannerPhone: snapshot.planner?.phone ?? null,
+    coordinatorGhlUserId: snapshot.planner?.id ?? null,
+    coordinatorEmail: snapshot.planner?.email ?? null,
+    coordinatorPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
     contractUrl: snapshot.links?.contract ?? null,
     invoiceUrl: snapshot.links?.invoice ?? null,
@@ -851,7 +851,7 @@ export function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
   }
 
   const raw = snapshot as Record<string, Json | undefined>;
-  const planner = raw.planner;
+  const coordinator = raw.planner;
 
   return {
     eventName: getString(raw.eventName),
@@ -865,13 +865,13 @@ export function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     numberOfParkingPasses: getNumber(raw.numberOfParkingPasses),
     numberOfStorageBins: getNumber(raw.numberOfStorageBins),
     planner:
-      planner && typeof planner === "object" && !Array.isArray(planner)
+      coordinator && typeof coordinator === "object" && !Array.isArray(coordinator)
         ? {
-            id: getString((planner as Record<string, Json | undefined>).id),
-            name: getString((planner as Record<string, Json | undefined>).name),
-            email: getString((planner as Record<string, Json | undefined>).email),
+            id: getString((coordinator as Record<string, Json | undefined>).id),
+            name: getString((coordinator as Record<string, Json | undefined>).name),
+            email: getString((coordinator as Record<string, Json | undefined>).email),
             phone:
-              getString((planner as Record<string, Json | undefined>).phone) ?? null,
+              getString((coordinator as Record<string, Json | undefined>).phone) ?? null,
           }
         : undefined,
     facilitator: parseFacilitator(raw.facilitator),

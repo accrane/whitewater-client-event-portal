@@ -10,10 +10,10 @@
     "arrival_time": "10:00 AM",
     "meeting_location": "Room 1"
   },
-  "planner": {
-    "id": "user_test_planner",
-    "name": "Planner Name",
-    "email": "planner@example.com",
+  "coordinator": {
+    "id": "user_test_coordinator",
+    "name": "Coordinator Name",
+    "email": "coordinator@example.com",
     "phone": null
   },
   "links": {

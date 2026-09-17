@@ -31,8 +31,8 @@ export function buildVendorReviewSummary(
     needsReviewCount,
     label:
       needsReviewCount > 0
-        ? `${needsReviewCount} vendor submission${needsReviewCount === 1 ? "" : "s"} need planner review`
-        : "No vendor submissions need planner review",
+        ? `${needsReviewCount} vendor submission${needsReviewCount === 1 ? "" : "s"} need coordinator review`
+        : "No vendor submissions need coordinator review",
     hasVendorsNeedingReview: needsReviewCount > 0,
   };
 }
@@ -72,7 +72,7 @@ export function formatVendorReviewSourceLabel(metadata: Json): string {
 
   return source === "client_portal"
     ? "Client portal submission"
-    : "Planner/admin record";
+    : "Coordinator/admin record";
 }
 
 export function buildReviewedVendorMetadata({

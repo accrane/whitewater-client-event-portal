@@ -72,9 +72,9 @@ type AddRoomBookingButtonProps = {
   eventId: string;
   eventName: string;
   eventDate: string | null;
-  // The event's assigned planner (from GHL); becomes the reservation's
+  // The event's assigned coordinator (from GHL); becomes the reservation's
   // coordinator so bookings added here don't show as Unassigned.
-  plannerName: string | null;
+  coordinatorName: string | null;
   rooms: RoomOption[];
   // Open the modal on mount — the expedited intake lands here so rooms get
   // held without another click.
@@ -85,7 +85,7 @@ export function AddRoomBookingButton({
   eventId,
   eventName,
   eventDate,
-  plannerName,
+  coordinatorName,
   rooms,
   autoOpen = false,
 }: AddRoomBookingButtonProps) {
@@ -106,7 +106,7 @@ export function AddRoomBookingButton({
           eventId={eventId}
           eventName={eventName}
           onClose={() => setOpen(false)}
-          plannerName={plannerName}
+          coordinatorName={coordinatorName}
           rooms={rooms}
         />
       ) : null}
@@ -118,7 +118,7 @@ function AddRoomBookingModal({
   eventId,
   eventName,
   eventDate,
-  plannerName,
+  coordinatorName,
   rooms,
   onClose,
 }: AddRoomBookingButtonProps & { onClose: () => void }) {
@@ -138,7 +138,7 @@ function AddRoomBookingModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // All reservations (any event, any room) on the chosen date, so planners
+  // All reservations (any event, any room) on the chosen date, so coordinators
   // can see existing usage before submitting. Keyed by date: a stale key
   // means the fetch for the current date is still in flight. The server
   // still enforces conflicts on save either way.
@@ -211,7 +211,7 @@ function AddRoomBookingModal({
           start_datetime: startIso,
           end_datetime: endIso,
           event_id: eventId,
-          coordinator_name: plannerName,
+          coordinator_name: coordinatorName,
         }),
       });
 
@@ -269,10 +269,10 @@ function AddRoomBookingModal({
         <form className="space-y-4 p-6" onSubmit={handleSubmit}>
           <p className="text-sm text-slate-600">
             Books a room for <span className="font-semibold">{eventName}</span>
-            {plannerName ? (
+            {coordinatorName ? (
               <>
                 , coordinated by{" "}
-                <span className="font-semibold">{plannerName}</span>
+                <span className="font-semibold">{coordinatorName}</span>
               </>
             ) : null}
             . Conflicts with other reservations are rejected automatically.

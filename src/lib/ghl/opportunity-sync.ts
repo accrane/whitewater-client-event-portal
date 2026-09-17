@@ -303,7 +303,7 @@ export async function writeOpportunityFacilitator(
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
 }
 
-// Step in the launch workflow: when a planner publishes the portal, write the
+// Step in the launch workflow: when a coordinator publishes the portal, write the
 // client portal link onto the GHL opportunity so GHL workflows (email/SMS
 // templates) can use it. Never throws — the portal launch is the primary
 // action and must not roll back on a GHL failure.
@@ -357,7 +357,7 @@ export async function writePortalLinkToOpportunity(
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
 }
 
-// Step in the inquiry workflow: once a planner puts the event on the room
+// Step in the inquiry workflow: once a coordinator puts the event on the room
 // calendar, move its GHL opportunity into the Planning stage so GHL-side
 // tasks and notifications kick off. Never throws — the reservation save is
 // the primary action.
@@ -459,7 +459,7 @@ async function moveOpportunityToStage(
   return { ok: true };
 }
 
-// Called when a planner picks an Event Coordinator on a reservation: assigns
+// Called when a coordinator picks an Event Coordinator on a reservation: assigns
 // that GHL user to the event's opportunity so they own it in GHL too. Never
 // throws — the reservation save is the primary action.
 export async function assignOpportunityCoordinator(

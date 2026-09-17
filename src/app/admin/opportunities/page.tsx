@@ -49,14 +49,14 @@ const QUICK_RANGES = [
   { key: "1y", label: "Past year", months: 12 },
 ] as const;
 
-// What each pipeline stage means for a planner: what already happened
+// What each pipeline stage means for a coordinator: what already happened
 // (much of it automatic) and what to do next. Keyed by the stage's name in
 // GHL, so renaming a stage there needs a matching update here; unknown
 // stages get the generic line.
 const STAGE_GUIDES: Record<string, { happened: string; next: string }> = {
   "new inquiry": {
     happened:
-      "The contact submitted the inquiry form (or a planner took the inquiry by phone on the New inquiry page). GoHighLevel created the opportunity and the portal created a draft event for each one — you'll find it under Events and in the Linked Event list when reserving rooms.",
+      "The contact submitted the inquiry form (or a coordinator took the inquiry by phone on the New inquiry page). GoHighLevel created the opportunity and the portal created a draft event for each one — you'll find it under Events and in the Linked Event list when reserving rooms.",
     next:
       "Reach out from the chat bubble and move the opportunity to Contacted in GHL, or hold rooms right away from the Room Calendar or Events page; saving a reservation moves it to Planning automatically. Spoke to them by phone? Use the pause button on the card so GHL's automated follow-ups stop.",
   },
@@ -184,7 +184,7 @@ export default async function AdminOpportunitiesPage({
   );
 }
 
-function plannerNameById(users: GhlUser[], userId: string | null) {
+function coordinatorNameById(users: GhlUser[], userId: string | null) {
   return userId
     ? (users.find((user) => user.id === userId)?.name ?? null)
     : null;
@@ -257,7 +257,7 @@ async function PipelineView({
   // Card badges come from the local ghl_contact_badges cache — instant at
   // any pipeline size. Only the visible stage's contacts are read, but the
   // stale sweep covers the whole pipeline so the other tabs are already
-  // fresh when the planner switches to them.
+  // fresh when the coordinator switches to them.
   const allContactIds = opportunities
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
@@ -297,7 +297,7 @@ async function PipelineView({
       name: opportunity.name,
       monetaryValue: opportunity.monetaryValue,
       eventDate: opportunity.eventDate,
-      plannerName: plannerNameById(ghlUsers, opportunity.assignedTo),
+      coordinatorName: coordinatorNameById(ghlUsers, opportunity.assignedTo),
       contact: opportunity.contact,
     })),
   }));

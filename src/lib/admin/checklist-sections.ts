@@ -126,7 +126,7 @@ export async function deleteEventChecklistSection(
   if (error) throw error;
 }
 
-// Planner review controls: check a client-submitted section off as complete,
+// Coordinator review controls: check a client-submitted section off as complete,
 // or reopen it so the client can look at it again.
 export async function setEventChecklistSectionStatus(
   eventId: string,

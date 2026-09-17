@@ -13,7 +13,7 @@ type ClientScheduleSectionProps = {
   items: ScheduleItem[];
 };
 
-// The planner's schedule builder produces timeline items (tiles); the older
+// The coordinator's schedule builder produces timeline items (tiles); the older
 // grid of timed blocks remains as a fallback for events built before tiles.
 export function ClientScheduleSection({
   groups,
@@ -23,7 +23,7 @@ export function ClientScheduleSection({
   if (items.length === 0 && blocks.length === 0) {
     return (
       <ClientSectionCard
-        description="Your planner has not published a day schedule yet."
+        description="Your coordinator has not published a day schedule yet."
         title="Schedule"
       >
         <p className="text-sm text-slate-600">
@@ -35,7 +35,7 @@ export function ClientScheduleSection({
 
   return (
     <ClientSectionCard
-      description="Your event-day timeline. Times and activities may be adjusted by your planner."
+      description="Your event-day timeline. Times and activities may be adjusted by your coordinator."
       title="Schedule"
     >
       {items.length > 0 ? (

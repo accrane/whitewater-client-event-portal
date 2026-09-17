@@ -1,6 +1,6 @@
 import { formatDisplayDate } from "@/lib/dates";
 
-// Merge tags let planners write templates like "Your event has
+// Merge tags let coordinators write templates like "Your event has
 // {{event.num_attendees}} attendees" and have each event's GHL-synced data
 // filled in at render time, so values such as payment status stay current.
 // Tags are stored verbatim in the saved HTML; resolution happens wherever an
@@ -17,9 +17,9 @@ export type MergeTagContext = {
   meetingLocation?: string | null;
   numberOfGuests?: number | null;
   paymentStatus?: string | null;
-  plannerName?: string | null;
-  plannerEmail?: string | null;
-  plannerPhone?: string | null;
+  coordinatorName?: string | null;
+  coordinatorEmail?: string | null;
+  coordinatorPhone?: string | null;
   proposalUrl?: string | null;
   contractUrl?: string | null;
   invoiceUrl?: string | null;
@@ -86,22 +86,22 @@ const TAG_GROUPS: MergeTagGroup[] = [
     ],
   },
   {
-    label: "Planner",
+    label: "Coordinator",
     tags: [
       {
-        token: "planner.name",
-        label: "Planner name",
-        resolve: (c) => c.plannerName,
+        token: "coordinator.name",
+        label: "Coordinator name",
+        resolve: (c) => c.coordinatorName,
       },
       {
-        token: "planner.email",
-        label: "Planner email",
-        resolve: (c) => c.plannerEmail,
+        token: "coordinator.email",
+        label: "Coordinator email",
+        resolve: (c) => c.coordinatorEmail,
       },
       {
-        token: "planner.phone",
-        label: "Planner phone",
-        resolve: (c) => c.plannerPhone,
+        token: "coordinator.phone",
+        label: "Coordinator phone",
+        resolve: (c) => c.coordinatorPhone,
       },
     ],
   },
@@ -166,6 +166,14 @@ const TAGS_BY_TOKEN = new Map<string, MergeTagDef>(
   TAG_GROUPS.flatMap((group) => group.tags.map((tag) => [tag.token, tag])),
 );
 
+// Coordinators were called planners; templates saved before the rename still
+// hold {{planner.*}} tags, so those keep resolving (the menu only offers the
+// coordinator.* tokens).
+for (const field of ["name", "email", "phone"]) {
+  const tag = TAGS_BY_TOKEN.get(`coordinator.${field}`);
+  if (tag) TAGS_BY_TOKEN.set(`planner.${field}`, tag);
+}
+
 // Grouped options for the editor's insert-tag dropdown.
 export const MERGE_TAG_MENU: Array<{
   label: string;
@@ -188,9 +196,9 @@ export function buildMergeTagContext(event: MergeTagContext): MergeTagContext {
     meetingLocation: event.meetingLocation ?? null,
     numberOfGuests: event.numberOfGuests ?? null,
     paymentStatus: event.paymentStatus ?? null,
-    plannerName: event.plannerName ?? null,
-    plannerEmail: event.plannerEmail ?? null,
-    plannerPhone: event.plannerPhone ?? null,
+    coordinatorName: event.coordinatorName ?? null,
+    coordinatorEmail: event.coordinatorEmail ?? null,
+    coordinatorPhone: event.coordinatorPhone ?? null,
     proposalUrl: event.proposalUrl ?? null,
     contractUrl: event.contractUrl ?? null,
     invoiceUrl: event.invoiceUrl ?? null,
@@ -203,7 +211,7 @@ export function buildMergeTagContext(event: MergeTagContext): MergeTagContext {
 }
 
 // Replaces {{tag}} occurrences in editor-produced HTML with the event's
-// values. Unknown tags are left as-is so typos stay visible to the planner.
+// values. Unknown tags are left as-is so typos stay visible to the coordinator.
 export function resolveMergeTags(
   html: string,
   context: MergeTagContext,

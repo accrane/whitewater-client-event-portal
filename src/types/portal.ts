@@ -14,6 +14,8 @@ export type GhlEventSnapshot = {
   numberOfParkingPasses?: number;
   // GHL opportunity.number_of_storage_bins custom field, synced both ways.
   numberOfStorageBins?: number;
+  // The event's coordinator (GHL assigned user). Stored under the legacy
+  // "planner" key, which existing event snapshots already use.
   planner?: {
     id?: string;
     name?: string;
@@ -33,7 +35,7 @@ export type GhlEventSnapshot = {
     email?: string;
     phone?: string | null;
     // "needs_review" after a client portal submission; "confirmed" once a
-    // planner saves or reviews it.
+    // coordinator saves or reviews it.
     status?: string;
     ghlContactId?: string | null;
     // True when the facilitator is the event's primary contact — contact

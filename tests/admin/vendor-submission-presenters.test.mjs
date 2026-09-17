@@ -10,7 +10,7 @@ import {
   isClientSubmittedVendorNeedingReview,
 } from "../../src/lib/admin/vendor-submission-presenters.ts";
 
-test("buildVendorReviewSummary counts client-submitted vendors needing planner review", () => {
+test("buildVendorReviewSummary counts client-submitted vendors needing coordinator review", () => {
   const summary = buildVendorReviewSummary([
     { metadata: { source: "client_portal", status: "needs_review" } },
     { metadata: { source: "client_portal", status: "needs_review" } },
@@ -20,7 +20,7 @@ test("buildVendorReviewSummary counts client-submitted vendors needing planner r
   assert.deepEqual(summary, {
     totalCount: 3,
     needsReviewCount: 2,
-    label: "2 vendor submissions need planner review",
+    label: "2 vendor submissions need coordinator review",
     hasVendorsNeedingReview: true,
   });
 });
@@ -34,7 +34,7 @@ test("buildVendorReviewSummary has a calm empty state when no vendors need revie
   assert.deepEqual(summary, {
     totalCount: 2,
     needsReviewCount: 0,
-    label: "No vendor submissions need planner review",
+    label: "No vendor submissions need coordinator review",
     hasVendorsNeedingReview: false,
   });
 });
@@ -83,13 +83,13 @@ test("vendor review helpers identify and highlight client portal needs-review me
 test("vendor review helpers handle non-object metadata", () => {
   assert.equal(isClientSubmittedVendorNeedingReview({ metadata: null }), false);
   assert.match(getVendorReviewClassName(null), /border-slate-200/);
-  assert.equal(formatVendorReviewSourceLabel(null), "Planner/admin record");
+  assert.equal(formatVendorReviewSourceLabel(null), "Coordinator/admin record");
 });
 
-test("buildReviewedVendorMetadata preserves metadata and records planner review audit fields", () => {
+test("buildReviewedVendorMetadata preserves metadata and records coordinator review audit fields", () => {
   const metadata = buildReviewedVendorMetadata({
     reviewedAt: "2026-07-02T18:30:00.000Z",
-    reviewedBy: " planner@example.com ",
+    reviewedBy: " coordinator@example.com ",
     existingMetadata: {
       source: "client_portal",
       status: "needs_review",
@@ -102,7 +102,7 @@ test("buildReviewedVendorMetadata preserves metadata and records planner review 
     status: "reviewed",
     originalField: "keep me",
     reviewedAt: "2026-07-02T18:30:00.000Z",
-    reviewedBy: "planner@example.com",
+    reviewedBy: "coordinator@example.com",
   });
 });
 

@@ -26,7 +26,7 @@ export type BoardOpportunity = {
   name: string | null;
   monetaryValue: number | null;
   eventDate: string | null;
-  plannerName: string | null;
+  coordinatorName: string | null;
   contact: {
     id: string | null;
     name: string | null;
@@ -69,7 +69,7 @@ function matches(opportunity: BoardOpportunity, query: string): boolean {
     opportunity.contact?.name,
     opportunity.contact?.email,
     opportunity.contact?.phone,
-    opportunity.plannerName,
+    opportunity.coordinatorName,
   ]
     .filter(Boolean)
     .join(" ")
@@ -212,7 +212,7 @@ export function PipelineBoard({
             onKeyDown={(event) => {
               if (event.key === "Escape") setQuery("");
             }}
-            placeholder="Search name, contact, email, phone, planner…"
+            placeholder="Search name, contact, email, phone, coordinator…"
             type="search"
             value={query}
           />
@@ -373,9 +373,9 @@ function OpportunityCard({
             {currency.format(opportunity.monetaryValue)}
           </span>
         ) : null}
-        {opportunity.plannerName ? (
+        {opportunity.coordinatorName ? (
           <span>
-            <Highlight query={query} text={opportunity.plannerName} />
+            <Highlight query={query} text={opportunity.coordinatorName} />
           </span>
         ) : null}
       </div>

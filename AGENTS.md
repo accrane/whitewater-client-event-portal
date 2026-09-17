@@ -9,7 +9,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Two docs, two audiences — keep them separate:
 
 - `docs/manual.md` is the **user guide**, rendered inside the app at
-  `/admin/manual` for planners. Plain language: what a screen is for, how a
+  `/admin/manual` for coordinators. Plain language: what a screen is for, how a
   step works, what happens automatically. No code paths, env vars, log
   names, or history.
 - `docs/developer-notes.md` is the **engineering record**: architecture,

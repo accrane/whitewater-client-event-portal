@@ -23,7 +23,7 @@ export type ScheduleBlockColor =
 
 export const SLOT_MINUTES = 15;
 
-// Pastel palette matching the planner's spreadsheet template.
+// Pastel palette matching the coordinator's spreadsheet template.
 export const BLOCK_COLORS: Record<
   ScheduleBlockColor,
   { label: string; background: string }
@@ -90,7 +90,7 @@ export type NoteLine = {
   text: string;
 };
 
-// Planners paste notes using "•" bullets and "°" sub-bullets (also accepts
+// Coordinators paste notes using "•" bullets and "°" sub-bullets (also accepts
 // "-" and "*" for bullets, "--" for sub-bullets).
 export function parseNoteContent(content: string): NoteLine[] {
   return content

@@ -11,7 +11,7 @@ import {
 
 // Feeds the conversations drawer's "Insert snippet" menu. Keyed by contact
 // so snippet merge tags ({{contact.first_name}}, {{user.name}}, …) come back
-// already filled in for this contact and the signed-in planner. The list
+// already filled in for this contact and the signed-in coordinator. The list
 // carries its own ok/error so a missing scope renders inside the menu.
 // `?refresh=1` bypasses the cache after someone edits snippets in GHL.
 

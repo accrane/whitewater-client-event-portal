@@ -123,7 +123,7 @@ export type DashboardVendorSubmission = {
   submittedAt: string;
 };
 
-// Client-submitted vendors still waiting for a planner to review them,
+// Client-submitted vendors still waiting for a coordinator to review them,
 // oldest first so nothing sits forgotten at the bottom.
 export async function listVendorSubmissionsNeedingReview(): Promise<
   DashboardVendorSubmission[]

@@ -29,7 +29,7 @@ export default async function AdminUsersPage({
 
   return (
     <AdminShell
-      description="Everyone who can sign in to the planner admin. Admins additionally see this Admin area and admin-only event fields."
+      description="Everyone who can sign in to the coordinator admin. Managers additionally see this Admin area and manager-only event fields."
       eyebrow="Admin"
       title="Users"
       userEmail={user.email}
@@ -71,7 +71,7 @@ export default async function AdminUsersPage({
             Role
             <select
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
-              defaultValue="planner"
+              defaultValue="coordinator"
               name="role"
             >
               {PORTAL_ROLES.map((role) => (
@@ -108,7 +108,7 @@ export default async function AdminUsersPage({
 }
 
 function roleLabel(role: string): string {
-  return role === "admin" ? "Admin" : "Planner";
+  return role === "admin" ? "Manager" : "Coordinator";
 }
 
 function UserCard({

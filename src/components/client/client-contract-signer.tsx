@@ -129,14 +129,14 @@ export function ClientContractSigner({
           : data && typeof data === "object"
             ? (data.type ?? data.event ?? "")
             : "";
-      // The planner edited the contract while it was open here: PandaDoc
+      // The coordinator edited the contract while it was open here: PandaDoc
       // ends the session. Tell the client what happened instead of leaving
       // a dead frame.
       if (type === "session_view.document.exception") {
         setActiveId(null);
         setSigningUrl(null);
         setError(
-          "This contract was just updated by your planner. Reload the page to review and sign the latest version.",
+          "This contract was just updated by your coordinator. Reload the page to review and sign the latest version.",
         );
         return;
       }
@@ -179,7 +179,7 @@ export function ClientContractSigner({
   if (contracts.length === 0) {
     return (
       <p className="text-sm text-slate-600">
-        No contracts have been sent yet. When your planner sends one, you can
+        No contracts have been sent yet. When your coordinator sends one, you can
         review and sign it right here.
       </p>
     );
@@ -252,7 +252,7 @@ export function ClientContractSigner({
 
             {justSigned === contract.id ? (
               <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                Thank you — your signed contract is on file. Your planner has
+                Thank you — your signed contract is on file. Your coordinator has
                 been notified and your rooms are confirmed.
               </p>
             ) : null}

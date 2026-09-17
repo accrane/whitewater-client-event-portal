@@ -22,7 +22,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 // event id back. Expedited inquiries (event inside two weeks, or ticked)
 // are flagged on the event so the deadline rules and badges treat them as
 // a rush. Neither path enters GHL's chase workflows: those trigger on form
-// submission, and a phone lead is owned by the planner who took the call.
+// submission, and a phone lead is owned by the coordinator who took the call.
 
 export const PHONE_INQUIRY_CONTACT_TAG = "inquiry-phone";
 export { EXPEDITED_WINDOW_DAYS, isInsideExpeditedWindow } from "@/lib/ghl/expedited";

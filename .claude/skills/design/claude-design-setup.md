@@ -71,7 +71,7 @@ Useful project facts might include:
 ```md
 ## Product context
 
-- This application works alongside GoHighLevel for event planners.
+- This application works alongside GoHighLevel for event coordinators.
 - A portal event is linked to the correct GHL opportunity through a stored event ID.
 - The core workflow is inquiry → planning → proposal sent → confirmed → fulfillment.
 - The event record is the application's central source of truth.

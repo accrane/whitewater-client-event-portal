@@ -57,9 +57,9 @@ export async function listGhlUsers(): Promise<GhlUser[]> {
   }
 }
 
-// Planner pickers only offer staff planners (GHL ACCOUNT-USER); admins
+// Coordinator pickers only offer staff coordinators (GHL ACCOUNT-USER); admins
 // (ACCOUNT-ADMIN) own the location but never work events themselves.
-export async function listGhlPlannerUsers(): Promise<GhlUser[]> {
+export async function listGhlCoordinatorUsers(): Promise<GhlUser[]> {
   const users = await listGhlUsers();
   return users.filter((user) => user.role === "user");
 }
@@ -152,7 +152,7 @@ export async function fetchOpportunityFieldIndex(): Promise<Map<string, string>>
 }
 
 // Live "Date of Interest" per opportunity id (yyyy-MM-dd), straight from GHL
-// so planners always see the client's current requested date.
+// so coordinators always see the client's current requested date.
 export async function fetchDatesOfInterest(): Promise<Map<string, string>> {
   const { accessToken, apiBaseUrl, locationId, dateOfInterestFieldId } =
     appConfig.ghl;

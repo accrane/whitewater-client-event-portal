@@ -11,7 +11,7 @@ import {
 } from "@/lib/admin/checklist-sections";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-async function requirePlanner() {
+async function requireCoordinator() {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -29,13 +29,13 @@ function revalidateTemplate() {
 export async function saveChecklistTemplateSectionAction(
   input: ChecklistSectionInput,
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await saveChecklistTemplateSection(input);
   revalidateTemplate();
 }
 
 export async function deleteChecklistTemplateSectionAction(sectionId: string) {
-  await requirePlanner();
+  await requireCoordinator();
   await deleteChecklistTemplateSection(sectionId);
   revalidateTemplate();
 }
@@ -44,7 +44,7 @@ export async function moveChecklistTemplateSectionAction(
   sectionId: string,
   direction: "up" | "down",
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await moveChecklistTemplateSection(sectionId, direction);
   revalidateTemplate();
 }

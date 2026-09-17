@@ -353,7 +353,7 @@ function VendorSubmissionsSection({
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <SectionHeader
-        description="Vendors clients added in their portal that a planner still needs to approve."
+        description="Vendors clients added in their portal that a coordinator still needs to approve."
         title="Vendor submissions"
       />
       {submissions.length > 0 ? (
@@ -418,7 +418,7 @@ function UpcomingEventsSection({
     [
       event.eventDate ? formatDisplayDate(event.eventDate) : null,
       event.eventType,
-      event.plannerName,
+      event.coordinatorName,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -565,7 +565,7 @@ function ContractsSection({
                       : daysOut === 1
                         ? "Tomorrow"
                         : `In ${daysOut} days`
-                  }${event.plannerName ? ` · ${event.plannerName}` : ""}`}
+                  }${event.coordinatorName ? ` · ${event.coordinatorName}` : ""}`}
                   event={event}
                   href={`/admin/events/${event.id}/contracts`}
                   key={event.id}

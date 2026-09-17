@@ -20,7 +20,7 @@ export default async function AdminSystemPage() {
           (see system-nav.tsx). */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <SystemCard
-          description="Create and remove users, reset passwords, and assign the admin or planner role."
+          description="Create and remove users, reset passwords, and assign the manager or coordinator role."
           href="/admin/system/users"
           title="Users"
         />

@@ -4,7 +4,7 @@ type NoteTilesProps = {
   notes: EventNote[];
 };
 
-// Sectioned event notes rendered as tiles; content uses the planners'
+// Sectioned event notes rendered as tiles; content uses the coordinators'
 // "•" bullet / "°" sub-bullet convention.
 export function NoteTiles({ notes }: NoteTilesProps) {
   const visible = notes.filter((note) => note.content.trim().length > 0);

@@ -58,7 +58,7 @@ export const OPEN_CONTRACT_STATUSES: ContractStatus[] = [
 // signable: the template's approval workflow is holding it in PandaDoc.
 export const SIGNABLE_CONTRACT_STATUSES: ContractStatus[] = ["sent", "viewed"];
 
-// Statuses a planner can still edit (the PandaDoc document exists and no one
+// Statuses a coordinator can still edit (the PandaDoc document exists and no one
 // has signed). "draft" covers a re-send that failed halfway.
 export const EDITABLE_CONTRACT_STATUSES: ContractStatus[] = [
   "draft",
@@ -128,7 +128,7 @@ export type ClientContract = {
   status: ContractStatus;
   sentAt: string | null;
   completedAt: string | null;
-  // Set when the planner edited and re-sent it after the first send.
+  // Set when the coordinator edited and re-sent it after the first send.
   revisedAt: string | null;
   // Signing is offered while PandaDoc is waiting on the client.
   canSign: boolean;

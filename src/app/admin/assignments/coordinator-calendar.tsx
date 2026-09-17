@@ -14,25 +14,25 @@ import type { UpcomingAssignment } from "@/lib/admin/room-calendar";
 
 import { EventDayChip, type EventDaySummary } from "./event-day-chip";
 
-// Month calendar for Planner Assignments. Server-rendered: month navigation
-// and the planner filter are plain links (?month=YYYY-MM&planners=a,b), so
+// Month calendar for Coordinator Assignments. Server-rendered: month navigation
+// and the coordinator filter are plain links (?month=YYYY-MM&coordinators=a,b), so
 // the page needs no client state and a URL always reproduces the view.
 //
-// Color means planner here (the Room Calendar colors by room). A day shows
+// Color means coordinator here (the Room Calendar colors by room). A day shows
 // one chip per event, not per room; the rooms are listed in the chip's
 // pop-up. A chip is faded/dashed only when every room is still held, the
 // same treatment the column cards use.
 
-export type PlannerSwatch = {
+export type CoordinatorSwatch = {
   name: string;
   color: string;
-  // Assignments in the visible month, before the planner filter — shown on
+  // Assignments in the visible month, before the coordinator filter — shown on
   // the chip so the row doubles as a workload glance.
   count: number;
 };
 
 // Distinct hues with enough weight for white text, in both themes.
-const PLANNER_PALETTE = [
+const COORDINATOR_PALETTE = [
   "#2563eb",
   "#d97706",
   "#7c3aed",
@@ -46,8 +46,8 @@ const PLANNER_PALETTE = [
 ];
 export const UNASSIGNED_COLOR = "#64748b";
 
-export function plannerColor(index: number): string {
-  return PLANNER_PALETTE[index % PLANNER_PALETTE.length];
+export function coordinatorColor(index: number): string {
+  return COORDINATOR_PALETTE[index % COORDINATOR_PALETTE.length];
 }
 
 // Grid bounds for a month: full weeks, Sunday first, so leading/trailing
@@ -70,16 +70,16 @@ export function parseMonthParam(value: string | undefined): Date {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function PlannerMonthCalendar({
+export function CoordinatorMonthCalendar({
   assignments,
-  colorByPlanner,
+  colorByCoordinator,
   month,
-  plannerNameOf,
+  coordinatorNameOf,
 }: {
   assignments: UpcomingAssignment[];
-  colorByPlanner: Map<string, string>;
+  colorByCoordinator: Map<string, string>;
   month: Date;
-  plannerNameOf: (assignment: UpcomingAssignment) => string;
+  coordinatorNameOf: (assignment: UpcomingAssignment) => string;
 }) {
   const { start, end } = monthGridRange(month);
   const days = eachDayOfInterval({ start, end });
@@ -123,7 +123,7 @@ export function PlannerMonthCalendar({
           {days.map((day, index) => {
             const key = format(day, "yyyy-MM-dd");
             const items = byDay.get(key) ?? [];
-            const events = groupByEvent(items, day, colorByPlanner, plannerNameOf);
+            const events = groupByEvent(items, day, colorByCoordinator, coordinatorNameOf);
             const inMonth = isSameMonth(day, month);
             const isToday = isSameDay(day, today);
             const lastColumn = index % 7 === 6;
@@ -174,21 +174,21 @@ function startOfDay(date: Date): Date {
 
 // Reservations for one day, collapsed to one summary per event. Linked
 // reservations group by portal event id; unlinked ones group by title and
-// planner, which is how a multi-room booking made from the Room Calendar
+// coordinator, which is how a multi-room booking made from the Room Calendar
 // looks before it's tied to an event.
 function groupByEvent(
   items: UpcomingAssignment[],
   day: Date,
-  colorByPlanner: Map<string, string>,
-  plannerNameOf: (assignment: UpcomingAssignment) => string,
+  colorByCoordinator: Map<string, string>,
+  coordinatorNameOf: (assignment: UpcomingAssignment) => string,
 ): EventDaySummary[] {
   const groups = new Map<string, { summary: EventDaySummary; rows: UpcomingAssignment[] }>();
 
   for (const assignment of items) {
-    const plannerName = plannerNameOf(assignment);
+    const coordinatorName = coordinatorNameOf(assignment);
     const groupKey = assignment.event_id
       ? `event:${assignment.event_id}`
-      : `title:${assignment.title.trim().toLowerCase()}|${plannerName}`;
+      : `title:${assignment.title.trim().toLowerCase()}|${coordinatorName}`;
     const existing = groups.get(groupKey);
     if (existing) {
       existing.rows.push(assignment);
@@ -199,8 +199,8 @@ function groupByEvent(
       summary: {
         key: `${groupKey}|${format(day, "yyyy-MM-dd")}`,
         title: assignment.title,
-        plannerName,
-        color: colorByPlanner.get(plannerName) ?? UNASSIGNED_COLOR,
+        coordinatorName,
+        color: colorByCoordinator.get(coordinatorName) ?? UNASSIGNED_COLOR,
         eventId: assignment.event_id,
         clientName: assignment.client_name,
         dateLabel: format(day, "EEEE, MMM d, yyyy"),

@@ -65,7 +65,7 @@ const workNavItems: NavItem[] = [
   },
   {
     href: "/admin/assignments",
-    label: "Planner Assignments",
+    label: "Coordinator Assignments",
     icon: (
       <Icon>
         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -231,7 +231,7 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
           </Icon>
         </button>
         <Link
-          aria-label="Planner Admin dashboard"
+          aria-label="Coordinator Admin dashboard"
           className="absolute left-1/2 -translate-x-1/2"
           href="/admin"
         >
@@ -257,7 +257,7 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
               <Link className="flex items-center gap-2.5" href="/admin">
                 <WhitewaterMark className="h-5 w-auto text-[var(--whitewater-red)]" />
                 <span className="text-sm font-semibold text-slate-950">
-                  Planner Admin
+                  Coordinator Admin
                 </span>
               </Link>
               <button
@@ -286,17 +286,17 @@ export function AdminDock({ userEmail, showAdminNav }: AdminDockProps) {
         }`}
       >
         <Link
-          aria-label="Planner Admin dashboard"
+          aria-label="Coordinator Admin dashboard"
           className={`flex h-12 shrink-0 items-center gap-2.5 border-b border-slate-200 ${
             collapsed ? "justify-center" : "px-4"
           }`}
           href="/admin"
-          title="Planner Admin"
+          title="Coordinator Admin"
         >
           <WhitewaterMark className="h-5 w-auto shrink-0 text-[var(--whitewater-red)]" />
           {collapsed ? null : (
             <span className="truncate text-sm font-semibold text-slate-950">
-              Planner Admin
+              Coordinator Admin
             </span>
           )}
         </Link>
@@ -420,7 +420,7 @@ export function ThemeSwitch() {
 }
 
 // "?" beside the theme switch. Opens the in-app manual in a new tab so it can
-// sit next to the screen a planner is learning.
+// sit next to the screen a coordinator is learning.
 export function HelpLink() {
   return (
     <a
@@ -524,7 +524,7 @@ export function AdminTopBar({
           className="shrink-0 font-medium text-slate-700 transition hover:text-slate-950"
           href="/admin"
         >
-          Planner Admin
+          Coordinator Admin
         </Link>
         {environment ? (
           <span className="type-label rounded-sm border border-amber-300 bg-amber-50 px-1.5 py-px text-amber-800">

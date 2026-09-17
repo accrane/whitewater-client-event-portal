@@ -27,8 +27,8 @@ const FIELD_KEYS = {
 } as const;
 
 // Refreshes an event's stored GHL snapshot from the live opportunity: event
-// name, type, Date of Interest, contact id, and the planner (GHL assigned
-// user — set when a planner picks an Event Coordinator on a reservation).
+// name, type, Date of Interest, contact id, and the coordinator (GHL assigned
+// user — set when a coordinator picks an Event Coordinator on a reservation).
 // Quiet by design: any GHL problem leaves the stored data untouched, so
 // pages calling this on load keep rendering.
 export async function syncEventFromGhl(eventId: string): Promise<void> {

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { buildEventChecklistItemUpdate } from "../../src/lib/admin/checklist-item-editors.ts";
 
-test("buildEventChecklistItemUpdate trims editable text fields and preserves planner checklist flags", () => {
+test("buildEventChecklistItemUpdate trims editable text fields and preserves coordinator checklist flags", () => {
   const update = buildEventChecklistItemUpdate({
     clientVisible: true,
     description: "  Send final menu choices.  ",
@@ -27,21 +27,21 @@ test("buildEventChecklistItemUpdate trims editable text fields and preserves pla
   });
 });
 
-test("buildEventChecklistItemUpdate marks planner completions with audit fields", () => {
+test("buildEventChecklistItemUpdate marks coordinator completions with audit fields", () => {
   const update = buildEventChecklistItemUpdate({
     clientVisible: false,
     completedAt: "2026-07-02T12:00:00.000Z",
-    completedBy: "planner@example.com",
+    completedBy: "coordinator@example.com",
     description: "",
     itemId: "item-2",
     required: true,
     status: "completed",
-    title: "Planner review",
+    title: "Coordinator review",
   });
 
   assert.equal(update.values.description, null);
   assert.equal(update.values.completed_at, "2026-07-02T12:00:00.000Z");
-  assert.equal(update.values.completed_by, "planner@example.com");
+  assert.equal(update.values.completed_by, "coordinator@example.com");
 });
 
 test("buildEventChecklistItemUpdate rejects invalid status and blank required identifiers", () => {

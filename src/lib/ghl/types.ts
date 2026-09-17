@@ -12,7 +12,7 @@ export type CreateDraftEventPayload = {
     arrival_time?: string;
     meeting_location?: string;
   };
-  planner?: {
+  coordinator?: {
     id?: string;
     name?: string;
     email?: string;
@@ -47,7 +47,9 @@ export function parseGhlDraftEventPayload(
 
   const errors: string[] = [];
   const event = isRecord(input.event) ? input.event : undefined;
-  const planner = isRecord(input.planner) ? input.planner : undefined;
+  // "planner" is the payload key GHL workflows were built with; accept both.
+  const coordinatorInput = input.coordinator ?? input.planner;
+  const coordinator = isRecord(coordinatorInput) ? coordinatorInput : undefined;
   const links = isRecord(input.links) ? input.links : undefined;
 
   const payload: CreateDraftEventPayload = {
@@ -70,12 +72,12 @@ export function parseGhlDraftEventPayload(
       arrival_time: optionalString(event?.arrival_time),
       meeting_location: optionalString(event?.meeting_location),
     },
-    ...(planner && {
-      planner: {
-        id: optionalString(planner.id),
-        name: optionalString(planner.name),
-        email: optionalString(planner.email),
-        phone: optionalString(planner.phone) ?? null,
+    ...(coordinator && {
+      coordinator: {
+        id: optionalString(coordinator.id),
+        name: optionalString(coordinator.name),
+        email: optionalString(coordinator.email),
+        phone: optionalString(coordinator.phone) ?? null,
       },
     }),
     ...(links && {
@@ -109,7 +111,7 @@ export function normalizeGhlEventSnapshot(
     eventDate: payload.event.date,
     arrivalTime: payload.event.arrival_time,
     meetingLocation: payload.event.meeting_location,
-    planner: payload.planner,
+    planner: payload.coordinator,
     links: payload.links,
     paymentStatus: payload.payment_status,
   };

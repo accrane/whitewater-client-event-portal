@@ -4,7 +4,7 @@ import type { Database } from "@/types/database";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 
-// Called after a planner saves a calendar block linked to a portal event:
+// Called after a coordinator saves a calendar block linked to a portal event:
 // pushes the event's GHL opportunity into the Planning stage. Never throws —
 // the reservation save is the primary action, and outcomes are recorded in
 // integration_logs by opportunity-sync.

@@ -12,7 +12,7 @@ import {
 } from "@/lib/admin/event-schedule";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-async function requirePlanner() {
+async function requireCoordinator() {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -29,7 +29,7 @@ function revalidateSchedule(eventId: string) {
 }
 
 export async function applyScheduleItemsTemplateAction(eventId: string) {
-  await requirePlanner();
+  await requireCoordinator();
   await applyScheduleItemsTemplate(eventId);
   revalidateSchedule(eventId);
 }
@@ -38,13 +38,13 @@ export async function saveScheduleItemAction(
   eventId: string,
   input: ScheduleItemInput,
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await saveScheduleItem(eventId, input);
   revalidateSchedule(eventId);
 }
 
 export async function deleteScheduleItemAction(eventId: string, itemId: string) {
-  await requirePlanner();
+  await requireCoordinator();
   await deleteScheduleItem(eventId, itemId);
   revalidateSchedule(eventId);
 }
@@ -54,7 +54,7 @@ export async function moveScheduleItemAction(
   itemId: string,
   direction: "up" | "down",
 ) {
-  await requirePlanner();
+  await requireCoordinator();
   await moveScheduleItem(eventId, itemId, direction);
   revalidateSchedule(eventId);
 }

@@ -20,7 +20,7 @@ Portal/Supabase = client-facing operational portal
 - Contact/client identity
 - Opportunity/sales process
 - Official booked Event record
-- Assigned planner/coordinator
+- Assigned coordinator
 - Official event summary fields such as date, arrival time, and meeting location
 - Proposal, contract, invoice, and payment links
 - Payment status
@@ -32,10 +32,10 @@ Portal/Supabase = client-facing operational portal
 - Secure client portal access
 - Portal draft/launched/archived state
 - Event-specific checklist items and statuses
-- Client checklist submissions that require planner review
+- Client checklist submissions that require coordinator review
 - Vendor submissions from the client portal
 - File upload metadata and private Supabase Storage objects
-- Planner review status for checklist/vendor/upload submissions
+- Coordinator review status for checklist/vendor/upload submissions
 - Integration logs and portal troubleshooting state
 
 ## Preview environment expectations
@@ -44,7 +44,7 @@ The preview deployment should be treated as a staging/demo environment, not prod
 
 Use it to review:
 
-- The planner/admin experience
+- The coordinator/admin experience
 - The client-facing portal experience
 - Checklist setup/review behavior
 - Vendor submission/review behavior
@@ -70,7 +70,7 @@ Do not use it yet for:
 - Protected admin routes through Supabase Auth
 - Client token route under `/e/[token]`
 
-### Admin/planner side
+### Admin/coordinator side
 
 Routes:
 
@@ -92,7 +92,7 @@ Implemented behavior:
 - Portal launch preparation
 - Checklist template application
 - Event-specific checklist item editing
-- Planner review for client-submitted checklist items
+- Coordinator review for client-submitted checklist items
 - Vendor submission visibility
 - Mark vendor submission reviewed
 - Upload review visibility
@@ -113,10 +113,10 @@ Implemented behavior:
 - Invalid/inactive portal link state
 - Launched portal detail view
 - Event summary
-- Planner contact
+- Coordinator contact
 - Document/payment link display
 - Client-visible checklist items
-- Client action to mark eligible checklist items ready for planner review
+- Client action to mark eligible checklist items ready for coordinator review
 - Vendor submission form
 - File upload form
 - Recent upload display
@@ -183,7 +183,7 @@ Admin event detail example used during local testing:
 http://localhost:3000/admin/events/476e3e07-91e0-4a96-9c7c-97e0742bcf88
 ```
 
-Client portal links are generated per event when the planner prepares launch. They look like:
+Client portal links are generated per event when the coordinator prepares launch. They look like:
 
 ```text
 http://localhost:3000/e/<secure-token>
@@ -209,7 +209,7 @@ PORTAL_BASE_URL=https://<preview-domain>
 ```
 
 GoHighLevel variables (the full set as of 2026-09-10 — the Opportunities
-board, planner assignment, portal-link write-back and the Booked move all
+board, coordinator assignment, portal-link write-back and the Booked move all
 need these; see `docs/developer-notes.md` §4 for what each one is):
 
 ```text
@@ -267,11 +267,11 @@ AND Deposit Paid = Yes
 AND no existing portal event for this booked event
 ```
 
-### 2. Planner setup
+### 2. Coordinator setup
 
-The planner logs into `/admin`, opens the event, and reviews the synced event details.
+The coordinator logs into `/admin`, opens the event, and reviews the synced event details.
 
-Planner can:
+Coordinator can:
 
 - apply a checklist template
 - edit event checklist items
@@ -281,7 +281,7 @@ Planner can:
 
 ### 3. Portal launch
 
-The planner explicitly prepares launch. This generates a secure client portal URL and changes the event to launched.
+The coordinator explicitly prepares launch. This generates a secure client portal URL and changes the event to launched.
 
 Current MVP behavior:
 
@@ -303,16 +303,16 @@ Those remain GoHighLevel-owned workflows and are intentionally deferred until GH
 The client opens the secure link and can:
 
 - view event details
-- view planner contact details
+- view coordinator contact details
 - view document/payment links
 - review checklist items
-- mark eligible checklist items ready for planner review
+- mark eligible checklist items ready for coordinator review
 - submit vendor details
 - upload requested files
 
-Client submissions are not automatically considered final. Planner review remains required.
+Client submissions are not automatically considered final. Coordinator review remains required.
 
-### 5. Planner review
+### 5. Coordinator review
 
 Admin event detail highlights items needing review:
 
@@ -320,7 +320,7 @@ Admin event detail highlights items needing review:
 - client-submitted vendors with metadata status `needs_review`
 - uploads with status/metadata `needs_review`
 
-Planner can mark vendor and upload submissions reviewed. Checklist items can be edited/completed by the planner.
+Coordinator can mark vendor and upload submissions reviewed. Checklist items can be edited/completed by the coordinator.
 
 ## What to show stakeholders in preview
 
@@ -351,14 +351,14 @@ The following are intentionally deferred until after preview feedback and GHL se
 - GHL Event record read/update API integration
 - Write portal URL/status/launched date back to GHL
 - GHL-driven client notification workflows
-- GHL task/notification creation for planner review items
-- Exact GHL assigned-planner field behavior
+- GHL task/notification creation for coordinator review items
+- Exact GHL assigned-coordinator field behavior
 
 ### Client messaging and notifications
 
 - Automated client email/SMS from the portal
 - Client upload/vendor/checklist confirmation emails beyond in-page messages
-- Planner/staff email alerts for new submissions
+- Coordinator/staff email alerts for new submissions
 - Reminder scheduling
 - Escalation rules for overdue tasks
 
@@ -367,7 +367,7 @@ The following are intentionally deferred until after preview feedback and GHL se
 - Full checklist template editor
 - Drag-and-drop checklist reordering
 - Detailed schedule/timeline builder
-- Multi-planner or coordinator assignments
+- Multi-coordinator assignments
 - Admin-side vendor editing/approval workflow beyond reviewed status
 - Upload categorization by checklist item/vendor
 - Bulk review actions

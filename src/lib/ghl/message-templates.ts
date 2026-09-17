@@ -5,7 +5,7 @@ import { htmlToText } from "@/lib/ghl/html-text";
 // GHL Snippets (GHL Settings → Snippets; API "location templates"), read for
 // the conversations drawer's "Insert snippet" menu — short email/SMS bodies
 // staff paste into replies. Their text is inserted into the drawer's compose
-// box so the planner can tweak it before sending. (GHL's email-builder
+// box so the coordinator can tweak it before sending. (GHL's email-builder
 // templates are deliberately not offered here: they're marketing designs,
 // not customer correspondence.)
 //
@@ -136,8 +136,8 @@ async function fetchSnippets(): Promise<TemplateListResult<GhlSnippet>> {
 
 // GHL fills merge tags when it sends from its own UI, but messages posted
 // through the Conversations API go out verbatim. Snippets are therefore
-// rendered here for the contact (and the sending planner) before they land
-// in the compose box; anything unknown stays as-is so the planner spots it
+// rendered here for the contact (and the sending coordinator) before they land
+// in the compose box; anything unknown stays as-is so the coordinator spots it
 // before hitting Send.
 export type SnippetMergeContext = {
   contact: {

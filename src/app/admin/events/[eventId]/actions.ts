@@ -13,7 +13,7 @@ import {
   markEventUploadReviewed,
   markEventVendorReviewed,
   saveEventFacilitator,
-  updateEventPlanner,
+  updateEventCoordinator,
   updateEventSummary,
 } from "@/lib/admin/events";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
@@ -21,7 +21,7 @@ import { setEventReservationsStatus } from "@/lib/admin/room-calendar";
 import { getUserRole } from "@/lib/admin/users";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const launchConfirmationValue = "planner-approved-launch";
+const launchConfirmationValue = "coordinator-approved-launch";
 
 export async function launchPortalAction(formData: FormData) {
   const eventId = String(formData.get("eventId") || "").trim();
@@ -32,7 +32,7 @@ export async function launchPortalAction(formData: FormData) {
   }
 
   if (confirmation !== launchConfirmationValue) {
-    throw new Error("Unable to launch portal: planner approval confirmation missing");
+    throw new Error("Unable to launch portal: coordinator approval confirmation missing");
   }
 
   const supabase = await createServerSupabaseClient();
@@ -53,7 +53,7 @@ export async function launchPortalAction(formData: FormData) {
   redirect(`/admin/events/${eventId}?launched=1`);
 }
 
-// Saves the whole Event summary form. Value is admin-only: planners never see
+// Saves the whole Event summary form. Value is admin-only: coordinators never see
 // the input, and a non-admin submission with a value key is ignored here.
 export async function updateEventDetailsAction(formData: FormData) {
   const eventId = String(formData.get("eventId") || "").trim();
@@ -121,7 +121,7 @@ export async function updateEventDetailsAction(formData: FormData) {
   redirect(`/admin/events/${eventId}?details=1`);
 }
 
-// Saves the event facilitator from the admin event page. A planner-entered
+// Saves the event facilitator from the admin event page. A coordinator-entered
 // facilitator is trusted, so it lands as confirmed and mirrors straight to
 // GHL (custom fields + tagged contact).
 export async function updateEventFacilitatorAction(formData: FormData) {
@@ -182,17 +182,17 @@ export async function reviewFacilitatorAction(formData: FormData) {
   redirect(`/admin/events/${eventId}?facilitator=reviewed`);
 }
 
-// Reassigns the planner (GHL assigned user) from the Event summary tile.
-export async function updateEventPlannerAction(formData: FormData) {
+// Reassigns the coordinator (GHL assigned user) from the Event summary tile.
+export async function updateEventCoordinatorAction(formData: FormData) {
   const eventId = String(formData.get("eventId") || "").trim();
   const ghlUserId = String(formData.get("ghlUserId") || "").trim();
 
   if (!eventId) {
-    throw new Error("Unable to update planner: missing event ID");
+    throw new Error("Unable to update coordinator: missing event ID");
   }
 
   if (!ghlUserId) {
-    throw new Error("Unable to update planner: select a planner");
+    throw new Error("Unable to update coordinator: select a coordinator");
   }
 
   const supabase = await createServerSupabaseClient();
@@ -204,14 +204,14 @@ export async function updateEventPlannerAction(formData: FormData) {
     redirect("/admin/login");
   }
 
-  await updateEventPlanner(eventId, ghlUserId);
+  await updateEventCoordinator(eventId, ghlUserId);
 
   revalidatePath("/admin");
   revalidatePath("/admin/events");
   revalidatePath("/admin/assignments");
   revalidatePath(`/admin/events/${eventId}`);
 
-  redirect(`/admin/events/${eventId}?planner=updated`);
+  redirect(`/admin/events/${eventId}?coordinator=updated`);
 }
 
 const deleteConfirmationValue = "delete-event-confirmed";

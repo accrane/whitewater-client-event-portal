@@ -10,7 +10,7 @@ import {
   isClientUploadNeedingReview,
 } from "../../src/lib/admin/upload-review-presenters.ts";
 
-test("buildUploadReviewSummary counts client uploads needing planner review", () => {
+test("buildUploadReviewSummary counts client uploads needing coordinator review", () => {
   const summary = buildUploadReviewSummary([
     { metadata: { source: "client_portal", status: "needs_review" }, status: "needs_review" },
     { metadata: { source: "client_portal", status: "needs_review" }, status: "needs_review" },
@@ -20,7 +20,7 @@ test("buildUploadReviewSummary counts client uploads needing planner review", ()
   assert.deepEqual(summary, {
     totalCount: 3,
     needsReviewCount: 2,
-    label: "2 uploads need planner review",
+    label: "2 uploads need coordinator review",
     hasUploadsNeedingReview: true,
   });
 });
@@ -34,7 +34,7 @@ test("buildUploadReviewSummary has a calm empty state when no uploads need revie
   assert.deepEqual(summary, {
     totalCount: 2,
     needsReviewCount: 0,
-    label: "No uploads need planner review",
+    label: "No uploads need coordinator review",
     hasUploadsNeedingReview: false,
   });
 });
@@ -82,10 +82,10 @@ test("upload review helpers identify and highlight client uploads needing review
   assert.match(getUploadReviewClassName(upload), /border-amber-300/);
 });
 
-test("buildReviewedUploadMetadata preserves metadata and records planner review audit fields", () => {
+test("buildReviewedUploadMetadata preserves metadata and records coordinator review audit fields", () => {
   const metadata = buildReviewedUploadMetadata({
     reviewedAt: "2026-07-05T18:30:00.000Z",
-    reviewedBy: " planner@example.com ",
+    reviewedBy: " coordinator@example.com ",
     existingMetadata: {
       source: "client_portal",
       status: "needs_review",
@@ -98,7 +98,7 @@ test("buildReviewedUploadMetadata preserves metadata and records planner review 
     status: "reviewed",
     originalField: "keep me",
     reviewedAt: "2026-07-05T18:30:00.000Z",
-    reviewedBy: "planner@example.com",
+    reviewedBy: "coordinator@example.com",
   });
 });
 

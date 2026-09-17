@@ -86,7 +86,7 @@ function InvalidOrUnavailableSchedule({ token }: { token: string }) {
     <main className="min-h-screen px-5 py-6 sm:px-8">
       <section className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white">
         <ClientHero
-          description="Schedule access remains locked until the planner launches the client portal."
+          description="Schedule access remains locked until the coordinator launches the client portal."
           eyebrow="Event Schedule"
           title="This schedule link is not active yet."
         />

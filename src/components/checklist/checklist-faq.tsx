@@ -21,7 +21,7 @@ type ChecklistFaqProps = {
 };
 
 // Status-driven look: red = the client still has work to do, amber = waiting
-// on planner review, green = planner checked it off. Template sections have
+// on coordinator review, green = coordinator checked it off. Template sections have
 // no status and render in the red "to do" style without a badge.
 const STATUS_STYLES: Record<
   ChecklistSectionStatus,
@@ -37,7 +37,7 @@ const STATUS_STYLES: Record<
     card: "border-amber-200 bg-white hover:border-amber-400",
     divider: "border-amber-200",
     badge: "border-amber-200 bg-amber-50 text-amber-900",
-    badgeLabel: "Waiting on planner review",
+    badgeLabel: "Waiting on coordinator review",
   },
   complete: {
     card: "border-emerald-200 bg-white hover:border-emerald-400",
@@ -49,7 +49,7 @@ const STATUS_STYLES: Record<
 
 // Client-facing checklist: FAQ-style cards of things the client needs to do.
 // Each section is a title that expands to reveal its rich-text content and,
-// for open sections, the "Mark ready for planner review" action.
+// for open sections, the "Mark ready for coordinator review" action.
 export function ChecklistFaq({
   sections,
   markReadyAction,
@@ -140,7 +140,7 @@ function FaqSection({
                 className="rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)]"
                 type="submit"
               >
-                Mark ready for planner review
+                Mark ready for coordinator review
               </button>
             </form>
           )}

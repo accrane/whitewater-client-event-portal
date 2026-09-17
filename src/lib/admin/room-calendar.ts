@@ -84,7 +84,7 @@ export type LinkableEvent = {
   label: string;
 };
 
-// Active portal events a planner can attach a reservation to. Linking one
+// Active portal events a coordinator can attach a reservation to. Linking one
 // pushes its GHL opportunity into the Planning stage (see
 // src/lib/ghl/planning-trigger.ts). `eventDate` is the live GHL "Date of
 // Interest" when available, falling back to the stored snapshot.
@@ -209,7 +209,7 @@ export type UpcomingAssignment = ReservationRow & {
   rooms: Pick<RoomRow, "name" | "color"> | null;
 };
 
-// Reservations with their room, for the Planner Assignments view. Defaults
+// Reservations with their room, for the Coordinator Assignments view. Defaults
 // to upcoming (not yet ended); an explicit date range filters on the event's
 // start date instead, so past ranges can be reviewed too.
 export async function listUpcomingAssignments(range?: {

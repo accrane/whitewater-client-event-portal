@@ -10,7 +10,7 @@ import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 const CONVERSATIONS_API_VERSION = "2021-04-15";
 
 // Real correspondence only — GHL conversations also carry activity noise
-// (TYPE_ACTIVITY_OPPORTUNITY, TYPE_ACTIVITY_CONTACT, ...) that planners
+// (TYPE_ACTIVITY_OPPORTUNITY, TYPE_ACTIVITY_CONTACT, ...) that coordinators
 // don't need in a message thread.
 const DISPLAYABLE_MESSAGE_TYPES = new Set([
   "TYPE_EMAIL",

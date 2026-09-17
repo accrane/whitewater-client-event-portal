@@ -17,23 +17,23 @@ Three systems, three jobs:
 | System | Job |
 | --- | --- |
 | **GoHighLevel** | The CRM. Contacts, opportunities, the Event Sales pipeline, and every email or text that goes to a client. |
-| **This portal** | Where planners run the event: room calendar, checklists, schedules, contracts, uploads, and the client's own portal page. |
+| **This portal** | Where coordinators run the event: room calendar, checklists, schedules, contracts, uploads, and the client's own portal page. |
 | **PandaDoc** | Proposals (sent from GHL) and contracts (sent from the portal), including signing. |
 
 GHL is the system of record. The portal mirrors opportunity details and
-writes planner actions back; when the two disagree, GHL wins on the next
-sync. The portal moves opportunities through the pipeline as planners work —
+writes coordinator actions back; when the two disagree, GHL wins on the next
+sync. The portal moves opportunities through the pipeline as coordinators work —
 linking a room, launching a portal, getting a contract signed — so the
 pipeline in GHL reflects what actually happened.
 
 | Person | Where they work | Access |
 | --- | --- | --- |
-| **Admin** (managers) | The portal — everything, including the Admin section, user management, reports, and dollar values | Portal login, admin role |
-| **Planner** (event coordinators) | The portal — daily event work; no Admin section, no dollar values | Portal login (the default role) |
-| **Client** | Their event portal page | A private link the planner sends; no login |
+| **Manager** | The portal — everything, including the Admin section, user management, reports, and dollar values | Portal login, Manager role |
+| **Coordinator** | The portal — daily event work; no Admin section, no dollar values | Portal login (the default role) |
+| **Client** | Their event portal page | A private link the coordinator sends; no login |
 | **Sales** | GoHighLevel | GHL login |
 
-Roles are set by an admin under Admin → Users.
+Roles are set by a manager under Admin → Users.
 
 ---
 
@@ -110,13 +110,13 @@ the field in GHL and it disappears in the portal.
 - pick the room(s), date, and times (the date fills in from the
   opportunity's date of interest);
 - choose the portal event in **Linked Event**;
-- pick the **Event Coordinator** (the list shows GHL staff planners only).
+- pick the **Event Coordinator** (the list shows GHL staff coordinators only).
 
 **Automatically:**
 - Linking a reservation to an event moves the GHL opportunity to
   **Planning**. GHL's internal tasks and notifications key off this stage.
 - Picking a coordinator assigns them to the opportunity in GHL, and they
-  become the event's **Planner** in the portal.
+  become the event's **Coordinator** in the portal.
 - Reservations start as **held** (faded and dashed on the calendar). Flip
   them to **booked** from the event page's Room bookings section, or let a
   signed contract do it (Step 4b).
@@ -126,8 +126,8 @@ the field in GHL and it disappears in the portal.
 **You do:** work the event from its page under **Events**:
 
 - **Event summary** — arrival time, meeting location, guest count, activity
-  passes, parking passes, storage bins. Admins also see and edit the
-  event's Value. The **Planner** can be reassigned here at any time.
+  passes, parking passes, storage bins. Managers also see and edit the
+  event's Value. The **Coordinator** can be reassigned here at any time.
 - **Primary contact and conversations** — the top of the Event facilitator
   card shows the person who inquired (name, email, phone, refreshed from GHL
   each time the page opens). The speech-bubble button opens a drawer with
@@ -173,10 +173,10 @@ the field in GHL and it disappears in the portal.
 
 **Automatically:**
 - Opening the event page refreshes it from GHL first (name, type, date of
-  interest, contact, planner, proposal link, guest counts, value).
+  interest, contact, coordinator, proposal link, guest counts, value).
 - Saving the Event summary writes guest count, pass and bin counts, and
   Value back to the GHL opportunity.
-- Reassigning the planner updates the opportunity's assigned user in GHL.
+- Reassigning the coordinator updates the opportunity's assigned user in GHL.
 
 ### Step 4b — Contract (PandaDoc, from the portal)
 
@@ -189,7 +189,7 @@ inside their portal (Step 6). Nothing goes through GHL.
 
 **Automatically:**
 - The portal builds the PandaDoc document from the template: your line
-  items become its pricing table and the event, contact, and planner
+  items become its pricing table and the event, contact, and coordinator
   details fill its fields. The document is sent silently — PandaDoc only
   emails the client if you tick "also email from PandaDoc".
 - Every contract stays on the event: name, terms, items, status, PandaDoc
@@ -246,7 +246,7 @@ launch action at the bottom of the event page and tick the confirmation.
 ### Step 6 — The client works their portal
 
 **The client** opens their link (no login) and can:
-- see the event summary, arrival details, and their planner's contact info;
+- see the event summary, arrival details, and their coordinator's contact info;
 - complete checklist items;
 - upload files (insurance, logos, rosters — stored privately);
 - submit vendors;
@@ -277,7 +277,7 @@ portal-only — nothing syncs to GHL or notifies the client.
   for rebooking outreach.
 - Past events stay in **Events** under its past filter.
 
-### Deleting an event (admins only)
+### Deleting an event (managers only)
 
 Deleting from the event page removes the event and everything attached
 (checklist, vendors, uploads, schedule, linked reservations), clears the
@@ -289,25 +289,25 @@ contact and opportunity are otherwise untouched.
 
 ## 3. Screen guide
 
-### Planner side
+### Coordinator side
 
 | Screen | What it's for |
 | --- | --- |
 | **Dashboard** | Metric tiles, then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones; **Paused follow-ups** older than 14 days. |
 | **Events** | All portal events with status filters (Draft, launched, past). Open one to work it. |
 | **New inquiry** | Phone intake form (creates the GHL contact and opportunity, then the draft event; Expedited opens the room-hold window) and the backfill list of GHL opportunities without a portal event. |
-| **Event page** | Summary (with the contracts list), planner, primary contact with the conversations, notes, and tasks buttons and the follow-ups pause switch, facilitator, room bookings, launch, review queues. |
+| **Event page** | Summary (with the contracts list), coordinator, primary contact with the conversations, notes, and tasks buttons and the follow-ups pause switch, facilitator, room bookings, launch, review queues. |
 | **— Contracts** | PandaDoc contracts for the event: create, edit unsigned ones, history with status and totals, signed PDF, refresh status. |
 | **— Checklist** | The event's checklist. |
 | **— Schedule & Notes** | Event-day schedule grid and sectioned notes. |
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
-| **Planner Assignments** | Month calendar of every planner's events, colored by planner. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by planner and show that month's workload. A **Columns** toggle shows the original one-column-per-planner view with a date range. |
-| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or planner (the tabs switch to per-stage match counts while you type), and a **stage guide** explaining what has happened and what to do next. Each card has the conversations, notes, and tasks buttons and the pause switch. The **Won** tab is the contact list for rebooking. |
-| **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Past events list their PandaDoc documents (contract, additions, final payment) with each one's status; click one to open it in PandaDoc, where you need to be signed in. Dollar values are admin-only. |
+| **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
+| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator (the tabs switch to per-stage match counts while you type), and a **stage guide** explaining what has happened and what to do next. Each card has the conversations, notes, and tasks buttons and the pause switch. The **Won** tab is the contact list for rebooking. |
+| **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Past events list their PandaDoc documents (contract, additions, final payment) with each one's status; click one to open it in PandaDoc, where you need to be signed in. Dollar values are manager-only. |
 | **Settings** | Checklist and schedule templates that new events start from. Changes never touch events already set up. |
 | **Manual** | This guide. Opens in a new tab from the **?** beside the theme switch. |
 
-### Admin section (admin role only)
+### Admin section (managers only)
 
 | Screen | What it's for |
 | --- | --- |
@@ -320,7 +320,7 @@ contact and opportunity are otherwise untouched.
 
 | Screen | What it's for |
 | --- | --- |
-| **Portal overview** | Summary, arrival details, checklist, contracts with in-portal signing, documents and payment, facilitator, vendors, uploads, planner contact. |
+| **Portal overview** | Summary, arrival details, checklist, contracts with in-portal signing, documents and payment, facilitator, vendors, uploads, coordinator contact. |
 | **Event schedule** | The event-day schedule and notes. |
 
 ---
@@ -345,7 +345,7 @@ Payment, the wedding ones) work as they are. If you build a new one:
   names (Name, Description, Price, QTY).
 - Add whichever fields you want filled automatically: the event name, type,
   date, arrival time, meeting location, attendee and pass counts; the
-  contact's, planner's, and facilitator's name, email, and phone; and the
+  contact's, coordinator's, and facilitator's name, email, and phone; and the
   contract's name, description, and subtotal. Templates built for the old
   Salesforce integration (Client first/last name, email, phone, Account
   Name, Date) are filled too.
@@ -377,8 +377,8 @@ Payment, the wedding ones) work as they are. If you build a new one:
 | --- | --- |
 | A website inquiry is in GHL but not under Events | New inquiry → the backfill list at the bottom. **Create draft event** does what the automation should have. To see why it was missed, check Admin → Integration Logs: a "rejected" inquiry webhook row means the automation reached the portal but was turned away; no row at all means the GHL automation never sent it. |
 | The event page shows old details | It refreshes from GHL on every open. If it still disagrees with GHL, check Admin → Integration Logs for a failed sync. |
-| Planner and coordinator lists are empty or read-only | The portal can't reach GHL right now. Tell an admin; the connection needs attention. |
-| A reply from the conversations drawer won't send | The message explains why — a Do Not Disturb channel, or a GHL permission an admin needs to grant. |
+| Coordinator lists are empty or read-only | The portal can't reach GHL right now. Tell a manager; the connection needs attention. |
+| A reply from the conversations drawer won't send | The message explains why — a Do Not Disturb channel, or a GHL permission a manager needs to grant. |
 | A contract failed to send | The card shows PandaDoc's message. Usually a template problem (a pricing table with hidden prices, a renamed column). Fix the template, delete the failed contract, and send again. |
 | The client says their signing link stopped working | The contract was edited after it was sent. Their portal shows the revised one. |
 | Follow-up messages still going to someone who called | Use the pause switch on their Opportunities card or event page. |

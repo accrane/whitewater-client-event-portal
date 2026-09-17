@@ -35,7 +35,7 @@ export type FollowUpPause = {
 export type ResumeReason = "manual" | "booked" | "lost" | "won";
 
 const RESUME_LABELS: Record<ResumeReason, string> = {
-  manual: "resumed by a planner",
+  manual: "resumed by a coordinator",
   booked: "the opportunity was booked",
   lost: "the opportunity was marked lost",
   won: "the opportunity was won",

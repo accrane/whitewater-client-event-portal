@@ -163,7 +163,7 @@ function ConversationsDrawer({
   const threadEndRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   // The picker follows the contact's last inbound message once, on the
-  // first load; later refreshes (after a send) leave the planner's choice.
+  // first load; later refreshes (after a send) leave the coordinator's choice.
   const channelDefaulted = useRef(false);
 
   // State updates only happen after the fetch resolves (loading starts true),
@@ -516,7 +516,7 @@ function ConversationsDrawer({
 // Small upward-opening picker for the snippet menu:
 // a filter box over a scrollable list, with the loading / scope-error /
 // empty states rendered inside the panel so the trigger is always clickable
-// and the planner sees exactly why a list is empty.
+// and the coordinator sees exactly why a list is empty.
 function InsertMenu<T extends { id: string }>({
   label,
   list,

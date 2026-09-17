@@ -132,7 +132,7 @@ function NotePanel({ html }: { html: string }) {
   );
 }
 
-// Renders planner-authored WYSIWYG HTML (trusted admin input).
+// Renders coordinator-authored WYSIWYG HTML (trusted admin input).
 export function NoteHtml({ html }: { html: string }) {
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(
     null,

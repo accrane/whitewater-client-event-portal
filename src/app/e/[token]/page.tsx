@@ -80,28 +80,28 @@ export default async function ClientPortalPlaceholderPage({
 
         {checklist === "received" ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Checklist update received. Your planner will review it before it is
+            Checklist update received. Your coordinator will review it before it is
             marked complete.
           </div>
         ) : null}
 
         {facilitator === "received" ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Facilitator contact info received. Your planner will review it and
+            Facilitator contact info received. Your coordinator will review it and
             reach out to coordinate event details.
           </div>
         ) : null}
 
         {vendor === "received" ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Vendor information received. Your planner will review it before it
+            Vendor information received. Your coordinator will review it before it
             appears in final event materials.
           </div>
         ) : null}
 
         {upload === "received" ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            File received. Your planner will review it before using it in final
+            File received. Your coordinator will review it before using it in final
             event materials.
           </div>
         ) : null}
@@ -142,14 +142,14 @@ export default async function ClientPortalPlaceholderPage({
           </ClientSectionCard>
 
           <ClientSectionCard
-            description="Use your normal planner contact channels for questions."
-            title="Planner contact"
+            description="Use your normal coordinator contact channels for questions."
+            title="Coordinator contact"
           >
             <DetailList
               rows={[
-                ["Name", event.plannerName],
-                ["Email", event.plannerEmail],
-                ["Phone", event.plannerPhone],
+                ["Name", event.coordinatorName],
+                ["Email", event.coordinatorEmail],
+                ["Phone", event.coordinatorPhone],
               ]}
             />
           </ClientSectionCard>
@@ -193,8 +193,8 @@ export default async function ClientPortalPlaceholderPage({
                   ) : null}
                   <p className="mt-2 text-xs text-slate-500">
                     {event.facilitatorStatus === "needs_review"
-                      ? "Submitted — waiting on planner review."
-                      : "On file with your planner."}{" "}
+                      ? "Submitted — waiting on coordinator review."
+                      : "On file with your coordinator."}{" "}
                     Submit the form again to update it.
                   </p>
                 </div>
@@ -248,7 +248,7 @@ export default async function ClientPortalPlaceholderPage({
           </ClientSectionCard>
 
           <ClientSectionCard
-            description="Share vendor contact details and event files with your planner for review."
+            description="Share vendor contact details and event files with your coordinator for review."
             title="Vendors and uploads"
           >
             <div className="space-y-4">
@@ -297,7 +297,7 @@ export default async function ClientPortalPlaceholderPage({
                   <textarea
                     className="min-h-24 rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal text-slate-950"
                     name="notes"
-                    placeholder="Anything your planner should know"
+                    placeholder="Anything your coordinator should know"
                   />
                 </label>
                 <button
@@ -324,7 +324,7 @@ export default async function ClientPortalPlaceholderPage({
                 </label>
                 <p className="text-xs leading-5 text-slate-500">
                   Accepted files: PDF, JPG, PNG, HEIC, or HEIF up to 25 MB.
-                  Uploads are private and require planner review.
+                  Uploads are private and require coordinator review.
                 </p>
                 <button
                   className="justify-self-start rounded-md border border-[var(--brand-border)] bg-[var(--brand)] px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] transition hover:bg-[var(--brand-hover)]"
@@ -349,7 +349,7 @@ export default async function ClientPortalPlaceholderPage({
                         </span>
                         <span>
                           {uploadedFile.status === "needs_review"
-                            ? "Needs planner review"
+                            ? "Needs coordinator review"
                             : "Uploaded"}{" "}
                           · {formatNullableDateTime(uploadedFile.uploadedAt)}
                         </span>
@@ -382,7 +382,7 @@ function ClientChecklistAccordion({
             Things to complete for your event
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Click each item to see the details from your planner, then mark it
+            Click each item to see the details from your coordinator, then mark it
             ready for review once you&apos;ve completed it.
           </p>
         </div>
@@ -401,7 +401,7 @@ function ClientChecklistAccordion({
         </div>
       ) : (
         <p className="mt-5 rounded-2xl border-2 border-dashed border-red-300 bg-red-50/40 p-4 text-sm leading-6 text-slate-700">
-          Checklist items will appear here after planner setup.
+          Checklist items will appear here after coordinator setup.
         </p>
       )}
     </section>
@@ -413,7 +413,7 @@ function InvalidOrUnavailablePortal({ token }: { token: string }) {
     <main className="min-h-screen px-5 py-6 sm:px-8">
       <section className="mx-auto max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white">
         <ClientHero
-          description="Portal access remains locked until a planner launches the client portal and the secure token is connected to a launched event."
+          description="Portal access remains locked until a coordinator launches the client portal and the secure token is connected to a launched event."
           eyebrow="Client Portal Preview"
           title="This portal link is not active yet."
         />
@@ -432,7 +432,7 @@ function InvalidOrUnavailablePortal({ token }: { token: string }) {
               title="Arrival details"
             />
             <ClientSectionCard
-              description="Required and optional items with completion status will appear after planner setup."
+              description="Required and optional items with completion status will appear after coordinator setup."
               title="Checklist"
             />
             <ClientSectionCard

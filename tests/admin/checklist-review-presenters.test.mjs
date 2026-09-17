@@ -7,7 +7,7 @@ import {
   getChecklistReviewClassName,
 } from "../../src/lib/admin/checklist-review-presenters.ts";
 
-test("buildChecklistReviewSummary counts client-submitted checklist items needing planner review", () => {
+test("buildChecklistReviewSummary counts client-submitted checklist items needing coordinator review", () => {
   const summary = buildChecklistReviewSummary([
     { status: "needs_review" },
     { status: "completed" },
@@ -18,7 +18,7 @@ test("buildChecklistReviewSummary counts client-submitted checklist items needin
   assert.deepEqual(summary, {
     totalCount: 4,
     needsReviewCount: 2,
-    label: "2 items need planner review",
+    label: "2 items need coordinator review",
     hasItemsNeedingReview: true,
   });
 });
@@ -32,7 +32,7 @@ test("buildChecklistReviewSummary has a calm empty state when no items need revi
   assert.deepEqual(summary, {
     totalCount: 2,
     needsReviewCount: 0,
-    label: "No checklist items need planner review",
+    label: "No checklist items need coordinator review",
     hasItemsNeedingReview: false,
   });
 });

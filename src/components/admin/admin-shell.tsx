@@ -22,7 +22,7 @@ type AdminShellProps = {
   backLabel?: string;
 };
 
-// Shown in the top bar so a planner can tell a local build from the live app.
+// Shown in the top bar so a coordinator can tell a local build from the live app.
 const environmentTag =
   process.env.NODE_ENV === "production" ? null : process.env.NODE_ENV;
 
