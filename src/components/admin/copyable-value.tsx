@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from "react";
 
 // Detail-row value that copies itself to the clipboard on click; hovering
 // shows a "Click to copy" hint, clicking swaps it to "Copied!" briefly.
-export function CopyableValue({ value }: { value: string }) {
+// With a `label`, the label is shown link-style in place of the value — for
+// URLs that should be handed on rather than opened.
+export function CopyableValue({
+  value,
+  label,
+}: {
+  value: string;
+  label?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -40,9 +48,15 @@ export function CopyableValue({ value }: { value: string }) {
       title="Click to copy"
       type="button"
     >
-      <span className="break-all underline decoration-slate-300 decoration-dashed underline-offset-4 transition group-hover:decoration-slate-500">
-        {value}
-      </span>
+      {label ? (
+        <span className="text-sky-700 underline underline-offset-2 transition group-hover:text-sky-900">
+          {label}
+        </span>
+      ) : (
+        <span className="break-all underline decoration-slate-300 decoration-dashed underline-offset-4 transition group-hover:decoration-slate-500">
+          {value}
+        </span>
+      )}
       <span
         aria-live="polite"
         className={

@@ -22,6 +22,7 @@ export type Database = {
           pandadoc_template_id: string | null;
           pandadoc_status: string | null;
           pandadoc_url: string | null;
+          pandadoc_shared_link: string | null;
           recipient_name: string | null;
           recipient_email: string | null;
           grand_total: number | null;
@@ -51,6 +52,7 @@ export type Database = {
           pandadoc_template_id?: string | null;
           pandadoc_status?: string | null;
           pandadoc_url?: string | null;
+          pandadoc_shared_link?: string | null;
           recipient_name?: string | null;
           recipient_email?: string | null;
           grand_total?: number | null;
@@ -80,6 +82,7 @@ export type Database = {
           pandadoc_template_id?: string | null;
           pandadoc_status?: string | null;
           pandadoc_url?: string | null;
+          pandadoc_shared_link?: string | null;
           recipient_name?: string | null;
           recipient_email?: string | null;
           grand_total?: number | null;

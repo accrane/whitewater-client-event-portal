@@ -86,6 +86,7 @@ function mapContractRow(
     pandadocTemplateId: row.pandadoc_template_id,
     pandadocStatus: row.pandadoc_status,
     pandadocUrl: row.pandadoc_url,
+    customerViewUrl: row.pandadoc_shared_link,
     recipientName: row.recipient_name,
     recipientEmail: row.recipient_email,
     grandTotal: toNumber(row.grand_total),
@@ -808,8 +809,18 @@ export async function syncContractFromPandaDoc(
 
   const status = mapPandaDocStatus(details.data.status);
   const now = new Date().toISOString();
+  // The customer's own PandaDoc link. PandaDoc only issues it once the
+  // document is sent, and a re-send after an edit can change it.
+  const recipientEmail = row.recipient_email?.toLowerCase();
+  const recipient =
+    details.data.recipients.find(
+      (candidate) =>
+        recipientEmail && candidate.email?.toLowerCase() === recipientEmail,
+    ) ?? details.data.recipients.find((candidate) => candidate.sharedLink);
+
   const patch: ContractUpdate = {
     pandadoc_status: details.data.status,
+    pandadoc_shared_link: recipient?.sharedLink ?? null,
     grand_total: details.data.grandTotal ?? toNumber(row.grand_total),
     last_error: null,
   };

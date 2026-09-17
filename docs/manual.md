@@ -193,7 +193,13 @@ inside their portal (Step 6). Nothing goes through GHL.
   details fill its fields. The document is sent silently — PandaDoc only
   emails the client if you tick "also email from PandaDoc".
 - Every contract stays on the event: name, terms, items, status, PandaDoc
-  link, signed date. The Event summary lists them with a status pill; the
+  link, signed date. The Event summary lists them with a status pill and two
+  links: **View in PandaDoc** (staff, needs your PandaDoc login) and
+  **Customer View**, the customer's own public PandaDoc link — no login
+  needed. Clicking it **copies** the link (you'll see "Copied!") instead of
+  opening it, so you can paste it to the customer without your own visit
+  showing up as theirs. It appears once PandaDoc has
+  sent the contract (not for drafts or ones awaiting approval). The
   Contracts tab shows the full history, totals, **Refresh status**, **Open
   in PandaDoc**, and the archived **Signed PDF** once executed.
 - **When the client signs:** every held room on the event flips to
@@ -201,7 +207,7 @@ inside their portal (Step 6). Nothing goes through GHL.
   archived. This happens the moment they finish signing in the portal, or
   on the next refresh of the event page.
 - **Editing before signature:** an unsigned contract (Awaiting PandaDoc
-  approval, Awaiting signature, Viewed by client, or a Draft left by a
+  approval, Awaiting signature, Viewed by customer, or a Draft left by a
   failed send) has an **Edit** button. The same form opens prefilled;
   saving updates the PandaDoc document and re-sends it. The client's earlier
   signing link stops working and their portal shows the revised contract.
@@ -353,8 +359,11 @@ Payment, the wedding ones) work as they are. If you build a new one:
 
 - **Refresh status** on the Contracts tab re-reads the document from
   PandaDoc; the event page does the same each time it opens.
-- **Open in PandaDoc** goes to the document for staff. Clients never leave
-  the portal.
+- **Open in PandaDoc** / **View in PandaDoc** goes to the document for
+  staff. **Customer View** on the Event summary is the customer's personal
+  PandaDoc link: whoever opens it *is* the customer as far as PandaDoc is
+  concerned — it marks the contract viewed and the page can sign it. That
+  is why it copies rather than opens; only send it to the customer.
 - A contract can only be signed while it is sent or viewed — not while it
   is a draft or awaiting approval.
 - **Payment status** on the event still comes from GHL; PandaDoc payments

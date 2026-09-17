@@ -26,6 +26,8 @@ export type EventContract = {
   pandadocTemplateId: string | null;
   pandadocStatus: string | null;
   pandadocUrl: string | null;
+  /** The customer's public PandaDoc link (no login); null until sent. */
+  customerViewUrl: string | null;
   recipientName: string | null;
   recipientEmail: string | null;
   grandTotal: number | null;
@@ -70,7 +72,7 @@ export const contractStatusLabels: Record<ContractStatus, string> = {
   creating: "Creating in PandaDoc…",
   approval: "Awaiting PandaDoc approval",
   sent: "Awaiting signature",
-  viewed: "Viewed by client",
+  viewed: "Viewed by customer",
   completed: "Signed",
   declined: "Declined",
   voided: "Voided",

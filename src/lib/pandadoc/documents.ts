@@ -248,7 +248,12 @@ export type PandaDocDocumentDetails = {
   status: string;
   dateCompleted: string | null;
   grandTotal: number | null;
-  recipients: { email: string | null; hasCompleted: boolean }[];
+  recipients: {
+    email: string | null;
+    hasCompleted: boolean;
+    /** Public, no-login link PandaDoc issues this recipient once sent. */
+    sharedLink: string | null;
+  }[];
 };
 
 export async function getPandaDocDocumentDetails(
@@ -259,7 +264,11 @@ export async function getPandaDocDocumentDetails(
     status?: string;
     date_completed?: string | null;
     grand_total?: { amount?: string | number; currency?: string } | null;
-    recipients?: { email?: string; has_completed?: boolean }[];
+    recipients?: {
+      email?: string;
+      has_completed?: boolean;
+      shared_link?: string | null;
+    }[];
   }>(`/documents/${encodeURIComponent(documentId)}/details`);
 
   if (!result.ok) return result;
@@ -285,6 +294,7 @@ export async function getPandaDocDocumentDetails(
       recipients: (data.recipients ?? []).map((recipient) => ({
         email: recipient.email ?? null,
         hasCompleted: Boolean(recipient.has_completed),
+        sharedLink: recipient.shared_link || null,
       })),
     },
   };

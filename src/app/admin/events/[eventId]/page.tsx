@@ -379,18 +379,7 @@ export default async function AdminEventDetailPage({
                   className="flex flex-wrap items-center gap-2"
                   key={contract.id}
                 >
-                  {contract.pandadocUrl ? (
-                    <a
-                      className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
-                      href={contract.pandadocUrl}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {contract.name}
-                    </a>
-                  ) : (
-                    <span className="text-slate-800">{contract.name}</span>
-                  )}
+                  <span className="text-slate-800">{contract.name}</span>
                   <StatusBadge
                     tone={
                       contract.status === "completed"
@@ -405,6 +394,31 @@ export default async function AdminEventDetailPage({
                   >
                     {contractStatusLabels[contract.status]}
                   </StatusBadge>
+                  {/* PandaDoc needs a staff login. Customer View is the
+                      customer's own public PandaDoc link (issued on send):
+                      copy-only, because opening it counts as the customer
+                      viewing the contract. */}
+                  {contract.pandadocUrl ? (
+                    <a
+                      className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
+                      href={contract.pandadocUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      View in PandaDoc
+                    </a>
+                  ) : null}
+                  {contract.pandadocUrl && contract.customerViewUrl ? (
+                    <span aria-hidden="true" className="text-slate-300">
+                      |
+                    </span>
+                  ) : null}
+                  {contract.customerViewUrl ? (
+                    <CopyableValue
+                      label="Customer View"
+                      value={contract.customerViewUrl}
+                    />
+                  ) : null}
                 </p>
               ))
             )}
