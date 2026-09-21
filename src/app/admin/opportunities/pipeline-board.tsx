@@ -385,6 +385,7 @@ function OpportunityCard({
             compact
             contactId={opportunity.contact.id}
             contactName={opportunity.contact.name}
+            eventId={flags?.eventId}
           />
           <ContactNotesButton
             compact

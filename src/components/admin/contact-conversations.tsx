@@ -11,6 +11,7 @@ import {
 import { FollowUpPauseButton } from "@/components/admin/follow-up-pause-button";
 import { SlideOver, SlideOverCloseButton } from "@/components/admin/slide-over";
 import { buttonClasses } from "@/components/ui/button";
+import { findUnfilledMergeTags } from "@/lib/ghl/snippet-merge-tags";
 
 // Speech-bubble button + slide-in drawer showing the primary contact's GHL
 // conversation history for this event, with a reply box that sends through
@@ -215,8 +216,14 @@ function ConversationsDrawer({
   const loadTemplates = useCallback(
     async (refresh = false) => {
       try {
+        // The event id lets the server fill the event's merge tags
+        // (coordinator, event name/date, portal link) along with the contact's.
+        const params = new URLSearchParams();
+        if (refresh) params.set("refresh", "1");
+        if (eventId) params.set("eventId", eventId);
+        const query = params.toString();
         const res = await fetch(
-          `/api/ghl/contacts/${contactId}/message-templates${refresh ? "?refresh=1" : ""}`,
+          `/api/ghl/contacts/${contactId}/message-templates${query ? `?${query}` : ""}`,
         );
         const data = (await res.json()) as Partial<MessageTemplates> & {
           error?: string;
@@ -232,7 +239,7 @@ function ConversationsDrawer({
         );
       }
     },
-    [contactId],
+    [contactId, eventId],
   );
 
   useEffect(() => {
@@ -277,6 +284,12 @@ function ConversationsDrawer({
       textarea?.setSelectionRange(caret, caret);
     });
   };
+
+  // Merge tags the server couldn't fill are still in the text; GHL sends
+  // each one as a blank, so call them out before the coordinator hits Send.
+  const unfilledTags = findUnfilledMergeTags(
+    channel === "Email" ? `${subject}\n${body}` : body,
+  );
 
   const channelBlocked = channel === "SMS" ? dnd.sms : dnd.email;
   const canSend = Boolean(body.trim()) && !channelBlocked;
@@ -496,6 +509,15 @@ function ConversationsDrawer({
             ref={bodyRef}
             value={body}
           />
+          {unfilledTags.length > 0 ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {unfilledTags.length === 1 ? "This tag" : "These tags"} couldn&apos;t
+              be filled in and will send as a blank:{" "}
+              <span className="font-mono">{unfilledTags.join(", ")}</span>.
+              Replace {unfilledTags.length === 1 ? "it" : "them"} with the real
+              text before sending.
+            </p>
+          ) : null}
           <div className="flex justify-end">
             <button
               className={buttonClasses("primary", "sm")}

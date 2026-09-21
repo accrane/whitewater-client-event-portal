@@ -141,9 +141,23 @@ the field in GHL and it disappears in the portal.
     to reach us. A channel the contact has marked Do Not Disturb (or texted
     STOP to) is removed from the picker with a note saying why.
   - **Insert snippet** drops one of GHL's saved snippets into the message
-    as editable text, with the contact's and your merge tags already filled
-    in. "Refresh from GHL" inside the menu picks up snippets you just edited
-    in GHL.
+    as editable text, with the merge tags already filled in. "Refresh from
+    GHL" inside the menu picks up snippets you just edited in GHL. Tags you
+    can use when writing a snippet in GHL:
+
+    | Tag | Fills in with |
+    | --- | --- |
+    | `{{contact.first_name}}`, `{{contact.last_name}}`, `{{contact.name}}`, `{{contact.email}}`, `{{contact.phone}}`, `{{contact.company_name}}` | The contact |
+    | `{{opportunity.assigned_to}}` | The coordinator assigned to the event |
+    | `{{user.first_name}}`, `{{user.last_name}}`, `{{user.name}}`, `{{user.email}}` | You, the person sending. If your portal login doesn't match a GHL user, the event's coordinator is used instead |
+    | `{{opportunity.groupevent_name}}` | The event name |
+    | `{{opportunity.event_date}}` | The event date, written out (November 20, 2026) |
+    | `{{opportunity.portal_link}}` | The client's portal link (only once the portal has been launched) |
+
+    If a tag can't be filled in (no coordinator assigned yet, portal not
+    launched, or a tag the portal doesn't know) it stays in the message as
+    `{{…}}` and an amber warning lists it under the message box. Replace it
+    with the real text before sending, or it reaches the client as a blank.
   - The notepad button (red badge = note count) opens the contact's **GHL
     notes**; notes you add there save to GHL under your name.
   - The tasks button (badge = open tasks) opens the contact's **GHL
