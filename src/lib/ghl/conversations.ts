@@ -1,6 +1,6 @@
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
-import { htmlToText } from "@/lib/ghl/html-text";
+import { htmlToText, stripQuotedReply } from "@/lib/ghl/html-text";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 
 // GHL Conversations API (message history + replies) for the admin event
@@ -122,6 +122,7 @@ async function listConversationMessages(
     : (data.messages?.messages ?? []);
 
   const messages: GhlConversationMessage[] = [];
+  const threads: Promise<GhlConversationMessage[] | null>[] = [];
 
   for (const raw of rawMessages) {
     if (!raw || typeof raw !== "object") continue;
@@ -144,7 +145,7 @@ async function listConversationMessages(
     const rawBody = typeof message.body === "string" ? message.body : "";
     const contentType = String(message.contentType ?? "");
 
-    messages.push({
+    const collapsed: GhlConversationMessage = {
       id: String(message.id),
       direction: message.direction === "inbound" ? "inbound" : "outbound",
       messageType,
@@ -155,13 +156,84 @@ async function listConversationMessages(
           : null,
       dateAdded: toIsoDate(message.dateAdded),
       emailMessageId: emailMessageIds.at(-1) ?? null,
-    });
+    };
+
+    // GHL folds a whole email thread into one message row whose body is the
+    // first email's — so a client's reply to a portal email would never show.
+    // Expand threads into one message per email; a single-email row is
+    // already accurate. Falls back to the collapsed row if a fetch fails.
+    if (emailMessageIds.length > 1) {
+      threads.push(
+        listThreadEmails(collapsed, emailMessageIds).then(
+          (emails) => emails ?? [collapsed],
+        ),
+      );
+    } else {
+      messages.push(collapsed);
+    }
+  }
+
+  for (const emails of await Promise.all(threads)) {
+    if (emails) messages.push(...emails);
   }
 
   // The endpoint returns newest first; the drawer reads top-to-bottom.
   return messages.sort((a, b) =>
     (a.dateAdded ?? "").localeCompare(b.dateAdded ?? ""),
   );
+}
+
+// Longest thread tail fetched per message row; older emails in a longer
+// thread are left out rather than fanning out unbounded GHL calls.
+const MAX_THREAD_EMAILS = 20;
+
+// The individual emails behind a threaded message row, each as its own
+// message with its real direction and only the newly typed text. Null when
+// any fetch fails, so the caller can keep the collapsed row instead.
+async function listThreadEmails(
+  collapsed: GhlConversationMessage,
+  emailMessageIds: string[],
+): Promise<GhlConversationMessage[] | null> {
+  const { accessToken, apiBaseUrl } = appConfig.ghl;
+  if (!accessToken) return null;
+
+  try {
+    return await Promise.all(
+      emailMessageIds.slice(-MAX_THREAD_EMAILS).map(async (emailId) => {
+        const response = await fetch(
+          `${apiBaseUrl}/conversations/messages/email/${encodeURIComponent(emailId)}`,
+          { headers: conversationsHeaders(accessToken) },
+        );
+        if (!response.ok) {
+          throw new Error(`GHL email message fetch failed (${response.status})`);
+        }
+        const data = (await response.json()) as {
+          emailMessage?: Record<string, unknown>;
+        } & Record<string, unknown>;
+        const email = data.emailMessage ?? data;
+        const text = htmlToText(typeof email.body === "string" ? email.body : "");
+        // The thread's first email has no quote to strip; replies do.
+        const body =
+          emailId === emailMessageIds[0] ? text : stripQuotedReply(text);
+
+        return {
+          id: `${collapsed.id}:${emailId}`,
+          direction: email.direction === "inbound" ? "inbound" : "outbound",
+          messageType: collapsed.messageType,
+          body: body || "(No new text in this reply.)",
+          subject:
+            typeof email.subject === "string" && email.subject
+              ? email.subject
+              : collapsed.subject,
+          dateAdded: toIsoDate(email.dateAdded) ?? collapsed.dateAdded,
+          emailMessageId: emailId,
+        } satisfies GhlConversationMessage;
+      }),
+    );
+  } catch (error) {
+    console.error("GHL email thread expansion failed", error);
+    return null;
+  }
 }
 
 export type SendConversationMessageInput = {

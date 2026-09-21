@@ -17,6 +17,27 @@ export function htmlToText(value: string): string {
     .trim();
 }
 
+// Drops the quoted history a mail client appends to a reply ("On … wrote:",
+// Outlook's original-message block, ">" lines), leaving only what the sender
+// typed. Takes plain text (run htmlToText first). Returns "" when the reply
+// was nothing but the quote.
+export function stripQuotedReply(text: string): string {
+  const markers = [
+    // Gmail / Apple Mail; the attribution line can wrap onto a second line.
+    /(^|\n)[ \t]*On\s[^\n]*(\n[^\n]*)?\swrote:[ \t]*(\n|$)/,
+    /(^|\n)[ \t]*-{2,}\s*Original Message\s*-{2,}/i,
+    // Outlook's header block.
+    /(^|\n)[ \t]*From:\s[^\n]*\n[ \t]*Sent:\s/,
+    /(^|\n)[ \t]*>/,
+  ];
+  let cut = text.length;
+  for (const marker of markers) {
+    const match = marker.exec(text);
+    if (match && match.index < cut) cut = match.index;
+  }
+  return text.slice(0, cut).trim();
+}
+
 // Strips markup only when the value actually looks like HTML, so plain-text
 // bodies with a stray "<" or "&" pass through untouched.
 export function textFromMaybeHtml(value: string): string {

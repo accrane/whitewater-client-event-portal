@@ -134,6 +134,9 @@ the field in GHL and it disappears in the portal.
   their full GHL email and text history and a reply box. Replies go out
   **through GHL**, so they land in the same conversation thread the sales
   team sees. Notes:
+  - When the client replies to one of your emails, their reply shows up here
+    as its own message (reopen the drawer to refresh). Only what they typed
+    is shown — the quoted copy of your email underneath is left out.
   - The Email/SMS picker starts on whichever channel the contact last used
     to reach us. A channel the contact has marked Do Not Disturb (or texted
     STOP to) is removed from the picker with a note saying why.
