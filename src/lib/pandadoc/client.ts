@@ -50,10 +50,15 @@ export async function pandaDocRequest<T>(
       return {
         ok: false,
         status: response.status,
+        // 401 is a bad key. 403 is PandaDoc refusing this particular action
+        // (sending limits, recipient restrictions, workspace permissions),
+        // so its explanation is the useful part and must be kept.
         error:
-          response.status === 401 || response.status === 403
-            ? `PandaDoc rejected the API key (${response.status}). Check PANDADOC_API_KEY and that the account's API access is enabled.`
-            : `PandaDoc responded ${response.status}: ${text.slice(0, 300)}`,
+          response.status === 401
+            ? `PandaDoc rejected the API key (401). Check PANDADOC_API_KEY and that the account's API access is enabled.`
+            : response.status === 403
+              ? `PandaDoc refused this action (403): ${text.slice(0, 300) || "no details given"}`
+              : `PandaDoc responded ${response.status}: ${text.slice(0, 300)}`,
       };
     }
 
