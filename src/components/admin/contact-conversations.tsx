@@ -157,6 +157,14 @@ function ConversationsDrawer({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sentNotice, setSentNotice] = useState<string | null>(null);
+  // Snippets inserted into the current message, by name, sent along with it
+  // so the server can tag the contact for an EC Welcome (see
+  // coordinator-intro.ts). Cleared when the box is emptied or sent.
+  const [insertedSnippets, setInsertedSnippets] = useState<string[]>([]);
+  const changeBody = (next: string) => {
+    setBody(next);
+    if (next.trim() === "") setInsertedSnippets([]);
+  };
 
   // Snippets load once per drawer open (cached server-side); null until
   // they arrive so the menu can say "Loading…".
@@ -268,6 +276,9 @@ function ConversationsDrawer({
   // Drops the snippet at the cursor (or appends), and fills an empty
   // subject line from an email snippet's own subject.
   const insertSnippet = (snippet: Snippet) => {
+    setInsertedSnippets((current) =>
+      current.includes(snippet.name) ? current : [...current, snippet.name],
+    );
     const textarea = bodyRef.current;
     const start = textarea?.selectionStart ?? body.length;
     const end = textarea?.selectionEnd ?? body.length;
@@ -314,6 +325,7 @@ function ConversationsDrawer({
             channel === "Email"
               ? (lastEmail?.emailMessageId ?? undefined)
               : undefined,
+          snippetNames: insertedSnippets,
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -325,6 +337,7 @@ function ConversationsDrawer({
       );
       setBody("");
       setSubject("");
+      setInsertedSnippets([]);
       // GHL can take a moment to index the new message; a short delay makes
       // the refresh actually show it.
       setTimeout(() => void loadConversations(), 1500);
@@ -506,7 +519,7 @@ function ConversationsDrawer({
 
           <textarea
             className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => changeBody(e.target.value)}
             placeholder={`Reply to ${contactName || "the contact"} by ${channel.toLowerCase()}…`}
             ref={bodyRef}
             value={body}

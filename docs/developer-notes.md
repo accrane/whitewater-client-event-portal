@@ -371,6 +371,34 @@ access does this once in GHL; the portal only sets and clears the tag):
 
 ---
 
+### Step 3 coordinator chase (tag trigger)
+
+GHL's workflow **"Group Sales Inquiry: Step 3 – Coordinator Follow-Up"**
+used to start on the *User Replied* trigger, which only fires for a message
+a user types in GHL's own Conversations screen. Portal sends go through
+`POST /conversations/messages` as the location, not a user, so the chase
+never started from the drawer. Cathy rebuilt the workflow on 2026-09-21:
+
+1. **Trigger:** Contact Tag → *Tag added* includes `coordinator-intro-sent`.
+2. **Remove Tag** `coordinator-intro-sent` (first action, so a later intro
+   email can re-add it and re-enrol the contact).
+3. Add tag *Group Sales - Step 3 Waiting for Response*, wait 48 hours,
+   conditions, chase email (unchanged). Allow re-entry, allow multiple
+   opportunities, stop on response, published.
+
+The portal's side (2026-09-22): the conversations drawer sends the names of
+the snippets inserted into a message (`snippetNames`), and
+`sendConversationMessage` adds the tag after a successful send when any
+name contains **"EC Welcome"** (or the older "Event Coordinator Welcome") —
+rule in `src/lib/ghl/coordinator-intro.ts`. Logged as
+`coordinator_intro_tag`. Rename a snippet away from that phrase and it
+stops starting the chase. Known gaps, deliberately left: a contact still
+enrolled is skipped on re-entry (a second intro inside 48h doesn't restart
+the clock), and *Stop on response* only sees replies to messages the
+workflow itself sent, so a client answering the portal's intro during the
+wait may still be chased — both fixed in GHL by replacing *Wait 48 hours*
+with a wait that ends on reply or timeout.
+
 ## 6. Keeping the docs current
 
 When you ship a feature, ask:
@@ -388,6 +416,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-22 | **EC Welcome snippets start the Step 3 chase.** The drawer tracks which GHL snippets were inserted into the message (cleared when the box is emptied or sent) and posts their names; the route passes `snippetNames` to `sendConversationMessage`, which after a successful send adds `coordinator-intro-sent` to the contact when any name contains "EC Welcome" / "Event Coordinator Welcome" (`src/lib/ghl/coordinator-intro.ts`, tests in `tests/ghl/coordinator-intro.test.mjs`), logged as `coordinator_intro_tag`. The pause feature's tag write moved to a shared `setContactTag(contactId, tag, present)` in `src/lib/ghl/contact-tags.ts`. GHL workflow already retriggered on the tag by Cathy (§5). |
 | 2026-09-22 | **Contracts page** (`/admin/contracts`, nav under Events). All `event_contracts` across events (`listAllContracts`, two queries: contracts + their events' snapshots) in Open / History tabs (`contractTab`: draft/creating/approval/sent/viewed/error are open), sorted approvals-first so the manager's only manual step is on top, each row linking straight into the PandaDoc document (`pandaDocDocumentUrl`) — approval stays in PandaDoc because a coordinator must not approve their own contract, so the document owner is left as the API user. GET-form filters: search (contract/event/customer/coordinator), coordinator (managers; "My events" via `resolveCurrentCoordinator`, now in `src/lib/admin/current-coordinator.ts` and shared with the dashboard), status group (`CONTRACT_STATUS_GROUPS`, per tab), event date. Coordinators are scoped to their own events (`isCurrentCoordinatorsEvent`) before filtering; a login with no coordinator match sees an explanation. Statuses: `syncOpenContracts(limit)` re-reads the least-recently-updated open contracts from PandaDoc — 25 in `after()` on every load, 60 synchronously on **Refresh statuses** (`?refresh=1`) — and re-sums event value where a status changed. Filter logic in `event-filters.ts` (contracts section), tests in `tests/admin/contract-list-filters.test.mjs`. Dollar amounts manager-only. |
 | 2026-09-22 | **Snippet lists survive the drawer.** GHL's editor emits `<li><p>…</p></li>`, so `htmlToText` was producing a blank paragraph per bullet and no marker, and the send path wrapped each in its own `<p>`. `htmlToText` (`src/lib/ghl/html-text.ts`) now unwraps those, prefixes `<li>` with `•` (numbers `<ol>` items), keeps link addresses as `text (url)`, puts table cells on their own lines, and trims nbsp-only lines. New `textToEmailHtml` (used by `sendConversationMessage`) is its inverse: bullet/`-`/`*` lines → `<ul>`, `1.` lines → `<ol>`, bare URLs linked, text escaped (it wasn't before). Inbound emails, notes, and tasks in the drawers get the same bullet rendering. Tests: `tests/ghl/html-text.test.mjs`. |
 | 2026-09-22 | Opportunities cards title with the **Group/Event Name** field (fallbacks: Company/Organization Name, then opportunity name) and show the company on its own line under the contact. GHL names a form inquiry's opportunity after the contact, so cards were showing the contact's name twice; lines identical to the title are omitted. Search matches group and company names too. |

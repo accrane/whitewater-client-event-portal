@@ -1,5 +1,10 @@
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { setContactTag } from "@/lib/ghl/contact-tags";
+import {
+  COORDINATOR_INTRO_TAG,
+  hasCoordinatorIntroSnippet,
+} from "@/lib/ghl/coordinator-intro";
 import { htmlToText, stripQuotedReply, textToEmailHtml } from "@/lib/ghl/html-text";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 
@@ -247,6 +252,9 @@ export type SendConversationMessageInput = {
   replyToEmailMessageId?: string | null;
   ghlLocationId: string | null;
   portalEventId: string | null;
+  // Names of the GHL snippets inserted into this message, so a sent EC
+  // Welcome snippet can start the coordinator chase in GHL.
+  snippetNames?: string[];
 };
 
 export type SendConversationMessageOutcome =
@@ -323,5 +331,35 @@ export async function sendConversationMessage(
     },
   });
 
+  if (ok && hasCoordinatorIntroSnippet(input.snippetNames ?? [])) {
+    await tagCoordinatorIntroSent(input);
+  }
+
   return ok ? { ok: true } : { ok: false, error: error ?? "Unknown GHL error" };
+}
+
+// Adds the chase tag after an intro email. Never reports failure to the
+// caller: the coordinator's message has already gone out by this point,
+// and a failed tag must not make a successful send look broken. The
+// integration log is where a missed chase gets diagnosed.
+async function tagCoordinatorIntroSent(
+  input: SendConversationMessageInput,
+): Promise<void> {
+  const result = await setContactTag(input.contactId, COORDINATOR_INTRO_TAG, true);
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "coordinator_intro_tag",
+    ghlLocationId: input.ghlLocationId,
+    portalEventId: input.portalEventId,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? "Tagged the contact to start the Step 3 coordinator chase."
+      : "Failed tagging the contact to start the Step 3 coordinator chase.",
+    details: {
+      ghl_contact_id: input.contactId,
+      tag: COORDINATOR_INTRO_TAG,
+      snippets: input.snippetNames ?? [],
+      ...(result.ok ? {} : { error: result.error }),
+    },
+  }).catch(() => undefined);
 }

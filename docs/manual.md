@@ -166,8 +166,12 @@ the field in GHL and it disappears in the portal.
     as editable text, with the merge tags already filled in. Bullet lists
     show as • lines and links as "text (address)", and they go out as real
     lists and links; start a line with • or - to make a bullet of your own.
-    "Refresh from GHL" inside the menu picks up snippets you just edited in
-    GHL. Tags you can use when writing a snippet in GHL:
+    Sending a message with an **EC Welcome** snippet in it tags the contact
+    `coordinator-intro-sent`, which starts GHL's Step 3 coordinator
+    follow-up chase — so send the welcome email from here (or from GHL),
+    never from your own mailbox. "Refresh from GHL" inside the menu picks up
+    snippets you just edited in GHL. Tags you can use when writing a snippet
+    in GHL:
 
     | Tag | Fills in with |
     | --- | --- |

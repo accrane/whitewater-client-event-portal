@@ -54,7 +54,14 @@ export async function POST(
       subject?: string;
       replyToEmailMessageId?: string;
       eventId?: string;
+      snippetNames?: unknown;
     };
+    const snippetNames = Array.isArray(payload.snippetNames)
+      ? payload.snippetNames
+          .filter((name): name is string => typeof name === "string" && name.trim() !== "")
+          .map((name) => name.trim().slice(0, 200))
+          .slice(0, 10)
+      : [];
 
     const channel = payload.channel === "SMS" ? "SMS" : "Email";
     const body = (payload.body ?? "").trim();
@@ -81,6 +88,7 @@ export async function POST(
       replyToEmailMessageId: payload.replyToEmailMessageId || null,
       ghlLocationId: appConfig.ghl.locationId || null,
       portalEventId: payload.eventId?.trim() || null,
+      snippetNames,
     });
 
     if (!outcome.ok) {

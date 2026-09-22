@@ -1,5 +1,6 @@
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { setContactTag } from "@/lib/ghl/contact-tags";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { listGhlUsers } from "@/lib/ghl/location-data";
 import { createContactNote } from "@/lib/ghl/notes";
@@ -53,42 +54,6 @@ function toPause(row: PauseRow): FollowUpPause {
   };
 }
 
-// Adds or removes one tag on a GHL contact. Removing a tag the contact
-// doesn't carry is a no-op in GHL, so resume is safe to call blind.
-async function setContactTag(
-  contactId: string,
-  present: boolean,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { accessToken, apiBaseUrl } = appConfig.ghl;
-  if (!accessToken) return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
-
-  try {
-    const response = await fetch(
-      `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}/tags`,
-      {
-        method: present ? "POST" : "DELETE",
-        headers: getGhlApiHeaders(accessToken),
-        body: JSON.stringify({ tags: [FOLLOW_UP_PAUSE_TAG] }),
-      },
-    );
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      return {
-        ok: false,
-        error:
-          response.status === 401
-            ? "GHL rejected the tag change: the integration token is missing the contacts write scope."
-            : `GHL responded ${response.status}: ${text.slice(0, 200)}`,
-      };
-    }
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "GHL tag change failed",
-    };
-  }
-}
 
 async function ghlUserIdForEmail(email: string | null): Promise<string | null> {
   if (!email) return null;
@@ -151,7 +116,7 @@ export async function pauseFollowUps({
   if (current) return { ok: true, pause: current };
 
   // The tag is the part GHL acts on, so it goes first; no record without it.
-  const tagged = await setContactTag(contactId, true);
+  const tagged = await setContactTag(contactId, FOLLOW_UP_PAUSE_TAG, true);
   if (!tagged.ok) {
     await logIntegrationEvent({
       direction: "PORTAL_TO_GHL",
@@ -217,7 +182,7 @@ export async function resumeFollowUps({
   reason: ResumeReason;
   portalEventId: string | null;
 }): Promise<{ ok: true; resumed: boolean } | { ok: false; error: string }> {
-  const untagged = await setContactTag(contactId, false);
+  const untagged = await setContactTag(contactId, FOLLOW_UP_PAUSE_TAG, false);
   if (!untagged.ok) {
     await logIntegrationEvent({
       direction: "PORTAL_TO_GHL",
