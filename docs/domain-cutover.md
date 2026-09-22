@@ -1,7 +1,14 @@
-# Domain cutover checklist — vercel.app → sales.whitewater.org
+# Domain cutover checklist — vercel.app → groupsales.whitewater.org
 
-_Written 2026-09-15, before the domain was chosen. `sales.whitewater.org` is
-a placeholder; substitute the real subdomain everywhere below._
+_Written 2026-09-15; domain chosen and live 2026-09-20. Boxes ticked below
+were checked from outside on that date (the new host serves the app, the old
+host answers 308 to it, the inquiry route answers 401 without the secret)._
+
+**Not the GHL "Client Portal" domain screen.** GHL's *Client Portal → Domain
+Setup* is for GHL's own clientclub.net portal (memberships, communities).
+Never add `groupsales.whitewater.org` there — it would ask for the same DNS
+name to point at GHL instead of Vercel. `lc.whitewater.org` is GHL's
+dedicated email sending domain and is unrelated to the app host.
 
 Nothing in the app's code contains the production host: every absolute URL
 the app builds comes from either the request's own host (password-reset
@@ -12,12 +19,12 @@ given the old URL.
 
 ## Before the switch
 
-- [ ] **Vercel → Project → Settings → Domains:** add `sales.whitewater.org`.
+- [x] **Vercel → Project → Settings → Domains:** add `groupsales.whitewater.org`.
       Vercel shows the DNS record to create (a CNAME to `cname.vercel-dns.com`
       for a subdomain). SSL is automatic once DNS resolves.
-- [ ] **whitewater.org DNS** (wherever the zone is hosted): add that CNAME.
+- [x] **whitewater.org DNS** (wherever the zone is hosted): add that CNAME.
       Wait for Vercel to show the domain as valid.
-- [ ] **Keep the old address working:** in the same Domains screen set
+- [x] **Keep the old address working:** in the same Domains screen set
       `whitewater-client-event-portal.vercel.app` to **redirect** to the new
       domain (308). Any portal link, bookmark, or GHL field that still carries
       the old host then lands in the right place.
@@ -25,13 +32,13 @@ given the old URL.
 ## The switch
 
 - [ ] **Vercel → Settings → Environment Variables:** set `PORTAL_BASE_URL` to
-      `https://sales.whitewater.org` for Production, then **redeploy** (env
+      `https://groupsales.whitewater.org` for Production, then **redeploy** (env
       changes don't apply until the next build). This is the base of the
       portal link the app writes to the opportunity's **Portal Link** field
       at launch; until it is changed, new launches write vercel.app links.
-- [ ] **GHL workflow "Group Sales Inquiry: Step 1 - Form Submission":** open
+- [x] **GHL workflow "Group Sales Inquiry: Step 1 - Form Submission"** (changed by Austin 2026-09-20; it is the only GHL workflow that calls the app — the other inbound route, `/api/ghl/events/create-draft`, was last hit on 2026-07-01 and no workflow uses it)**:** open
       the **Portal: create draft event** webhook action and change the URL to
-      `https://sales.whitewater.org/api/ghl/opportunities/inquiry`. The
+      `https://groupsales.whitewater.org/api/ghl/opportunities/inquiry`. The
       `x-portal-webhook-secret` header and the custom data stay as they are.
       Save the action, save the workflow (it is already published).
 - [ ] **Test:** submit one website inquiry. Expect a draft under Events and a
@@ -52,7 +59,7 @@ given the old URL.
       no vercel.app URL on 2026-09-15; check the "send portal link" workflow
       step and any email template by hand.
 - [ ] **PandaDoc webhook** (not registered yet): when it is, use
-      `https://sales.whitewater.org/api/pandadoc/webhook`. If it gets
+      `https://groupsales.whitewater.org/api/pandadoc/webhook`. If it gets
       registered against vercel.app first, re-register it.
 - [ ] **Clients' bookmarks and links already sent:** covered by the
       vercel.app redirect. Nothing to do if that redirect is in place.

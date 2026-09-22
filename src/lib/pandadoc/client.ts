@@ -23,16 +23,23 @@ function headers(): HeadersInit {
   };
 }
 
+// The product catalog only exists on API v2; everything else is v1. The
+// configured base URL ends in /v1, so v2 calls swap that suffix.
+function baseUrl(version: "v1" | "v2"): string {
+  const base = appConfig.pandadoc.apiBaseUrl;
+  return version === "v2" ? base.replace(/\/v1\/?$/, "/v2") : base;
+}
+
 export async function pandaDocRequest<T>(
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: string; body?: unknown; version?: "v1" | "v2" } = {},
 ): Promise<PandaDocResult<T>> {
   if (!appConfig.pandadoc.apiKey) {
     return { ok: false, error: "PANDADOC_API_KEY is not configured" };
   }
 
   try {
-    const response = await fetch(`${appConfig.pandadoc.apiBaseUrl}${path}`, {
+    const response = await fetch(`${baseUrl(init.version ?? "v1")}${path}`, {
       method: init.method ?? "GET",
       headers: headers(),
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),

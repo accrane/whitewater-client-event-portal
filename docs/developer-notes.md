@@ -1,6 +1,6 @@
 # Developer Notes — Whitewater Event Ecosystem
 
-_Last updated: 2026-09-15. This is the engineering record for the portal app,
+_Last updated: 2026-09-17. This is the engineering record for the portal app,
 GoHighLevel (GHL), and PandaDoc: how the pieces fit, where data lives, when
 syncs fire, what configuration exists, and a changelog. The user-facing
 guide is [manual.md](manual.md) — it is rendered inside the app at
@@ -14,7 +14,8 @@ Related references (kept separate on purpose):
   list of every GHL custom field the app reads/writes, with field ids.
 - [roadmap.md](roadmap.md) — planned work.
 - [domain-cutover.md](domain-cutover.md) — checklist for moving production
-  from the vercel.app URL to a whitewater.org subdomain.
+  from the vercel.app URL to `groupsales.whitewater.org` (domain live
+  2026-09-20; the remaining boxes are tracked there).
 
 ---
 
@@ -90,7 +91,8 @@ Admin → Users (service role), so users can't escalate themselves.
 | Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
 | Opportunities pipeline view | GHL → app | Badge counts for the visible stage read from the local `ghl_contact_badges` cache; stale rows (>5 min) across the whole pipeline re-swept from GHL after the response, paced (60 contacts/view, concurrency 5) for the 140–250-card in-season pipeline (see roadmap "Expected volume") |
 | Contracts tab "Save and re-send" (Edit) | app → PandaDoc | Document moved to draft, updated (name, tokens, pricing table), sent again; row gets `revision`+1, `revised_at/by`; `contract_update` log |
-| Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + pricing table from line items), waited to draft, sent silently (or emailed) |
+| Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + one pricing table per tax treatment from the line items, option ticks included), waited to draft, sent silently (or emailed) |
+| Contract form opens / template changes | PandaDoc → app | Template details (pricing tables, headings, option and starter rows) and the product catalog, both read live and cached 5 min per server process (never stored). On save the server re-reads the catalog to set catalog rows' names and prices |
 | Admin event page / Contracts tab load | PandaDoc → app | Open contracts re-read from PandaDoc (status, total); signed side effects run if newly completed |
 | Portal "Review and sign" | app → PandaDoc | Embedded-signing session minted for the recipient (1-hour link) |
 | Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (rooms booked, GHL Booked, PDF archived) |
@@ -190,13 +192,62 @@ field, read-only in the app — see Step 2).
   `Client.LastName`, `Client.Email`, `Client.Phone`, `Account.Name`,
   `Date__c`. The app fills those names too (Account.Name blank — the event
   has no company field), so they work unchanged. Only the Client role is
-  assigned; PandaDoc gives that recipient every signature field. Line
-  items go into the template's pricing table whose Price column is visible
-  (EA Group's `PricingTable2` is a menu of class options with hidden
-  prices, and PandaDoc refuses to fill it); if PandaDoc rejects a table the
-  app tries the template's next one. Row keys are each column's *merge
-  name* (normally `Name`, `Description`, `Price`, `QTY`; the Final Payment
-  template has them renamed) — lowercase keys are rejected.
+  assigned; PandaDoc gives that recipient every signature field.
+- **Pricing tables (one per tax treatment).** The templates hold several
+  pricing tables and the table a row sits in decides its tax: the "Food &
+  Beverage Items" table carries a Catering Service Fee (22%) and a Food &
+  Beverage Tax (9.25%) set on the table in the template; "Item" is untaxed;
+  Santee's accommodation and fees tables carry their own rates. The details
+  API only reports the combined amount as `tax` (the breakdown shows in the
+  PDF), and nothing about tax is readable from an empty template — so the
+  app never computes tax. It files each row under a table and PandaDoc
+  applies that table's settings. Tables are addressed by their internal
+  `name`, which says nothing about purpose (Food & Beverage is
+  `Pricing Table 1`, `PricingTable2` or `PricingTable1` depending on the
+  template, and `PricingTable2` is the options table on the EA templates),
+  so the form labels each table with its **heading** — the `header` of the
+  Name column in template details. A heading can't be set through the API
+  (an undocumented `columns` property is ignored); a titled **section**
+  prints as a sub-heading inside the table, which is where the event-day
+  line goes, one section per day.
+- **Rows.** Each line item carries `table`, `table_heading`, `section`,
+  `catalog_item_id`, `sku`, `optional`, `selected` in
+  `event_contracts.line_items` (rows saved before this have none and go in
+  the first priced table). `pricing_tables` is sent with `data_merge: false`
+  and PandaDoc's standard lowercase keys (`name`, `description`, `price`,
+  `qty`, `sku`): that works on every table, including Final Payment's
+  renamed merge columns, whereas `data_merge: true` is rejected by some
+  tables whose details report `data_merge_enabled: true` (EA Group w/
+  Catering's options table). Rows sent for a table **replace** the rows
+  saved in the template; a table that isn't sent keeps them. So the form
+  loads the template's starter rows as editable custom rows, and a table
+  left without rows is sent with an empty section to clear it (on create:
+  priced tables that had starter rows; on edit: tables that held rows at
+  the last save).
+- **Options tables.** A table whose Price column is hidden is a menu of
+  optional `$0` rows (the EA education programs). The form lists the
+  template's options as checkboxes; all of them are sent back with
+  `optional: true` and `optional_selected` for the tick. Unticked options
+  are excluded from subtotals, the client portal's item list, and the
+  line-item count in the integration log.
+- **Product catalog.** `GET /public/v2/product-catalog/items/search`
+  (the only v2 call; `pandaDocRequest` swaps the base URL's `/v1`), paged
+  100 at a time and cached 5 minutes per server process, like the template
+  list and template details. PandaDoc is the price list: catalog rows are
+  read-only in the form, and on every create/edit the server re-reads the
+  catalog and overwrites the row's name, SKU and price from it, whatever
+  the browser sent. A catalog item deleted in PandaDoc fails the save with
+  a message naming the row. Custom rows keep the coordinator's price.
+  Catalog items have no tax data and no table affinity — coordinators
+  place them, as they do in PandaDoc — but the form warns when an item
+  from a catering category (numbered categories, "Catering", "Hot Drinks")
+  sits outside a Food & Beverage table while the template has one.
+- **Sandbox vs production key.** The sandbox key is issued inside the real
+  workspace: it reads the real templates, catalog and documents, and what it
+  creates lands there with a `[DEV]` prefix. It is capped at 10 requests a
+  minute for every endpoint, which a create can brush against when the
+  caches are cold (template details + up to three catalog pages + create +
+  status polls + send + details). Production keys need PandaDoc's approval.
 - **Editing:** move-to-draft → update → send, all on the same document id
   (see the manual, Step 4b). PandaDoc refuses to update anything not in draft, and
   refuses a move-to-draft on a draft, which the app handles.
@@ -262,7 +313,9 @@ inquiry (**Group Sales Inquiry: Step 1 - Form Submission**): a *Webhook*
 action right after *Create opportunity*, named "Portal: create draft event".
 
 - Method `POST`, URL `https://<app host>/api/ghl/opportunities/inquiry`
-  (production: `https://whitewater-client-event-portal.vercel.app`).
+  (production: `https://groupsales.whitewater.org`; the old
+  `whitewater-client-event-portal.vercel.app` host 308-redirects there, but
+  don't count on GHL's webhook POST following a redirect — use the new host).
 - Header `x-portal-webhook-secret` = the app's `GHL_WEBHOOK_SECRET`.
 - Custom data `ghl_opportunity_id` = `{{opportunity.id}}` **and**
   `ghl_contact_id` = `{{contact.id}}` (`ghl_location_id` = `{{location.id}}`
@@ -337,6 +390,8 @@ When you ship a feature, ask:
 | --- | --- |
 | 2026-09-21 | **Snippets fill event merge tags.** Emails were going out with blanks ("My name is ,", "your proposal for on ,") because messages sent through the Conversations API aren't merge-rendered by GHL, and the app only filled `contact.*` and `user.*`. The snippet route now takes `?eventId=` (the event page passes its id; Opportunities cards pass the card's portal event id from `eventFlags`) and fills `{{opportunity.assigned_to}}` (event coordinator, `ghl_snapshot.planner`), `{{opportunity.groupevent_name}}` / `{{opportunity.name}}`, `{{opportunity.event_date}}` (long form), and `{{opportunity.portal_link}}` (`events.client_portal_url`, so only after launch). `{{user.*}}` falls back to the event's coordinator when the signed-in login has no GHL user match. Rendering moved to the import-free `src/lib/ghl/snippet-merge-tags.ts` (tested in `tests/admin/snippet-merge-tags.test.mjs`). The drawer lists any `{{…}}` still in the subject/body in an amber warning above Send, since GHL sends leftovers as blanks. |
 | 2026-09-21 | **Fix: client email replies never showed in the conversations drawer.** Replies were arriving in GHL all along (outbound mail goes out from `reply@lc.whitewater.org`, GHL's LC Email dedicated domain, whose MX points at GHL's Mailgun — not the client's `mg.whitewater.org` account). GHL folds an email thread into **one** message row whose `body` is the first email's and whose `meta.email.messageIds` lists every email, so the drawer showed a single bubble with the coordinator's own text. `listConversationMessages` now expands any row with more than one id via `GET /conversations/messages/email/{id}` (last 20 per thread, falls back to the collapsed row on a failed fetch) into one message per email with its real direction, and `stripQuotedReply` (`src/lib/ghl/html-text.ts`) drops the quoted history so only the newly typed text shows. Reply threading still uses the newest email id. |
+| 2026-09-20 | **Production moved to `groupsales.whitewater.org`.** Domain added in Vercel (CNAME in the whitewater.org zone), and `whitewater-client-event-portal.vercel.app` now 308-redirects to it, so links already sent keep working. Not to be confused with GHL's *Client Portal → Domain Setup* screen: that sets the address of GHL's own clientclub.net portal and must not be given this subdomain. `lc.whitewater.org` (GHL's dedicated email sending domain) is unrelated to the app host. `docs/domain-cutover.md` carries the real domain and what is still open. |
+| 2026-09-17 | **Contracts: PandaDoc catalog, tables by tax treatment, option checkboxes.** The contract form now mirrors the chosen template's pricing tables (grouped under each table's heading, read live from template details) instead of one flat item list. Rows come from the PandaDoc product catalog (new `src/lib/pandadoc/catalog.ts`, API v2; name and price locked and re-read server-side on every save) or are typed as custom rows. Each table's taxes and fees stay PandaDoc's — Food & Beverage = 22% service fee + 9.25% tax — so the form shows subtotals and the card shows PandaDoc's total. Sub-headings (pricing-table sections) carry the event day, prefilled from the event date, one per day for multi-day events, because table headings can't be set by API. Menu-style tables (EA education programs) render as checkboxes the coordinator ticks before sending. Payload switched to `data_merge: false` with standard keys, which removed the try-the-next-table fallback. `line_items` JSON gained `table`, `table_heading`, `section`, `catalog_item_id`, `sku`, `optional`, `selected` (no migration; old rows still load). Draft-table logic lives in `src/lib/contracts/draft-tables.ts` with tests. Verified against the sandbox with three draft documents (create, edit, clearing a table, renamed-column template). |
 | 2026-09-17 | **Admin role shown as "Manager".** Admin → Users (role badge, dropdown, messages), the event page's Value hint, and the manual now say Manager. Display only: the stored `app_metadata.role` value, `requireAdmin`/`role === "admin"` checks, `/admin` URLs, and the "Admin" section in the dock are unchanged. |
 | 2026-09-17 | **"Planner" renamed to "Coordinator" everywhere.** The non-admin role is now `coordinator` (Admin → Users shows Manager / Coordinator); all screens, the manual, merge-tag menu (`{{coordinator.name/email/phone}}`), code identifiers, and the Coordinator Assignments URL params (`?coordinator=` / `?coordinators=`) follow. `resolveRole` treats anything that isn't `admin` as a coordinator, so users whose Supabase `app_metadata.role` still says `planner` need no migration. Four stored/wire names deliberately keep the old word: the `ghl_snapshot.planner` JSON key on existing event rows, the `planner` key in the create-draft-event payload (the parser accepts `coordinator` or `planner`), and `{{planner.*}}` merge tags in already-saved templates (aliased to the coordinator tags, hidden from the menu), and the PandaDoc document tokens, which are sent under both `coordinator.*` and `planner.*` so existing PandaDoc templates keep filling. |
 | 2026-09-17 | **Event summary contracts: two links.** Each contract line now shows the name as text plus **View in PandaDoc** (staff app link) and **Customer View** — the recipient's `shared_link` from PandaDoc's document details (`app.pandadoc.com/document/v2?token=…`, public, no login). `syncContractFromPandaDoc` stores it in `event_contracts.pandadoc_shared_link` (migration `20260917120000`), matching the recipient by email; PandaDoc issues it only once the document is sent and a re-send can change it, so every sync overwrites it (null while draft/awaiting approval). Existing rows were backfilled once. The link acts as the customer (marks viewed, can sign), so it is **copy-only** (`CopyableValue` with a `label`, "Copied!" pill) rather than an anchor — staff opening it would distort PandaDoc's view analytics. Staff-only surface, never rendered in the portal. Status label "Viewed by client" → "Viewed by customer". |

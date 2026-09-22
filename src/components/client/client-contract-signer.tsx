@@ -242,9 +242,12 @@ export function ClientContractSigner({
                         </span>
                       ) : null}
                     </span>
-                    <span className="shrink-0 text-slate-800">
-                      {currency.format(item.quantity * item.unitPrice)}
-                    </span>
+                    {/* A ticked option ("Team Building") is a choice, not a charge. */}
+                    {item.optional && item.unitPrice === 0 ? null : (
+                      <span className="shrink-0 text-slate-800">
+                        {currency.format(item.quantity * item.unitPrice)}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -12,6 +12,7 @@ import {
   writeOpportunityValue,
 } from "@/lib/ghl/opportunity-sync";
 import { resumeFollowUpsForEvent } from "@/lib/ghl/follow-up-pauses";
+import { listPandaDocCatalogItems } from "@/lib/pandadoc/catalog";
 import { isPandaDocConfigured } from "@/lib/pandadoc/client";
 import {
   createPandaDocDocument,
@@ -19,7 +20,6 @@ import {
   downloadPandaDocDocument,
   getPandaDocDocumentDetails,
   getPandaDocTemplateDetails,
-  isPricingTableRejection,
   listPandaDocTemplates,
   movePandaDocDocumentToDraft,
   pandaDocDocumentUrl,
@@ -37,11 +37,14 @@ import {
   OPEN_CONTRACT_STATUSES,
   SIGNABLE_CONTRACT_STATUSES,
   calculateContractSubtotal,
+  isCountedLineItem,
   parseContractLineItems,
   toNumber,
   type ClientContract,
+  type ContractCatalogItem,
   type ContractLineItem,
   type ContractStatus,
+  type ContractTemplateLayout,
   type EventContract,
 } from "@/lib/contracts/shared";
 import type { Database, Json } from "@/types/database";
@@ -207,6 +210,61 @@ export async function getContractTemplateOptions(): Promise<ContractTemplateOpti
   };
 }
 
+export type ContractTemplateLayoutOutcome =
+  | { ok: true; layout: ContractTemplateLayout }
+  | { ok: false; error: string };
+
+// The chosen template's pricing tables, for the contract form: one group
+// per table under its visible heading, with the template's own rows (the
+// options of a checkbox table, or starter rows like a cleaning fee).
+export async function getContractTemplateLayout(
+  templateId: string,
+): Promise<ContractTemplateLayoutOutcome> {
+  if (!isPandaDocConfigured()) {
+    return { ok: false, error: "PandaDoc isn't connected yet." };
+  }
+  const template = await getPandaDocTemplateDetails(templateId);
+  if (!template.ok) return { ok: false, error: template.error };
+
+  return {
+    ok: true,
+    layout: {
+      templateId: template.data.id,
+      templateName: template.data.name,
+      tables: template.data.pricingTables.map((table) => ({
+        name: table.name,
+        heading: table.heading,
+        priced: table.priceVisible,
+        rows: table.rows.map((row) => ({
+          name: row.name,
+          description: row.description,
+          quantity: row.qty,
+          unitPrice: row.price,
+          table: table.name,
+          tableHeading: table.heading,
+          optional: row.optional,
+          selected: row.selected,
+        })),
+      })),
+    },
+  };
+}
+
+export type ContractCatalogOutcome =
+  | { ok: true; items: ContractCatalogItem[] }
+  | { ok: false; error: string };
+
+// The PandaDoc product catalog for the form's item picker.
+export async function getContractCatalog(): Promise<ContractCatalogOutcome> {
+  if (!isPandaDocConfigured()) {
+    return { ok: false, error: "PandaDoc isn't connected yet." };
+  }
+  const catalog = await listPandaDocCatalogItems();
+  return catalog.ok
+    ? { ok: true, items: catalog.data }
+    : { ok: false, error: catalog.error };
+}
+
 // Document tokens available to templates as [event.name], [contact.email],
 // [contract.description], ... Missing values send as empty strings so the
 // template shows a blank rather than the raw tag.
@@ -267,6 +325,10 @@ export type CreateEventContractInput = {
   name: string;
   description: string | null;
   lineItems: ContractLineItem[];
+  // True when the form showed the template's tables (starter rows
+  // included), so what it submits is the whole picture: a priced table left
+  // without rows is emptied rather than keeping the template's starter rows.
+  templateTablesShown: boolean;
   templateId: string | null;
   recipientName: string | null;
   recipientEmail: string | null;
@@ -288,16 +350,29 @@ function splitName(name: string): { firstName: string; lastName: string } {
 
 // Trims, drops nameless rows, and rounds prices to cents.
 function normalizeLineItems(items: ContractLineItem[]): ContractLineItem[] {
+  const text = (value: string | null | undefined) => value?.trim() || null;
   return items
-    .map((item) => ({
-      name: item.name.trim(),
-      description: item.description.trim(),
-      quantity:
-        Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1,
-      unitPrice: Number.isFinite(item.unitPrice)
-        ? Math.round(item.unitPrice * 100) / 100
-        : 0,
-    }))
+    .map((item) => {
+      const optional = item.optional === true;
+      return {
+        name: item.name.trim(),
+        description: item.description.trim(),
+        quantity:
+          Number.isFinite(item.quantity) && item.quantity > 0
+            ? item.quantity
+            : 1,
+        unitPrice: Number.isFinite(item.unitPrice)
+          ? Math.round(item.unitPrice * 100) / 100
+          : 0,
+        table: text(item.table),
+        tableHeading: text(item.tableHeading),
+        section: text(item.section),
+        catalogItemId: text(item.catalogItemId),
+        sku: text(item.sku),
+        optional,
+        selected: optional && item.selected === true,
+      };
+    })
     .filter((item) => item.name);
 }
 
@@ -307,29 +382,115 @@ function toLineItemsJson(items: ContractLineItem[]) {
     description: item.description,
     quantity: item.quantity,
     unit_price: item.unitPrice,
+    table: item.table ?? null,
+    table_heading: item.tableHeading ?? null,
+    section: item.section ?? null,
+    catalog_item_id: item.catalogItemId ?? null,
+    sku: item.sku ?? null,
+    optional: item.optional === true,
+    selected: item.selected === true,
   }));
 }
 
-// Pricing tables to try for the line items, best first: a table whose
-// price column is visible (menu-style option tables hide it) and that the
-// template says accepts data merge. PandaDoc's flag has been wrong, so the
-// callers fall through to the next candidate when a table is rejected.
-function pricingTableCandidates(
+type PreparedLineItems =
+  | { ok: true; lineItems: ContractLineItem[] }
+  | { ok: false; error: string };
+
+// Makes the submitted rows trustworthy before anything is saved or sent:
+// every row lands in one of the template's tables (rows without one, or
+// naming a table the template doesn't have, go in the first priced table),
+// and catalog rows take their name, SKU and price from PandaDoc — the
+// catalog is the price list, so whatever the browser sent is ignored.
+async function prepareLineItems(
   template: PandaDocTemplateDetails,
+  submitted: ContractLineItem[],
+): Promise<PreparedLineItems> {
+  const lineItems = normalizeLineItems(submitted);
+  if (lineItems.length === 0) return { ok: true, lineItems };
+
+  const tables = template.pricingTables;
+  if (tables.length === 0) {
+    return {
+      ok: false,
+      error: `The "${template.name}" template has no pricing table, so it can't carry line items. Pick another template or remove the items.`,
+    };
+  }
+  const fallback = tables.find((table) => table.priceVisible) ?? tables[0];
+
+  let catalog: Map<string, ContractCatalogItem> | null = null;
+  if (lineItems.some((item) => item.catalogItemId)) {
+    const result = await listPandaDocCatalogItems();
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: `Couldn't read the PandaDoc catalog to confirm prices: ${result.error}`,
+      };
+    }
+    catalog = new Map(result.data.map((entry) => [entry.id, entry]));
+  }
+
+  const prepared: ContractLineItem[] = [];
+  for (const item of lineItems) {
+    const table =
+      tables.find((candidate) => candidate.name === item.table) ?? fallback;
+    const row = { ...item, table: table.name, tableHeading: table.heading };
+
+    if (item.catalogItemId) {
+      const entry = catalog?.get(item.catalogItemId);
+      if (!entry) {
+        return {
+          ok: false,
+          error: `"${item.name}" is no longer in the PandaDoc catalog. Remove it, or add it as a custom row.`,
+        };
+      }
+      row.name = entry.name;
+      row.unitPrice = entry.price;
+      row.sku = entry.sku;
+    }
+    prepared.push(row);
+  }
+  return { ok: true, lineItems: prepared };
+}
+
+// The line items as PandaDoc pricing tables: one entry per table that has
+// rows, each split into sections by sub-heading, all in the order the
+// coordinator arranged them. `clearTables` are tables whose existing rows
+// (from the last save, or the template's starter rows) should go if no row
+// is filed under them now; those are sent empty.
+function buildPricingTables(
   lineItems: ContractLineItem[],
+  clearTables: string[] = [],
 ): PandaDocPricingTableInput[] {
-  if (lineItems.length === 0) return [];
-  const rows = lineItems.map((item) => ({
-    name: item.name,
-    description: item.description,
-    price: item.unitPrice,
-    qty: item.quantity,
-  }));
-  const score = (table: PandaDocTemplateDetails["pricingTables"][number]) =>
-    (table.priceVisible ? 2 : 0) + (table.dataMergeEnabled ? 1 : 0);
-  return [...template.pricingTables]
-    .sort((a, b) => score(b) - score(a))
-    .map((table) => ({ name: table.name, rows, columnKeys: table.columnKeys }));
+  const tables: PandaDocPricingTableInput[] = [];
+  for (const item of lineItems) {
+    if (!item.table) continue;
+    let table = tables.find((candidate) => candidate.name === item.table);
+    if (!table) {
+      table = { name: item.table, sections: [] };
+      tables.push(table);
+    }
+    const title = item.section ?? null;
+    let section = table.sections.find((candidate) => candidate.title === title);
+    if (!section) {
+      section = { title, rows: [] };
+      table.sections.push(section);
+    }
+    section.rows.push({
+      name: item.name,
+      description: item.description,
+      price: item.unitPrice,
+      qty: item.quantity,
+      sku: item.sku ?? null,
+      optional: item.optional === true,
+      selected: item.selected === true,
+    });
+  }
+  for (const name of clearTables) {
+    if (!tables.some((table) => table.name === name)) {
+      tables.push({ name, sections: [{ title: null, rows: [] }] });
+    }
+  }
+  return tables;
 }
 
 function pickClientRole(roles: string[]): string {
@@ -353,9 +514,6 @@ export async function createEventContract(
 
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Give the contract a name." };
-
-  const lineItems = normalizeLineItems(input.lineItems);
-  const subtotal = calculateContractSubtotal(lineItems);
 
   const recipientName = (input.recipientName ?? event.contactName ?? "").trim();
   const recipientEmail = (input.recipientEmail ?? event.contactEmail ?? "")
@@ -381,6 +539,22 @@ export async function createEventContract(
         "Pick a PandaDoc template (or set PANDADOC_TEMPLATE_ID as the default).",
     };
   }
+
+  // Template shape decides the recipient role and where line items go.
+  // Read before anything is saved: an unreachable PandaDoc (or a catalog
+  // item that no longer exists) is the coordinator's to fix in the form.
+  if (!isPandaDocConfigured()) {
+    return {
+      ok: false,
+      error: "PandaDoc isn't connected yet (PANDADOC_API_KEY is empty).",
+    };
+  }
+  const template = await getPandaDocTemplateDetails(templateId);
+  if (!template.ok) return { ok: false, error: template.error };
+  const preparedItems = await prepareLineItems(template.data, input.lineItems);
+  if (!preparedItems.ok) return { ok: false, error: preparedItems.error };
+  const lineItems = preparedItems.lineItems;
+  const subtotal = calculateContractSubtotal(lineItems);
 
   const supabase = createServiceRoleSupabaseClient();
   const insert: ContractInsert = {
@@ -426,14 +600,6 @@ export async function createEventContract(
     return { ok: false, error, contract: mapContractRow(row, null) };
   };
 
-  if (!isPandaDocConfigured()) {
-    return fail("PandaDoc isn't connected yet (PANDADOC_API_KEY is empty).");
-  }
-
-  // Template shape decides the recipient role and where line items go.
-  const template = await getPandaDocTemplateDetails(templateId);
-  if (!template.ok) return fail(template.error);
-
   const recipient = { email: recipientEmail, ...splitName(recipientName) };
   const createInput = {
     name,
@@ -446,18 +612,15 @@ export async function createEventContract(
     ),
     metadata: { portal_event_id: event.id, portal_contract_id: row.id },
   };
-  const candidates = pricingTableCandidates(template.data, lineItems);
-  let created = await createPandaDocDocument({
+  const emptiedTables = input.templateTablesShown
+    ? template.data.pricingTables
+        .filter((table) => table.priceVisible && table.rows.length > 0)
+        .map((table) => table.name)
+    : [];
+  const created = await createPandaDocDocument({
     ...createInput,
-    pricingTable: candidates[0] ?? null,
+    pricingTables: buildPricingTables(lineItems, emptiedTables),
   });
-  for (let i = 1; i < candidates.length && !created.ok; i++) {
-    if (!isPricingTableRejection(created.error)) break;
-    created = await createPandaDocDocument({
-      ...createInput,
-      pricingTable: candidates[i],
-    });
-  }
   if (!created.ok) return fail(created.error);
 
   row = await updateContractRow(row.id, {
@@ -494,7 +657,7 @@ export async function createEventContract(
       contract_id: row.id,
       pandadoc_document_id: created.data.id,
       subtotal,
-      line_item_count: lineItems.length,
+      line_item_count: lineItems.filter(isCountedLineItem).length,
     },
   });
 
@@ -535,8 +698,6 @@ export async function updateEventContract(
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Give the contract a name." };
   const description = input.description?.trim() || null;
-  const lineItems = normalizeLineItems(input.lineItems);
-  const subtotal = calculateContractSubtotal(lineItems);
 
   if (!isPandaDocConfigured()) {
     return {
@@ -578,12 +739,29 @@ export async function updateEventContract(
   };
 
   // Where the line items go is decided by the template it was built from.
-  let candidates: PandaDocPricingTableInput[] = [];
-  if (row.pandadoc_template_id) {
-    const template = await getPandaDocTemplateDetails(row.pandadoc_template_id);
-    if (!template.ok) return fail(template.error);
-    candidates = pricingTableCandidates(template.data, lineItems);
+  // Nothing has changed in PandaDoc yet, so a problem here (a catalog item
+  // that's gone, PandaDoc unreachable) leaves the sent contract as it was.
+  if (!row.pandadoc_template_id) {
+    return fail("This contract has no PandaDoc template on record, so its items can't be updated.");
   }
+  const template = await getPandaDocTemplateDetails(row.pandadoc_template_id);
+  if (!template.ok) return fail(template.error);
+  const preparedItems = await prepareLineItems(template.data, input.lineItems);
+  if (!preparedItems.ok) return fail(preparedItems.error);
+  const lineItems = preparedItems.lineItems;
+  const subtotal = calculateContractSubtotal(lineItems);
+
+  // Tables that carried rows on the last save; any left without rows now
+  // are sent empty so PandaDoc drops what it was holding.
+  const previousTables = [
+    ...new Set(
+      parseContractLineItems(row.line_items)
+        .map((item) => item.table)
+        .filter((table): table is string => Boolean(table)),
+    ),
+  ].filter((name) =>
+    template.data.pricingTables.some((table) => table.name === name),
+  );
 
   // A re-send that failed halfway leaves the document already in draft;
   // PandaDoc rejects moving a draft to draft, so only move when needed.
@@ -612,17 +790,10 @@ export async function updateEventContract(
     ),
     metadata: { portal_event_id: event.id, portal_contract_id: row.id },
   };
-  let updated = await updatePandaDocDocument(documentId, {
+  const updated = await updatePandaDocDocument(documentId, {
     ...updateInput,
-    pricingTable: candidates[0] ?? null,
+    pricingTables: buildPricingTables(lineItems, previousTables),
   });
-  for (let i = 1; i < candidates.length && !updated.ok; i++) {
-    if (!isPricingTableRejection(updated.error)) break;
-    updated = await updatePandaDocDocument(documentId, {
-      ...updateInput,
-      pricingTable: candidates[i],
-    });
-  }
   if (!updated.ok) return fail(updated.error);
 
   // The app's record now matches what PandaDoc holds, even if the send
@@ -669,7 +840,7 @@ export async function updateEventContract(
       pandadoc_document_id: documentId,
       revision: row.revision,
       subtotal,
-      line_item_count: lineItems.length,
+      line_item_count: lineItems.filter(isCountedLineItem).length,
     },
   });
 
@@ -1081,7 +1252,8 @@ export async function listClientContracts(
     id: row.id,
     name: row.name,
     description: row.description,
-    lineItems: parseContractLineItems(row.line_items),
+    // Options the coordinator left unticked aren't part of the client's order.
+    lineItems: parseContractLineItems(row.line_items).filter(isCountedLineItem),
     subtotal: toNumber(row.subtotal) ?? 0,
     grandTotal: toNumber(row.grand_total),
     status: row.status,

@@ -5,8 +5,8 @@ import {
 } from "@/lib/pandadoc/client";
 
 // PandaDoc document operations behind the contracts feature: templates,
-// document creation from a template (with the app's line items as a
-// pricing table), silent send, embedded-signing sessions, status reads,
+// document creation from a template (with the app's line items filed
+// into its pricing tables), silent send, embedded-signing sessions, status reads,
 // and the signed PDF download.
 
 export type PandaDocTemplateSummary = {
@@ -14,20 +14,30 @@ export type PandaDocTemplateSummary = {
   name: string;
 };
 
-// The standard row columns the app fills, keyed by PandaDoc's column name.
-export type PricingColumn = "Name" | "Description" | "Price" | "QTY";
+export type PandaDocTemplateRow = {
+  name: string;
+  description: string;
+  price: number;
+  qty: number;
+  // Checkbox rows ("optional" line items) and whether they start ticked.
+  optional: boolean;
+  selected: boolean;
+};
 
 export type PandaDocTemplatePricingTable = {
+  // PandaDoc's internal name ("PricingTable1"). It is what the API addresses
+  // a table by, but it says nothing about the table's purpose: the Food &
+  // Beverage table has a different name in almost every template.
   name: string;
-  // What the template reports; PandaDoc has rejected tables flagged true,
-  // so treat it as a hint rather than a guarantee.
-  dataMergeEnabled: boolean;
+  // The visible heading (the Name column's title): "Item", "Food & Beverage
+  // Items", "Rentals", "Choose One (1) of the Options Below:".
+  heading: string;
   // Menu-style tables ("choose one of the options below") hide Price/QTY;
-  // a table whose price column shows is the one meant for line items.
+  // a table whose price column shows is one meant for line items.
   priceVisible: boolean;
-  // Row data keys are each column's merge name, which someone can rename
-  // in the template editor (one template has "Final Paymet" for Name).
-  columnKeys: Record<PricingColumn, string>;
+  // Rows saved in the template: the options of a menu table, or starter
+  // rows ("Cleaning Fee"). Blank placeholder rows are dropped.
+  rows: PandaDocTemplateRow[];
 };
 
 export type PandaDocTemplateDetails = {
@@ -37,8 +47,6 @@ export type PandaDocTemplateDetails = {
   // the first one unless a role named like "client" exists.
   roles: string[];
   pricingTables: PandaDocTemplatePricingTable[];
-  // Names of pricing tables in the template, in template order.
-  pricingTableNames: string[];
   tokenNames: string[];
 };
 
@@ -47,6 +55,10 @@ let templateListCache: {
   expiresAt: number;
   items: PandaDocTemplateSummary[];
 } | null = null;
+const templateDetailsCache = new Map<
+  string,
+  { expiresAt: number; details: PandaDocTemplateDetails }
+>();
 
 export async function listPandaDocTemplates(
   options: { refresh?: boolean } = {},
@@ -77,9 +89,23 @@ export async function listPandaDocTemplates(
   return { ok: true, data: items };
 }
 
+function finiteNumber(value: unknown, fallback: number): number {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return typeof parsed === "number" && Number.isFinite(parsed)
+    ? parsed
+    : fallback;
+}
+
+// Cached like the template list: the form reads a template's tables when it
+// is picked and the save reads them again moments later.
 export async function getPandaDocTemplateDetails(
   templateId: string,
 ): Promise<PandaDocResult<PandaDocTemplateDetails>> {
+  const cached = templateDetailsCache.get(templateId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { ok: true, data: cached.details };
+  }
+
   const result = await pandaDocRequest<{
     id?: string;
     name?: string;
@@ -88,11 +114,17 @@ export async function getPandaDocTemplateDetails(
     pricing?: {
       tables?: {
         name?: string;
-        data_merge_enabled?: boolean;
         columns?: {
           name?: string;
-          merge_name?: string | null;
+          header?: string | null;
           hidden?: boolean;
+        }[];
+        items?: {
+          name?: string | null;
+          description?: string | null;
+          price?: string | number | null;
+          qty?: string | number | null;
+          options?: { optional?: boolean; optional_selected?: boolean };
         }[];
       }[];
     };
@@ -105,43 +137,41 @@ export async function getPandaDocTemplateDetails(
   for (const table of data.pricing?.tables ?? []) {
     if (!table.name) continue;
     const columns = table.columns ?? [];
-    const column = (name: PricingColumn) =>
-      columns.find((col) => col.name === name);
-    const key = (name: PricingColumn) => column(name)?.merge_name || name;
+    const column = (name: string) => columns.find((col) => col.name === name);
     pricingTables.push({
       name: table.name,
-      dataMergeEnabled: table.data_merge_enabled !== false,
+      heading: column("Name")?.header?.trim() || table.name,
       priceVisible: column("Price")?.hidden !== true,
-      columnKeys: {
-        Name: key("Name"),
-        Description: key("Description"),
-        Price: key("Price"),
-        QTY: key("QTY"),
-      },
+      rows: (table.items ?? [])
+        // Templates keep an empty (sometimes zero-width-space) first row.
+        .filter((item) => (item.name ?? "").replace(/[\s\u200b]/g, ""))
+        .map((item) => ({
+          name: (item.name ?? "").trim(),
+          description: (item.description ?? "").trim(),
+          price: finiteNumber(item.price, 0),
+          qty: finiteNumber(item.qty, 1),
+          optional: item.options?.optional === true,
+          selected: item.options?.optional_selected === true,
+        })),
     });
   }
 
-  return {
-    ok: true,
-    data: {
-      id: data.id ?? templateId,
-      name: data.name ?? "Untitled template",
-      roles: (data.roles ?? [])
-        .map((role) => role.name)
-        .filter((name): name is string => Boolean(name)),
-      pricingTables,
-      pricingTableNames: pricingTables.map((table) => table.name),
-      tokenNames: (data.tokens ?? [])
-        .map((token) => token.name)
-        .filter((name): name is string => Boolean(name)),
-    },
+  const details: PandaDocTemplateDetails = {
+    id: data.id ?? templateId,
+    name: data.name ?? "Untitled template",
+    roles: (data.roles ?? [])
+      .map((role) => role.name)
+      .filter((name): name is string => Boolean(name)),
+    pricingTables,
+    tokenNames: (data.tokens ?? [])
+      .map((token) => token.name)
+      .filter((name): name is string => Boolean(name)),
   };
-}
-
-// True when PandaDoc refused the request because the named pricing table
-// can't be filled by API; callers try the template's next table.
-export function isPricingTableRejection(error: string): boolean {
-  return /data merge is disabled/i.test(error);
+  templateDetailsCache.set(templateId, {
+    expiresAt: Date.now() + TEMPLATE_CACHE_TTL_MS,
+    details,
+  });
+  return { ok: true, data: details };
 }
 
 export type PandaDocPricingRow = {
@@ -149,46 +179,52 @@ export type PandaDocPricingRow = {
   description: string;
   price: number;
   qty: number;
+  sku?: string | null;
+  // Checkbox row and its tick; plain rows leave both unset.
+  optional?: boolean;
+  selected?: boolean;
 };
 
 export type PandaDocPricingTableInput = {
   name: string;
-  rows: PandaDocPricingRow[];
-  // From the template's details; defaults to PandaDoc's standard names.
-  columnKeys?: Record<PricingColumn, string>;
+  // A titled section prints its title as a sub-heading inside the table
+  // (the event day); an untitled one prints rows only. Rows sent for a table
+  // replace the rows saved in the template; a table that isn't sent keeps
+  // them.
+  sections: { title: string | null; rows: PandaDocPricingRow[] }[];
 };
 
-function pricingTablesPayload(table: PandaDocPricingTableInput | null) {
-  if (!table) return {};
-  const keys = table.columnKeys ?? {
-    Name: "Name",
-    Description: "Description",
-    Price: "Price",
-    QTY: "QTY",
-  };
+// Rows go in with PandaDoc's standard lowercase keys and data merge off.
+// Data merge (custom column keys) is rejected by some tables even when the
+// template reports it enabled, while the standard keys work on every table.
+// Table-level tax, fees and discounts are the template's and are untouched,
+// which is how the Food & Beverage service fee and tax get applied.
+function pricingTablesPayload(tables: PandaDocPricingTableInput[]) {
+  if (tables.length === 0) return {};
   return {
-    pricing_tables: [
-      {
-        name: table.name,
-        data_merge: true,
-        options: { currency: "USD" },
-        sections: [
-          {
-            title: "Event services",
-            default: true,
-            rows: table.rows.map((row) => ({
-              options: { optional: false, qty_editable: false },
-              data: {
-                [keys.Name]: row.name,
-                [keys.Description]: row.description,
-                [keys.Price]: row.price,
-                [keys.QTY]: row.qty,
-              },
-            })),
+    pricing_tables: tables.map((table) => ({
+      name: table.name,
+      data_merge: false,
+      options: { currency: "USD" },
+      sections: table.sections.map((section, index) => ({
+        title: section.title || `Section ${index + 1}`,
+        default: !section.title,
+        rows: section.rows.map((row) => ({
+          options: {
+            optional: row.optional === true,
+            ...(row.optional ? { optional_selected: row.selected === true } : {}),
+            qty_editable: false,
           },
-        ],
-      },
-    ],
+          data: {
+            name: row.name,
+            description: row.description,
+            price: row.price,
+            qty: row.qty,
+            ...(row.sku ? { sku: row.sku } : {}),
+          },
+        })),
+      })),
+    })),
   };
 }
 
@@ -202,7 +238,7 @@ export type CreatePandaDocDocumentInput = {
     role: string;
   };
   tokens: Record<string, string>;
-  pricingTable: PandaDocPricingTableInput | null;
+  pricingTables: PandaDocPricingTableInput[];
   metadata: Record<string, string>;
 };
 
@@ -228,7 +264,7 @@ export async function createPandaDocDocument(
       value,
     })),
     metadata: input.metadata,
-    ...pricingTablesPayload(input.pricingTable),
+    ...pricingTablesPayload(input.pricingTables),
   };
 
   const result = await pandaDocRequest<{ id?: string }>("/documents", {
@@ -422,12 +458,12 @@ export async function movePandaDocDocumentToDraft(
 export type UpdatePandaDocDocumentInput = {
   name: string;
   tokens: Record<string, string>;
-  pricingTable: PandaDocPricingTableInput | null;
+  pricingTables: PandaDocPricingTableInput[];
   metadata: Record<string, string>;
 };
 
-// Same shapes as create-from-template; the pricing table's single section
-// is replaced with the app's current line items.
+// Same shapes as create-from-template; each table sent has its rows
+// replaced with the app's current line items.
 export async function updatePandaDocDocument(
   documentId: string,
   input: UpdatePandaDocDocumentInput,
@@ -439,7 +475,7 @@ export async function updatePandaDocDocument(
       value,
     })),
     metadata: input.metadata,
-    ...pricingTablesPayload(input.pricingTable),
+    ...pricingTablesPayload(input.pricingTables),
   };
 
   const result = await pandaDocRequest<unknown>(

@@ -8,6 +8,7 @@ import {
   syncEventContracts,
 } from "@/lib/admin/contracts";
 import { getAdminEventById } from "@/lib/admin/events";
+import { formatEventDayHeading } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { ContractsManager } from "./contracts-manager";
@@ -46,6 +47,12 @@ export default async function AdminContractsPage({
     getContractTemplateOptions(),
   ]);
 
+  const eventDay = formatEventDayHeading(event.eventDate);
+  const defaultSectionTitle =
+    eventDay && event.arrivalTime
+      ? `${eventDay} - ${event.arrivalTime} arrival`
+      : eventDay;
+
   return (
     <AdminShell
       actions={
@@ -71,6 +78,7 @@ export default async function AdminContractsPage({
           email: event.contactEmail,
         }}
         contracts={contracts}
+        defaultSectionTitle={defaultSectionTitle}
         eventId={eventId}
         eventName={event.eventName}
         portalLaunched={event.status === "launched"}

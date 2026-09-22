@@ -1,15 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import type { ContractTemplateOptions } from "@/lib/admin/contracts";
 import {
+  draftTablesForLayout,
+  draftTablesToLineItems,
+  fallbackDraftTables,
+  type DraftTable,
+} from "@/lib/contracts/draft-tables";
+import {
   EDITABLE_CONTRACT_STATUSES,
-  calculateContractSubtotal,
   contractStatusLabels,
+  groupContractLineItems,
+  isCountedLineItem,
   type ContractLineItem,
   type EventContract,
 } from "@/lib/contracts/shared";
@@ -17,12 +24,16 @@ import {
 import {
   createContractAction,
   deleteFailedContractAction,
+  loadContractCatalogAction,
+  loadContractTemplateLayoutAction,
   refreshContractAction,
   updateContractAction,
 } from "./actions";
+import { ContractItemsEditor, type CatalogState } from "./contract-items-editor";
 
 // Contracts tab body: the event's contract history (newest first) and the
-// contract form — name, template, terms, line items with prices, and the
+// contract form — name, template, terms, the items (from the PandaDoc
+// catalog or typed, grouped by the template's pricing tables), and the
 // recipient. Creating one builds and sends the PandaDoc document
 // server-side; the client then signs it from their portal. Unsigned
 // contracts can be edited in place: same form, prefilled, and the document
@@ -35,6 +46,9 @@ type ContractsManagerProps = {
   templateOptions: ContractTemplateOptions;
   contacts: { name: string | null; email: string | null };
   portalLaunched: boolean;
+  // Event day line ("Friday, November 20th - 9:45am arrival") offered as the
+  // first items group's sub-heading on a new contract.
+  defaultSectionTitle: string;
 };
 
 const statusTones: Record<EventContract["status"], BadgeTone> = {
@@ -62,38 +76,6 @@ function formatDateTime(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-type DraftLineItem = {
-  key: number;
-  name: string;
-  description: string;
-  quantity: string;
-  unitPrice: string;
-};
-
-let nextKey = 1;
-function blankItem(): DraftLineItem {
-  return {
-    key: nextKey++,
-    name: "",
-    description: "",
-    quantity: "1",
-    unitPrice: "",
-  };
-}
-
-function toLineItems(drafts: DraftLineItem[]): ContractLineItem[] {
-  return drafts
-    .filter((item) => item.name.trim())
-    .map((item) => ({
-      name: item.name.trim(),
-      description: item.description.trim(),
-      quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
-      unitPrice: Number.isFinite(Number(item.unitPrice))
-        ? Number(item.unitPrice)
-        : 0,
-    }));
-}
-
 export function ContractsManager({
   eventId,
   eventName,
@@ -101,6 +83,7 @@ export function ContractsManager({
   templateOptions,
   contacts,
   portalLaunched,
+  defaultSectionTitle,
 }: ContractsManagerProps) {
   const [showForm, setShowForm] = useState(contracts.length === 0);
 
@@ -128,6 +111,7 @@ export function ContractsManager({
       {showForm ? (
         <ContractForm
           contacts={contacts}
+          defaultSectionTitle={defaultSectionTitle}
           eventId={eventId}
           eventName={eventName}
           onDone={() => setShowForm(false)}
@@ -402,29 +386,66 @@ function LineItemsTable({
             <th className="py-1 font-semibold text-right">Total</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
-          {items.map((item, index) => (
-            <tr key={`${item.name}-${index}`}>
-              <td className="py-2 pr-3">
-                <span className="font-medium text-slate-800">{item.name}</span>
-                {item.description ? (
-                  <span className="block text-xs text-slate-500">
-                    {item.description}
-                  </span>
-                ) : null}
-              </td>
-              <td className="py-2 pr-3 text-right text-slate-700">
-                {item.quantity}
-              </td>
-              <td className="py-2 pr-3 text-right text-slate-700">
-                {currency.format(item.unitPrice)}
-              </td>
-              <td className="py-2 text-right font-medium text-slate-800">
-                {currency.format(item.quantity * item.unitPrice)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
+        {groupContractLineItems(items.filter(isCountedLineItem)).map(
+          (group, groupIndex) => (
+            <tbody
+              className="divide-y divide-slate-100"
+              key={`${group.table ?? "items"}-${groupIndex}`}
+            >
+              {group.heading ? (
+                <tr>
+                  <th
+                    className="pt-3 pb-1 text-left text-xs font-semibold text-slate-700"
+                    colSpan={4}
+                    scope="colgroup"
+                  >
+                    {group.heading}
+                  </th>
+                </tr>
+              ) : null}
+              {group.sections.map((section, sectionIndex) => [
+                section.title ? (
+                  <tr key={`title-${sectionIndex}`}>
+                    <td
+                      className="py-1 text-xs font-medium text-slate-500"
+                      colSpan={4}
+                    >
+                      {section.title}
+                    </td>
+                  </tr>
+                ) : null,
+                ...section.items.map((item, index) => (
+                  <tr key={`${sectionIndex}-${item.name}-${index}`}>
+                    <td className="py-2 pr-3">
+                      <span className="font-medium text-slate-800">
+                        {item.optional ? "✓ " : ""}
+                        {item.name}
+                      </span>
+                      {item.description ? (
+                        <span className="block text-xs text-slate-500">
+                          {item.description}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="py-2 pr-3 text-right text-slate-700">
+                      {item.optional ? "" : item.quantity}
+                    </td>
+                    <td className="py-2 pr-3 text-right text-slate-700">
+                      {item.optional && item.unitPrice === 0
+                        ? ""
+                        : currency.format(item.unitPrice)}
+                    </td>
+                    <td className="py-2 text-right font-medium text-slate-800">
+                      {item.optional && item.unitPrice === 0
+                        ? ""
+                        : currency.format(item.quantity * item.unitPrice)}
+                    </td>
+                  </tr>
+                )),
+              ])}
+            </tbody>
+          ),
+        )}
         <tfoot>
           <tr>
             <td
@@ -453,6 +474,7 @@ type ContractFormProps = {
       eventName: string;
       templateOptions: ContractTemplateOptions;
       contacts: { name: string | null; email: string | null };
+      defaultSectionTitle: string;
     }
   | {
       // Edit: prefilled from the contract; template and recipient are fixed
@@ -461,19 +483,9 @@ type ContractFormProps = {
       eventName?: undefined;
       templateOptions?: undefined;
       contacts?: undefined;
+      defaultSectionTitle?: undefined;
     }
 );
-
-function toDraftItems(items: ContractLineItem[]): DraftLineItem[] {
-  if (items.length === 0) return [blankItem()];
-  return items.map((item) => ({
-    key: nextKey++,
-    name: item.name,
-    description: item.description,
-    quantity: String(item.quantity),
-    unitPrice: String(item.unitPrice),
-  }));
-}
 
 function ContractForm(props: ContractFormProps) {
   const { eventId, onDone } = props;
@@ -498,9 +510,17 @@ function ContractForm(props: ContractFormProps) {
   const [description, setDescription] = useState(
     editing ? (props.contract.description ?? "") : "",
   );
-  const [items, setItems] = useState<DraftLineItem[]>(() =>
-    editing ? toDraftItems(props.contract.lineItems) : [blankItem()],
+  const savedItems = editing ? props.contract.lineItems : undefined;
+  const defaultSectionTitle = props.defaultSectionTitle;
+  // Until the template's tables arrive the items sit in one plain group.
+  const [tables, setTables] = useState<DraftTable[]>(() =>
+    fallbackDraftTables(savedItems ?? []),
   );
+  const [layoutStatus, setLayoutStatus] = useState<{
+    loading: boolean;
+    error: string | null;
+  }>({ loading: Boolean(templateId), error: null });
+  const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
   const [recipientName, setRecipientName] = useState(
     editing
       ? (props.contract.recipientName ?? "")
@@ -515,16 +535,67 @@ function ContractForm(props: ContractFormProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const subtotal = calculateContractSubtotal(toLineItems(items));
+  // The template's pricing tables shape the items section; re-read whenever
+  // another template is picked.
+  useEffect(() => {
+    if (!templateId) return;
+    let cancelled = false;
+    loadContractTemplateLayoutAction(templateId)
+      .then((outcome) => {
+        if (cancelled) return;
+        if (outcome.ok) {
+          setTables((previous) =>
+            draftTablesForLayout(outcome.layout, {
+              saved: savedItems,
+              previous,
+              defaultSectionTitle,
+            }),
+          );
+          setLayoutStatus({ loading: false, error: null });
+        } else {
+          setLayoutStatus({ loading: false, error: outcome.error });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLayoutStatus({ loading: false, error: "PandaDoc didn't respond" });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [templateId, savedItems, defaultSectionTitle]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadContractCatalogAction()
+      .then((outcome) => {
+        if (cancelled) return;
+        setCatalog(
+          outcome.ok
+            ? { status: "ready", items: outcome.items }
+            : { status: "error", error: outcome.error },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCatalog({ status: "error", error: "PandaDoc didn't respond" });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const changeTemplate = (id: string) => {
+    setTemplateId(id);
+    setLayoutStatus({ loading: Boolean(id), error: null });
+  };
+
   const inputClass =
     "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800";
   const readOnlyClass =
     "w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600";
-
-  const updateItem = (key: number, patch: Partial<DraftLineItem>) =>
-    setItems((current) =>
-      current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
-    );
 
   const submit = () => {
     setError(null);
@@ -534,7 +605,7 @@ function ContractForm(props: ContractFormProps) {
             name,
             description,
             notifyByEmail,
-            lineItems: toLineItems(items),
+            lineItems: draftTablesToLineItems(tables),
           })
         : await createContractAction(eventId, {
             name,
@@ -543,7 +614,8 @@ function ContractForm(props: ContractFormProps) {
             recipientName,
             recipientEmail,
             notifyByEmail,
-            lineItems: toLineItems(items),
+            lineItems: draftTablesToLineItems(tables),
+            templateTablesShown: tables.some((table) => table.name),
           });
       if (outcome.ok) {
         onDone();
@@ -569,7 +641,7 @@ function ContractForm(props: ContractFormProps) {
           <p className="mt-1 text-sm text-slate-600">
             {editing
               ? "Updates the same PandaDoc document and re-sends it. Anything the client already filled in stays; signature fields are cleared and their earlier signing link stops working."
-              : "Builds the document in PandaDoc from the chosen template, with these line items as its pricing table and the description as its terms."}
+              : "Builds the document in PandaDoc from the chosen template, with these items in its pricing tables and the description as its terms."}
           </p>
         </div>
         <button
@@ -611,7 +683,7 @@ function ContractForm(props: ContractFormProps) {
           ) : templateOptions && templateOptions.templates.length > 0 ? (
             <select
               className={`mt-1 ${inputClass}`}
-              onChange={(event) => setTemplateId(event.target.value)}
+              onChange={(event) => changeTemplate(event.target.value)}
               value={templateId}
             >
               {templateOptions.templates.map((template) => (
@@ -623,7 +695,7 @@ function ContractForm(props: ContractFormProps) {
           ) : (
             <input
               className={`mt-1 ${inputClass}`}
-              onChange={(event) => setTemplateId(event.target.value)}
+              onChange={(event) => changeTemplate(event.target.value)}
               placeholder="Template id (or set PANDADOC_TEMPLATE_ID)"
               value={templateId}
             />
@@ -651,95 +723,13 @@ function ContractForm(props: ContractFormProps) {
         </span>
       </label>
 
-      <div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-slate-700">
-            Items and prices
-          </span>
-          <button
-            className={buttonClasses("secondary", "sm")}
-            onClick={() => setItems((current) => [...current, blankItem()])}
-            type="button"
-          >
-            Add item
-          </button>
-        </div>
-        <div className="mt-2 space-y-2">
-          {items.map((item) => (
-            <div
-              className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[2fr_2fr_70px_110px_auto] sm:items-start"
-              key={item.key}
-            >
-              <input
-                aria-label="Item name"
-                className={inputClass}
-                onChange={(event) =>
-                  updateItem(item.key, { name: event.target.value })
-                }
-                placeholder="Item (e.g. Team building session)"
-                value={item.name}
-              />
-              <input
-                aria-label="Item description"
-                className={inputClass}
-                onChange={(event) =>
-                  updateItem(item.key, { description: event.target.value })
-                }
-                placeholder="Description (optional)"
-                value={item.description}
-              />
-              <input
-                aria-label="Quantity"
-                className={inputClass}
-                inputMode="decimal"
-                min="0"
-                onChange={(event) =>
-                  updateItem(item.key, { quantity: event.target.value })
-                }
-                placeholder="Qty"
-                step="any"
-                type="number"
-                value={item.quantity}
-              />
-              <input
-                aria-label="Unit price"
-                className={inputClass}
-                inputMode="decimal"
-                min="0"
-                onChange={(event) =>
-                  updateItem(item.key, { unitPrice: event.target.value })
-                }
-                placeholder="Price"
-                step="0.01"
-                type="number"
-                value={item.unitPrice}
-              />
-              <button
-                aria-label="Remove item"
-                className="rounded-lg px-2 py-2 text-sm text-slate-500 hover:bg-slate-100 hover:text-red-700"
-                onClick={() =>
-                  setItems((current) =>
-                    current.length === 1
-                      ? [blankItem()]
-                      : current.filter(
-                          (candidate) => candidate.key !== item.key,
-                        ),
-                  )
-                }
-                type="button"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 text-right text-sm text-slate-700">
-          Subtotal{" "}
-          <span className="font-semibold text-slate-950">
-            {currency.format(subtotal)}
-          </span>
-        </p>
-      </div>
+      <ContractItemsEditor
+        catalog={catalog}
+        layoutError={layoutStatus.error}
+        loadingLayout={layoutStatus.loading}
+        onChange={setTables}
+        tables={tables}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
@@ -795,7 +785,12 @@ function ContractForm(props: ContractFormProps) {
 
       <div className="flex justify-end gap-2">
         <Button
-          disabled={pending || !name.trim() || !recipientEmail.trim()}
+          disabled={
+            pending ||
+            layoutStatus.loading ||
+            !name.trim() ||
+            !recipientEmail.trim()
+          }
           type="submit"
         >
           {pending

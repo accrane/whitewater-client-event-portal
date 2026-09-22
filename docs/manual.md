@@ -1,6 +1,6 @@
 # Portal Manual
 
-_Last updated: 2026-09-15._
+_Last updated: 2026-09-17._
 
 This is the working guide for the Whitewater event portal: what each screen
 is for, how an event moves from inquiry to event day, and what happens
@@ -200,9 +200,38 @@ the field in GHL and it disappears in the portal.
 **You do:** on the event's **Contracts** tab, click **New contract**, name it
 (initial agreement, an event-order change, a 50% deposit — as many per
 event as needed), pick a PandaDoc template, write any description or terms,
-add the **items and prices** it covers, confirm the recipient (prefilled
-from the GHL contact), and click **Create and send**. The client signs it
-inside their portal (Step 6). Nothing goes through GHL.
+add the **items and prices** it covers (below), confirm the recipient
+(prefilled from the GHL contact), and click **Create and send**. The client
+signs it inside their portal (Step 6). Nothing goes through GHL.
+
+**Items and prices.** Once you pick a template, the form shows the same
+tables the template has in PandaDoc, under the same headings — for example
+**Item**, **Rentals**, and **Food & Beverage Items**. Put each item in the
+table it belongs in, exactly as you would in PandaDoc: the table decides
+the taxes and fees. Food and drink go under **Food & Beverage Items**, which
+is where PandaDoc adds the catering service fee and the food and beverage
+tax; the form warns you if a catering item ends up in another table.
+
+- **Add from catalog** opens the PandaDoc catalog (passes, venues, parking,
+  catering, and the rest). Search or pick a category, click **Add**, then
+  set the quantity on the row. The name and price come from PandaDoc and
+  can't be changed here — managers set prices in PandaDoc's catalog, and a
+  price changed there shows up here within a few minutes.
+- **Add custom row** is for anything that isn't in the catalog (a waived
+  fee, an outside-food charge). You type the name and the price.
+- The **sub-heading** box above a table's rows is for the event day, the
+  way the table used to be retitled in PandaDoc ("Friday, November 20th -
+  9:45am arrival"). A new contract starts with the event's date filled in;
+  clear it if you don't want it. For a multi-day event, click **Add another
+  group** and give each day its own sub-heading.
+- Templates with a **checklist of options** (the education programs on the
+  EA Group templates: "Choose One (1) of the Options Below") show the
+  options as checkboxes. Tick the one the group chose before you send, so
+  the contract arrives with the choice already made.
+- Rows a template already contains (a cleaning fee, a nights-stay line)
+  appear as custom rows you can edit or remove.
+- The form shows a **subtotal** only. PandaDoc works out the taxes and
+  fees, and the full total appears on the contract once it's created.
 
 **Automatically:**
 - The portal builds the PandaDoc document from the template: your line
@@ -357,9 +386,15 @@ Payment, the wedding ones) work as they are. If you build a new one:
   or Signer is picked automatically; otherwise the first role). The
   portal assigns the client to that role, and PandaDoc gives them every
   signature field.
-- Include a **pricing table** with a visible Price column. The portal fills
-  the first such table with the contract's items. Keep the standard column
-  names (Name, Description, Price, QTY).
+- Include a **pricing table** with a visible Price column for the items.
+  Use one table per tax treatment — for example one for untaxed items and
+  one for food and beverage — and set that table's taxes and fees in the
+  template. The portal shows each table under the heading you give its
+  first column ("Item", "Food & Beverage Items"), so make the headings
+  say what belongs there. The heading itself can't be changed from the
+  portal; the event day goes in a sub-heading instead.
+- A table with hidden Price and QTY columns and **optional** rows becomes a
+  checklist of options in the portal.
 - Add whichever fields you want filled automatically: the event name, type,
   date, arrival time, meeting location, attendee and pass counts; the
   contact's, coordinator's, and facilitator's name, email, and phone; and the
@@ -396,6 +431,8 @@ Payment, the wedding ones) work as they are. If you build a new one:
 | The event page shows old details | It refreshes from GHL on every open. If it still disagrees with GHL, check Admin → Integration Logs for a failed sync. |
 | Coordinator lists are empty or read-only | The portal can't reach GHL right now. Tell a manager; the connection needs attention. |
 | A reply from the conversations drawer won't send | The message explains why — a Do Not Disturb channel, or a GHL permission a manager needs to grant. |
-| A contract failed to send | The card shows PandaDoc's message. Usually a template problem (a pricing table with hidden prices, a renamed column). Fix the template, delete the failed contract, and send again. |
+| A contract failed to send | The card shows PandaDoc's message. Usually a template problem (a missing pricing table, a recipient role that doesn't match). Fix the template, delete the failed contract, and send again. |
+| Saving a contract says an item is no longer in the PandaDoc catalog | Someone removed or replaced that item in PandaDoc. Remove the row and add the current item from the catalog, or add it as a custom row. |
+| The catalog or the template's tables won't load in the contract form | The portal can't reach PandaDoc right now. Custom rows still work; try again in a minute, and tell a manager if it persists. |
 | The client says their signing link stopped working | The contract was edited after it was sent. Their portal shows the revised one. |
 | Follow-up messages still going to someone who called | Use the pause switch on their Opportunities card or event page. |

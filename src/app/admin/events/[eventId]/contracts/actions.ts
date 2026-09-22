@@ -6,8 +6,12 @@ import { redirect } from "next/navigation";
 import {
   createEventContract,
   deleteFailedEventContract,
+  getContractCatalog,
+  getContractTemplateLayout,
   refreshEventContract,
   updateEventContract,
+  type ContractCatalogOutcome,
+  type ContractTemplateLayoutOutcome,
   type CreateEventContractOutcome,
 } from "@/lib/admin/contracts";
 import type { ContractLineItem, EventContract } from "@/lib/contracts/shared";
@@ -30,6 +34,20 @@ function revalidateContracts(eventId: string) {
   revalidatePath(`/admin/events/${eventId}`);
 }
 
+// The contract form reads these when it opens (and when the template
+// changes): the template's pricing tables and the PandaDoc product catalog.
+export async function loadContractTemplateLayoutAction(
+  templateId: string,
+): Promise<ContractTemplateLayoutOutcome> {
+  await requireCoordinator();
+  return getContractTemplateLayout(templateId);
+}
+
+export async function loadContractCatalogAction(): Promise<ContractCatalogOutcome> {
+  await requireCoordinator();
+  return getContractCatalog();
+}
+
 export type CreateContractFormInput = {
   name: string;
   description: string;
@@ -38,6 +56,7 @@ export type CreateContractFormInput = {
   recipientEmail: string;
   notifyByEmail: boolean;
   lineItems: ContractLineItem[];
+  templateTablesShown: boolean;
 };
 
 export async function createContractAction(
@@ -50,6 +69,7 @@ export async function createContractAction(
     name: input.name,
     description: input.description || null,
     lineItems: input.lineItems,
+    templateTablesShown: input.templateTablesShown,
     templateId: input.templateId || null,
     recipientName: input.recipientName || null,
     recipientEmail: input.recipientEmail || null,
