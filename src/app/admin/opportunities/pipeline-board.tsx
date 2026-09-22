@@ -12,8 +12,10 @@ import {
   type FollowUpPauseSummary,
 } from "@/components/admin/follow-up-pause-button";
 import { EventFilterFields } from "@/components/admin/event-filter-fields";
+import { OpportunityInquiryButton } from "@/components/admin/opportunity-inquiry-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { EventFlags } from "@/lib/admin/events";
+import type { OpportunityInquiry } from "@/lib/ghl/inquiry-fields";
 import {
   applyFiltersToParams,
   hasActiveFilters,
@@ -39,6 +41,8 @@ export type BoardOpportunity = {
   coordinatorName: string | null;
   guestCount: number | null;
   inquiryType: string | null;
+  createdAt: string | null;
+  inquiry: OpportunityInquiry;
   contact: {
     id: string | null;
     name: string | null;
@@ -441,35 +445,44 @@ function OpportunityCard({
           </span>
         ) : null}
       </div>
-      {opportunity.contact?.id ? (
-        <div className="mt-2 flex items-center gap-1.5 border-t border-slate-200 pt-2">
-          <ContactConversationsButton
-            compact
-            contactId={opportunity.contact.id}
-            contactName={opportunity.contact.name}
-            eventId={flags?.eventId}
-          />
-          <ContactNotesButton
-            compact
-            contactId={opportunity.contact.id}
-            contactName={opportunity.contact.name}
-          />
-          <ContactTasksButton
-            compact
-            contactId={opportunity.contact.id}
-            contactName={opportunity.contact.name}
-          />
-          <div className="ml-auto">
-            <FollowUpPauseButton
+      <div className="mt-2 flex items-center gap-1.5 border-t border-slate-200 pt-2">
+        <OpportunityInquiryButton
+          contact={opportunity.contact}
+          createdAt={opportunity.createdAt}
+          inquiry={opportunity.inquiry}
+          inquirySource={flags?.inquirySource ?? null}
+          opportunityName={opportunity.name}
+        />
+        {opportunity.contact?.id ? (
+          <>
+            <ContactConversationsButton
               compact
               contactId={opportunity.contact.id}
               contactName={opportunity.contact.name}
-              initialPause={pause}
-              opportunityId={opportunity.id}
+              eventId={flags?.eventId}
             />
-          </div>
-        </div>
-      ) : null}
+            <ContactNotesButton
+              compact
+              contactId={opportunity.contact.id}
+              contactName={opportunity.contact.name}
+            />
+            <ContactTasksButton
+              compact
+              contactId={opportunity.contact.id}
+              contactName={opportunity.contact.name}
+            />
+            <div className="ml-auto">
+              <FollowUpPauseButton
+                compact
+                contactId={opportunity.contact.id}
+                contactName={opportunity.contact.name}
+                initialPause={pause}
+                opportunityId={opportunity.id}
+              />
+            </div>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }

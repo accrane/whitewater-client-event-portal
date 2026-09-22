@@ -33,6 +33,21 @@ export function findFieldString(
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+// Pulls one custom field's value as display text: strings as-is, numbers
+// stringified, checkbox/multi-select arrays joined. Null when empty.
+export function findFieldText(customFields: unknown, fieldId: string): string | null {
+  const value = findFieldRawValue(customFields, fieldId);
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (Array.isArray(value)) {
+    const parts = value
+      .filter((part): part is string => typeof part === "string" && part.trim() !== "")
+      .map((part) => part.trim());
+    return parts.length > 0 ? parts.join(", ") : null;
+  }
+  return null;
+}
+
 // Pulls one custom field's numeric value out of a GHL customFields array.
 // NUMERICAL fields usually arrive as numbers but occasionally as strings.
 export function findFieldNumber(

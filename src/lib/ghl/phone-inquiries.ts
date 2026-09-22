@@ -3,6 +3,7 @@ import { getGhlApiHeaders } from "@/lib/ghl/client";
 import { createOrReuseInquiryEvent } from "@/lib/ghl/inquiry-events";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { listGhlUsers } from "@/lib/ghl/location-data";
+import { INQUIRY_FIELD_IDS } from "@/lib/ghl/inquiry-fields";
 import { createContactNote } from "@/lib/ghl/notes";
 import {
   fetchConfiguredPipeline,
@@ -30,20 +31,7 @@ export { EXPEDITED_WINDOW_DAYS, isInsideExpeditedWindow } from "@/lib/ghl/expedi
 // Opportunity custom fields the website form fills, by GHL field id (this
 // location's ids; see docs/ghl-custom-fields.md). Date of Interest comes
 // from env because the app already reads it elsewhere.
-export const INQUIRY_FIELD_IDS = {
-  inquiryType: "STQPdRrIfVqX3Sbqleew",
-  groupEventName: "Yz2CcYRaCRvjHK3FlekO",
-  companyName: "BurRW64PbpWhzSd8M3To",
-  numberOfGuests: "WxC5gg3NuLHGBrdMx9YX",
-  location: "r8hIpkhPXXCqxW2jRWRY",
-  activityInterest: "PPoj8o6YqJepvZ0tWb7K",
-  message: "qkRcSQCMM154RyxMY7qk",
-  catering: "40ZnHRqKXvMWJdKfwRgo",
-  venueRental: "gEXbzg2PVYwZz8atUvOa",
-  visitedPrior: "0IJUpiCD9Kc9VM79SVBk",
-  dateFlexibility: "5pycOyTRrNdm9WtZX6G1",
-  accommodationInterest: "pZkLs15V95Zm4KDgXM5T",
-} as const;
+export { INQUIRY_FIELD_IDS };
 
 // Fallbacks when the live option lists can't be read.
 export const DEFAULT_INQUIRY_TYPES = [

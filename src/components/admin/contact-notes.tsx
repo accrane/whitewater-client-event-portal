@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useContactBadges } from "@/components/admin/contact-badges";
 import { SlideOver, SlideOverCloseButton } from "@/components/admin/slide-over";
 import { buttonClasses } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 
 // Notepad button + slide-in drawer for the primary contact's GHL notes.
 // Notes are read live from GHL and new ones write straight back, so the
@@ -76,23 +77,24 @@ export function ContactNotesButton({
 
   return (
     <>
-      <button
-        aria-label="Open notes for this contact"
-        className={`relative rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
-          compact ? "p-1.5" : "p-2"
-        }`}
-        disabled={!contactId}
-        onClick={() => setOpen(true)}
-        title={contactId ? "View notes" : "No GHL contact linked"}
-        type="button"
-      >
-        <NotepadIcon size={compact ? 15 : 20} />
-        {noteCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
-            {noteCount > 9 ? "9+" : noteCount}
-          </span>
-        ) : null}
-      </button>
+      <Tooltip label={contactId ? "Notes" : "No GHL contact linked"}>
+        <button
+          aria-label="Open notes for this contact"
+          className={`relative rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
+            compact ? "p-1.5" : "p-2"
+          }`}
+          disabled={!contactId}
+          onClick={() => setOpen(true)}
+          type="button"
+        >
+          <NotepadIcon size={compact ? 15 : 20} />
+          {noteCount > 0 ? (
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
+              {noteCount > 9 ? "9+" : noteCount}
+            </span>
+          ) : null}
+        </button>
+      </Tooltip>
       {open && contactId ? (
         <NotesDrawer
           contactId={contactId}

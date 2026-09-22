@@ -4,17 +4,16 @@ import {
   findDateOfInterest,
   findFieldNumber,
   findFieldString,
+  findFieldText,
 } from "@/lib/ghl/field-values";
+import {
+  INQUIRY_FIELD_IDS,
+  type OpportunityInquiry,
+} from "@/lib/ghl/inquiry-fields";
 
 // Read-only lookups for the admin Opportunities views. Same degrade rules as
 // location-data: any GHL problem returns an empty result so pages keep
 // rendering.
-
-// Opportunity custom fields the pipeline board filters on, by id (see
-// docs/ghl-custom-fields.md). Also in INQUIRY_FIELD_IDS, which lives in a
-// module that imports this one.
-const NUMBER_OF_GUESTS_FIELD_ID = "WxC5gg3NuLHGBrdMx9YX";
-const INQUIRY_TYPE_FIELD_ID = "STQPdRrIfVqX3Sbqleew";
 
 export type GhlPipelineStage = {
   id: string;
@@ -144,8 +143,29 @@ export type GhlPipelineOpportunity = {
   guestCount: number | null;
   // Inquiry Type custom field — the group type (Wedding Inquiry, …).
   inquiryType: string | null;
+  // Everything the inquiry form recorded, for the card's inquiry pop-up.
+  inquiry: OpportunityInquiry;
   contact: GhlOpportunityContact | null;
 };
+
+function readInquiry(customFields: unknown, eventDate: string | null): OpportunityInquiry {
+  const text = (id: string) => findFieldText(customFields, id);
+  return {
+    companyName: text(INQUIRY_FIELD_IDS.companyName),
+    groupEventName: text(INQUIRY_FIELD_IDS.groupEventName),
+    inquiryType: findFieldString(customFields, INQUIRY_FIELD_IDS.inquiryType),
+    location: text(INQUIRY_FIELD_IDS.location),
+    dateOfInterest: eventDate,
+    numberOfGuests: findFieldNumber(customFields, INQUIRY_FIELD_IDS.numberOfGuests),
+    activityInterest: text(INQUIRY_FIELD_IDS.activityInterest),
+    message: text(INQUIRY_FIELD_IDS.message),
+    catering: text(INQUIRY_FIELD_IDS.catering),
+    venueRental: text(INQUIRY_FIELD_IDS.venueRental),
+    visitedPrior: text(INQUIRY_FIELD_IDS.visitedPrior),
+    dateFlexibility: text(INQUIRY_FIELD_IDS.dateFlexibility),
+    accommodationInterest: text(INQUIRY_FIELD_IDS.accommodationInterest),
+  };
+}
 
 export type GhlOpportunityStatus = "open" | "won" | "lost" | "abandoned";
 
@@ -208,6 +228,11 @@ export async function searchPipelineOpportunities(
       for (const opportunity of data.opportunities ?? []) {
         if (!opportunity.id) continue;
 
+        const eventDate = dateOfInterestFieldId
+          ? findDateOfInterest(opportunity.customFields, dateOfInterestFieldId)
+          : null;
+        const inquiry = readInquiry(opportunity.customFields, eventDate);
+
         results.push({
           id: opportunity.id,
           name: opportunity.name?.trim() || null,
@@ -220,20 +245,10 @@ export async function searchPipelineOpportunities(
               : null,
           assignedTo: opportunity.assignedTo ?? null,
           createdAt: opportunity.createdAt ?? null,
-          eventDate: dateOfInterestFieldId
-            ? findDateOfInterest(
-                opportunity.customFields,
-                dateOfInterestFieldId,
-              )
-            : null,
-          guestCount: findFieldNumber(
-            opportunity.customFields,
-            NUMBER_OF_GUESTS_FIELD_ID,
-          ),
-          inquiryType: findFieldString(
-            opportunity.customFields,
-            INQUIRY_TYPE_FIELD_ID,
-          ),
+          eventDate,
+          guestCount: inquiry.numberOfGuests,
+          inquiryType: inquiry.inquiryType,
+          inquiry,
           contact: opportunity.contact?.id
             ? {
                 id: opportunity.contact.id,

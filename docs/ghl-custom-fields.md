@@ -18,7 +18,9 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 > (`40ZnHRqKXvMWJdKfwRgo`), Venue Rental (`gEXbzg2PVYwZz8atUvOa`), Visited
 > Prior (`0IJUpiCD9Kc9VM79SVBk`), Date Flexibility (`5pycOyTRrNdm9WtZX6G1`),
 > Accommodation Interest (`pZkLs15V95Zm4KDgXM5T`), and Date of Interest.
-> Ids live in `INQUIRY_FIELD_IDS` (`src/lib/ghl/phone-inquiries.ts`).
+> Ids live in `INQUIRY_FIELD_IDS` (`src/lib/ghl/inquiry-fields.ts`). The
+> Opportunities pipeline **reads** all of them (by id) with every open
+> opportunity for the card's original-inquiry pop-up.
 
 
 | Field | Field ID | Key | How the portal uses it |

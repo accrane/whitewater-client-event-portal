@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { buttonClasses } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Tooltip } from "@/components/ui/tooltip";
 
 // "Pause follow-ups" switch for a GHL contact, used on opportunity cards,
 // in the conversations drawer, on the event page, and on the dashboard's
@@ -110,20 +111,21 @@ export function FollowUpPauseButton({
     });
     return (
       <div className="flex items-center gap-1.5" ref={rootRef}>
-        <span
-          title={`Follow-ups paused since ${since}${pause.pausedBy ? ` by ${pause.pausedBy}` : ""}${pause.reason ? `: ${pause.reason}` : ""}`}
+        <Tooltip
+          label={`Paused since ${since}${pause.pausedBy ? ` by ${pause.pausedBy}` : ""}${pause.reason ? `: ${pause.reason}` : ""}`}
         >
           <StatusBadge tone="warning">Paused</StatusBadge>
-        </span>
-        <button
-          className="text-xs font-semibold text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline disabled:opacity-50"
-          disabled={busy}
-          onClick={() => void act("resume")}
-          title="Resume automated follow-ups for this contact"
-          type="button"
-        >
-          {busy ? "Resuming…" : "Resume"}
-        </button>
+        </Tooltip>
+        <Tooltip label="Resume automated follow-ups">
+          <button
+            className="text-xs font-semibold text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline disabled:opacity-50"
+            disabled={busy}
+            onClick={() => void act("resume")}
+            type="button"
+          >
+            {busy ? "Resuming…" : "Resume"}
+          </button>
+        </Tooltip>
         {error ? <span className="text-xs text-red-700">{error}</span> : null}
       </div>
     );
@@ -131,20 +133,22 @@ export function FollowUpPauseButton({
 
   return (
     <div className="relative" ref={rootRef}>
-      <button
-        aria-expanded={open}
-        className={
-          compact
-            ? "rounded-full border border-slate-300 p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-            : `${buttonClasses("secondary", "sm")} gap-1.5`
-        }
-        onClick={() => setOpen((value) => !value)}
-        title="Pause automated follow-ups (e.g. after a phone call)"
-        type="button"
-      >
-        <PauseIcon size={compact ? 15 : 14} />
-        {compact ? null : "Pause follow-ups"}
-      </button>
+      <Tooltip label="Pause follow-ups (e.g. after a phone call)">
+        <button
+          aria-expanded={open}
+          aria-label={compact ? "Pause automated follow-ups" : undefined}
+          className={
+            compact
+              ? "rounded-full border border-slate-300 p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+              : `${buttonClasses("secondary", "sm")} gap-1.5`
+          }
+          onClick={() => setOpen((value) => !value)}
+          type="button"
+        >
+          <PauseIcon size={compact ? 15 : 14} />
+          {compact ? null : "Pause follow-ups"}
+        </button>
+      </Tooltip>
       {open ? (
         <div
           className="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl"

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useContactBadges } from "@/components/admin/contact-badges";
 import { SlideOver, SlideOverCloseButton } from "@/components/admin/slide-over";
 import { buttonClasses } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 
 // Tasks button + slide-in drawer for the primary contact's GHL tasks. Reads
 // live from GHL, creates tasks, and checks them off exactly like GHL's own
@@ -94,23 +95,24 @@ export function ContactTasksButton({
 
   return (
     <>
-      <button
-        aria-label="Open tasks for this contact"
-        className={`relative rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
-          compact ? "p-1.5" : "p-2"
-        }`}
-        disabled={!contactId}
-        onClick={() => setOpen(true)}
-        title={contactId ? "View tasks" : "No GHL contact linked"}
-        type="button"
-      >
-        <TasksIcon size={compact ? 15 : 20} />
-        {openTaskCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
-            {openTaskCount > 9 ? "9+" : openTaskCount}
-          </span>
-        ) : null}
-      </button>
+      <Tooltip label={contactId ? "Tasks" : "No GHL contact linked"}>
+        <button
+          aria-label="Open tasks for this contact"
+          className={`relative rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
+            compact ? "p-1.5" : "p-2"
+          }`}
+          disabled={!contactId}
+          onClick={() => setOpen(true)}
+          type="button"
+        >
+          <TasksIcon size={compact ? 15 : 20} />
+          {openTaskCount > 0 ? (
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
+              {openTaskCount > 9 ? "9+" : openTaskCount}
+            </span>
+          ) : null}
+        </button>
+      </Tooltip>
       {open && contactId ? (
         <TasksDrawer
           contactId={contactId}

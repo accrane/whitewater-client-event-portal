@@ -319,6 +319,8 @@ async function PipelineView({
       coordinatorName: coordinatorNameById(ghlUsers, opportunity.assignedTo),
       guestCount: opportunity.guestCount,
       inquiryType: opportunity.inquiryType,
+      createdAt: opportunity.createdAt,
+      inquiry: opportunity.inquiry,
       contact: opportunity.contact,
     })),
   }));

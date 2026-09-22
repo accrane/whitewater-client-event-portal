@@ -11,6 +11,7 @@ import {
 import { FollowUpPauseButton } from "@/components/admin/follow-up-pause-button";
 import { SlideOver, SlideOverCloseButton } from "@/components/admin/slide-over";
 import { buttonClasses } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { findUnfilledMergeTags } from "@/lib/ghl/snippet-merge-tags";
 
 // Speech-bubble button + slide-in drawer showing the primary contact's GHL
@@ -103,18 +104,19 @@ export function ContactConversationsButton({
 
   return (
     <>
-      <button
-        aria-label="Open conversations with this contact"
-        className={`rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
-          compact ? "p-1.5" : "p-2"
-        }`}
-        disabled={!contactId}
-        onClick={() => setOpen(true)}
-        title={contactId ? "View conversations" : "No GHL contact linked"}
-        type="button"
-      >
-        <SpeechBubbleIcon size={compact ? 15 : 20} />
-      </button>
+      <Tooltip label={contactId ? "Conversations" : "No GHL contact linked"}>
+        <button
+          aria-label="Open conversations with this contact"
+          className={`rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
+            compact ? "p-1.5" : "p-2"
+          }`}
+          disabled={!contactId}
+          onClick={() => setOpen(true)}
+          type="button"
+        >
+          <SpeechBubbleIcon size={compact ? 15 : 20} />
+        </button>
+      </Tooltip>
       {open && contactId ? (
         <ConversationsDrawer
           contactId={contactId}
