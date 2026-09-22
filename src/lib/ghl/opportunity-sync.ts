@@ -5,12 +5,17 @@ import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { fetchOpportunityFieldIndex } from "@/lib/ghl/location-data";
+import { fetchConfiguredPipeline } from "@/lib/ghl/opportunities";
 import {
   buildEventFieldWriteBackBody,
   buildPlanningStageBody,
   buildPortalLinkWriteBackBody,
   type OpportunityUpdateBody,
 } from "@/lib/ghl/opportunity-payloads";
+import {
+  isProposalSentStage,
+  shouldMoveToProposalSent,
+} from "@/lib/ghl/proposal-sent";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
 
@@ -386,6 +391,132 @@ export async function moveOpportunityToBooked(
     envVarName: "GHL_BOOKED_STAGE_ID",
     eventType: "opportunity_move_to_booked",
   });
+}
+
+// Fired after a coordinator sends a message with a proposal snippet in it
+// (see proposal-sent.ts): moves the contact's opportunity into Proposal Sent
+// so GHL's proposal chase starts. The opportunity comes from the card the
+// drawer was opened on, else from the portal event's link. Only moves
+// forward, and only an opportunity of this contact in the configured
+// pipeline. Never throws — the message has already gone out.
+export async function moveOpportunityToProposalSent(input: {
+  contactId: string;
+  opportunityId: string | null;
+  portalEventId: string | null;
+  ghlLocationId: string | null;
+  snippetNames: string[];
+}): Promise<void> {
+  const eventType = "opportunity_move_to_proposal_sent";
+  let opportunityId = input.opportunityId;
+  const log = (
+    status: "success" | "warning" | "error",
+    message: string,
+    details: Record<string, Json> = {},
+  ) =>
+    logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType,
+      ghlLocationId: input.ghlLocationId,
+      portalEventId: input.portalEventId,
+      status,
+      message,
+      details: {
+        ghl_contact_id: input.contactId,
+        ghl_opportunity_id: opportunityId,
+        snippets: input.snippetNames,
+        ...details,
+      },
+    }).catch(() => undefined);
+
+  try {
+    if (!opportunityId && input.portalEventId) {
+      const { data } = await createServiceRoleSupabaseClient()
+        .from("events")
+        .select("ghl_opportunity_id")
+        .eq("id", input.portalEventId)
+        .maybeSingle();
+      opportunityId =
+        (data as { ghl_opportunity_id: string | null } | null)
+          ?.ghl_opportunity_id ?? null;
+    }
+    if (!opportunityId) {
+      await log(
+        "warning",
+        "Proposal sent, but no GHL opportunity was linked to move to Proposal Sent.",
+      );
+      return;
+    }
+
+    const { accessToken, apiBaseUrl } = appConfig.ghl;
+    if (!accessToken) {
+      await log("warning", "Skipped moving to Proposal Sent: GHL_ACCESS_TOKEN is not configured.");
+      return;
+    }
+
+    const [pipeline, response] = await Promise.all([
+      fetchConfiguredPipeline(),
+      fetch(`${apiBaseUrl}/opportunities/${encodeURIComponent(opportunityId)}`, {
+        headers: getGhlApiHeaders(accessToken),
+      }),
+    ]);
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      await log("error", "Failed loading the GHL opportunity to move it to Proposal Sent.", {
+        error: `GHL responded ${response.status}: ${text.slice(0, 300)}`,
+      });
+      return;
+    }
+    const opportunity = ((await response.json()) as {
+      opportunity?: {
+        contactId?: string;
+        pipelineId?: string;
+        pipelineStageId?: string;
+      };
+    }).opportunity;
+
+    if (opportunity?.contactId !== input.contactId) {
+      await log("warning", "Skipped moving to Proposal Sent: the opportunity belongs to a different contact.");
+      return;
+    }
+
+    const target = pipeline?.stages.find((stage) => isProposalSentStage(stage.name));
+    if (!pipeline || !target) {
+      await log("warning", "Skipped moving to Proposal Sent: no Proposal Sent stage found in the configured pipeline.");
+      return;
+    }
+
+    const current =
+      opportunity.pipelineId === pipeline.id
+        ? pipeline.stages.find((stage) => stage.id === opportunity.pipelineStageId)
+        : undefined;
+    if (!shouldMoveToProposalSent(current?.position ?? null, target.position)) {
+      await log(
+        "success",
+        `Proposal sent; the opportunity is already at ${current?.name ?? "a stage outside the pipeline"}, so its stage was left alone.`,
+        { current_stage: current?.name ?? null },
+      );
+      return;
+    }
+
+    const result = await updateGhlOpportunity(
+      opportunityId,
+      buildPlanningStageBody(pipeline.id, target.id),
+    );
+    await log(
+      result.ok ? "success" : "error",
+      result.ok
+        ? `GHL opportunity moved from ${current?.name} to Proposal Sent after the proposal was sent.`
+        : "Failed moving the GHL opportunity to Proposal Sent.",
+      {
+        previous_stage: current?.name ?? null,
+        ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+      },
+    );
+  } catch (error) {
+    await log("error", "Failed moving the GHL opportunity to Proposal Sent.", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 async function moveOpportunityToStage(

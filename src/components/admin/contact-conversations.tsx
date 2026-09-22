@@ -60,6 +60,9 @@ type ContactConversationsButtonProps = {
   // Portal event id, when opened from an event page — links integration log
   // rows for sends back to the event.
   eventId?: string;
+  // GHL opportunity id, when opened from an opportunity card — a sent
+  // proposal snippet moves this opportunity to Proposal Sent.
+  opportunityId?: string;
   // Smaller trigger for tight spots like opportunity cards.
   compact?: boolean;
 };
@@ -98,6 +101,7 @@ export function ContactConversationsButton({
   contactId,
   contactName,
   eventId,
+  opportunityId,
   compact = false,
 }: ContactConversationsButtonProps) {
   const [open, setOpen] = useState(false);
@@ -123,6 +127,7 @@ export function ContactConversationsButton({
           contactName={contactName}
           eventId={eventId}
           onClose={() => setOpen(false)}
+          opportunityId={opportunityId}
         />
       ) : null}
     </>
@@ -134,11 +139,13 @@ function ConversationsDrawer({
   contactName,
   eventId,
   onClose,
+  opportunityId,
 }: {
   contactId: string;
   contactName: string | null;
   eventId?: string;
   onClose: () => void;
+  opportunityId?: string;
 }) {
   const [conversations, setConversations] = useState<DrawerConversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -325,6 +332,7 @@ function ConversationsDrawer({
             channel === "Email"
               ? (lastEmail?.emailMessageId ?? undefined)
               : undefined,
+          opportunityId,
           snippetNames: insertedSnippets,
         }),
       });

@@ -483,6 +483,7 @@ function OpportunityCard({
               contactId={opportunity.contact.id}
               contactName={opportunity.contact.name}
               eventId={flags?.eventId}
+              opportunityId={opportunity.id}
             />
             <ContactNotesButton
               compact

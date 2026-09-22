@@ -79,11 +79,11 @@ const STAGE_GUIDES: Record<string, { happened: string; next: string }> = {
     happened:
       "Rooms are held or booked and a coordinator is assigned. The draft event is ready to work.",
     next:
-      "Open the event page to confirm room bookings, fill in the event summary, and build the proposal in PandaDoc. When the proposal goes out, move the opportunity to Proposal Sent in GHL.",
+      "Open the event page to confirm room bookings, fill in the event summary, and build the proposal in PandaDoc. Once it's approved, send the link from the chat bubble with a Proposal snippet; that moves the opportunity to Proposal Sent automatically.",
   },
   "proposal sent": {
     happened:
-      "The proposal is with the client. Its link appears on the event page and in the client portal once GHL records it.",
+      "The proposal link went to the client, and GHL's proposal follow-up chase has started. The link appears on the event page and in the client portal once GHL records it.",
     next:
       "Follow up from the chat bubble. When they're ready, send the contract from the event page's Contracts tab; a signed contract moves the opportunity to Booked automatically.",
   },

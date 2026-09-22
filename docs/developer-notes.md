@@ -98,6 +98,7 @@ Admin → Users (service role), so users can't escalate themselves.
 | Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (rooms booked, GHL Booked, PDF archived) |
 | PandaDoc webhook | PandaDoc → app | `POST /api/pandadoc/webhook?signature=…` (HMAC-SHA256 with `PANDADOC_WEBHOOK_KEY`); each document in the delivery is re-read and synced — needs a public URL |
 | Contract signed | app → GHL | Opportunity moved to the Booked stage (`opportunity_move_to_booked`) |
+| Conversations send with a "Proposal" snippet | app → GHL | Opportunity moved to Proposal Sent, forward only (`opportunity_move_to_proposal_sent`) |
 | Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in coordinator's GHL user) or completion toggled |
 | Coordinator reassign / coordinator pick | app → GHL | Opportunity `assignedTo` |
 | Reservation linked to event | app → GHL | Opportunity moved to Planning stage |
@@ -399,6 +400,22 @@ workflow itself sent, so a client answering the portal's intro during the
 wait may still be chased — both fixed in GHL by replacing *Wait 48 hours*
 with a wait that ends on reply or timeout.
 
+### Step 4 proposal chase (stage trigger)
+
+GHL's proposal chase triggers when the opportunity enters **Proposal
+Sent**; the workflow itself needs no change. The portal moves the stage
+(2026-09-22) after a successful drawer send whose `snippetNames` include
+one containing **"proposal"** (rule in `src/lib/ghl/proposal-sent.ts`),
+not on PandaDoc approval: approval only produces the link, and a chase for
+a proposal the client never received would be wrong. The stage is found
+by name in the configured pipeline (no env var), the opportunity is the
+card the drawer was opened from, else the portal event's
+`ghl_opportunity_id`, and it must belong to the message's contact. It
+only moves forward from New Inquiry / Contacted / Planning; Proposal Sent,
+Booked, and Lost are left alone. Logged as
+`opportunity_move_to_proposal_sent`; a failure never fails the send.
+Renaming the stage or the snippets away from "proposal" breaks it.
+
 ## 6. Keeping the docs current
 
 When you ship a feature, ask:
@@ -416,6 +433,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-22 | **Proposal snippets move the opportunity to Proposal Sent.** After a successful drawer send with a snippet named "…proposal…", `sendConversationMessage` calls `moveOpportunityToProposalSent` (`opportunity-sync.ts`): opportunity from the new `opportunityId` the pipeline card passes to the drawer, else the event's `ghl_opportunity_id`; GETs it, checks the contact, resolves the Proposal Sent stage by name from `fetchConfiguredPipeline`, and only moves forward (`shouldMoveToProposalSent`). Rules and tests: `src/lib/ghl/proposal-sent.ts`, `tests/ghl/proposal-sent.test.mjs`. Stage guide no longer tells coordinators to move it in GHL (§5). |
 | 2026-09-22 | **EC Welcome snippets start the Step 3 chase.** The drawer tracks which GHL snippets were inserted into the message (cleared when the box is emptied or sent) and posts their names; the route passes `snippetNames` to `sendConversationMessage`, which after a successful send adds `coordinator-intro-sent` to the contact when any name contains "EC Welcome" / "Event Coordinator Welcome" (`src/lib/ghl/coordinator-intro.ts`, tests in `tests/ghl/coordinator-intro.test.mjs`), logged as `coordinator_intro_tag`. The pause feature's tag write moved to a shared `setContactTag(contactId, tag, present)` in `src/lib/ghl/contact-tags.ts`. GHL workflow already retriggered on the tag by Cathy (§5). |
 | 2026-09-22 | **Contracts page** (`/admin/contracts`, nav under Events). All `event_contracts` across events (`listAllContracts`, two queries: contracts + their events' snapshots) in Open / History tabs (`contractTab`: draft/creating/approval/sent/viewed/error are open), sorted approvals-first so the manager's only manual step is on top, each row linking straight into the PandaDoc document (`pandaDocDocumentUrl`) — approval stays in PandaDoc because a coordinator must not approve their own contract, so the document owner is left as the API user. GET-form filters: search (contract/event/customer/coordinator), coordinator (managers; "My events" via `resolveCurrentCoordinator`, now in `src/lib/admin/current-coordinator.ts` and shared with the dashboard), status group (`CONTRACT_STATUS_GROUPS`, per tab), event date. Coordinators are scoped to their own events (`isCurrentCoordinatorsEvent`) before filtering; a login with no coordinator match sees an explanation. Statuses: `syncOpenContracts(limit)` re-reads the least-recently-updated open contracts from PandaDoc — 25 in `after()` on every load, 60 synchronously on **Refresh statuses** (`?refresh=1`) — and re-sums event value where a status changed. Filter logic in `event-filters.ts` (contracts section), tests in `tests/admin/contract-list-filters.test.mjs`. Dollar amounts manager-only. |
 | 2026-09-22 | **Snippet lists survive the drawer.** GHL's editor emits `<li><p>…</p></li>`, so `htmlToText` was producing a blank paragraph per bullet and no marker, and the send path wrapped each in its own `<p>`. `htmlToText` (`src/lib/ghl/html-text.ts`) now unwraps those, prefixes `<li>` with `•` (numbers `<ol>` items), keeps link addresses as `text (url)`, puts table cells on their own lines, and trims nbsp-only lines. New `textToEmailHtml` (used by `sendConversationMessage`) is its inverse: bullet/`-`/`*` lines → `<ul>`, `1.` lines → `<ol>`, bare URLs linked, text escaped (it wasn't before). Inbound emails, notes, and tasks in the drawers get the same bullet rendering. Tests: `tests/ghl/html-text.test.mjs`. |

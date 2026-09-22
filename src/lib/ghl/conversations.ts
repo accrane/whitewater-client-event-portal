@@ -7,6 +7,8 @@ import {
 } from "@/lib/ghl/coordinator-intro";
 import { htmlToText, stripQuotedReply, textToEmailHtml } from "@/lib/ghl/html-text";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
+import { moveOpportunityToProposalSent } from "@/lib/ghl/opportunity-sync";
+import { hasProposalSnippet } from "@/lib/ghl/proposal-sent";
 
 // GHL Conversations API (message history + replies) for the admin event
 // page's conversations drawer. Conversations live per GHL contact, so the
@@ -255,6 +257,10 @@ export type SendConversationMessageInput = {
   // Names of the GHL snippets inserted into this message, so a sent EC
   // Welcome snippet can start the coordinator chase in GHL.
   snippetNames?: string[];
+  // GHL opportunity the drawer was opened from (an opportunity card), so a
+  // sent proposal snippet can move it to Proposal Sent. Falls back to the
+  // portal event's opportunity.
+  opportunityId?: string | null;
 };
 
 export type SendConversationMessageOutcome =
@@ -333,6 +339,16 @@ export async function sendConversationMessage(
 
   if (ok && hasCoordinatorIntroSnippet(input.snippetNames ?? [])) {
     await tagCoordinatorIntroSent(input);
+  }
+
+  if (ok && hasProposalSnippet(input.snippetNames ?? [])) {
+    await moveOpportunityToProposalSent({
+      contactId: input.contactId,
+      opportunityId: input.opportunityId ?? null,
+      portalEventId: input.portalEventId,
+      ghlLocationId: input.ghlLocationId,
+      snippetNames: input.snippetNames ?? [],
+    });
   }
 
   return ok ? { ok: true } : { ok: false, error: error ?? "Unknown GHL error" };

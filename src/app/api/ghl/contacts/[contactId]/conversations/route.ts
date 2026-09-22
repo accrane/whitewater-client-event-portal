@@ -54,6 +54,7 @@ export async function POST(
       subject?: string;
       replyToEmailMessageId?: string;
       eventId?: string;
+      opportunityId?: string;
       snippetNames?: unknown;
     };
     const snippetNames = Array.isArray(payload.snippetNames)
@@ -88,6 +89,10 @@ export async function POST(
       replyToEmailMessageId: payload.replyToEmailMessageId || null,
       ghlLocationId: appConfig.ghl.locationId || null,
       portalEventId: payload.eventId?.trim() || null,
+      opportunityId:
+        typeof payload.opportunityId === "string"
+          ? payload.opportunityId.trim() || null
+          : null,
       snippetNames,
     });
 

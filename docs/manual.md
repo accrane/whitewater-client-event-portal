@@ -124,6 +124,14 @@ Link** field, and the portal shows it on the event page and in the client's
 "Documents and payment" section the next time the event is opened. Blank
 the field in GHL and it disappears in the portal.
 
+**Send the link from the portal:** once the proposal is approved, email or
+text the link to the client from the chat bubble using a snippet with
+**Proposal** in its name (e.g. "Proposal Email" or "Proposal Text"). Sending
+it moves the opportunity to **Proposal Sent**, which starts GHL's proposal
+follow-up chase. Approving the proposal in PandaDoc does not — the client
+hasn't received anything yet at that point. Already at Proposal Sent,
+Booked, or Lost? The stage is left alone.
+
 ### Step 3 — Rooms are reserved
 
 **You do:** open **Room Calendar**, create a reservation, and in the window:
@@ -169,7 +177,8 @@ the field in GHL and it disappears in the portal.
     Sending a message with an **EC Welcome** snippet in it tags the contact
     `coordinator-intro-sent`, which starts GHL's Step 3 coordinator
     follow-up chase — so send the welcome email from here (or from GHL),
-    never from your own mailbox. "Refresh from GHL" inside the menu picks up
+    never from your own mailbox. Likewise, sending a **Proposal** snippet
+    moves the opportunity to Proposal Sent and starts the proposal chase. "Refresh from GHL" inside the menu picks up
     snippets you just edited in GHL. Tags you can use when writing a snippet
     in GHL:
 
