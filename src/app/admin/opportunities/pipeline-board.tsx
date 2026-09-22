@@ -84,6 +84,8 @@ function matches(opportunity: BoardOpportunity, query: string): boolean {
   if (!query) return true;
   const haystack = [
     opportunity.name,
+    opportunity.inquiry.groupEventName,
+    opportunity.inquiry.companyName,
     opportunity.contact?.name,
     opportunity.contact?.email,
     opportunity.contact?.phone,
@@ -386,7 +388,21 @@ function OpportunityCard({
   query: string;
   showValue: boolean;
 }) {
-  const name = opportunity.name || "Untitled opportunity";
+  // GHL names a form inquiry's opportunity after the contact, so the
+  // Group/Event Name field is the real title, then the company, then the
+  // opportunity name. Lines that would only repeat the title are dropped.
+  const name =
+    opportunity.inquiry.groupEventName ||
+    opportunity.inquiry.companyName ||
+    opportunity.name ||
+    "Untitled opportunity";
+  const sameAsTitle = (value: string | null) =>
+    Boolean(value) && value!.trim().toLowerCase() === name.trim().toLowerCase();
+  const contactName = opportunity.contact?.name || "Unnamed contact";
+  const repeatsTitle = sameAsTitle(contactName);
+  const company = sameAsTitle(opportunity.inquiry.companyName)
+    ? null
+    : opportunity.inquiry.companyName;
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
       <div className="flex items-start justify-between gap-2">
@@ -411,9 +427,16 @@ function OpportunityCard({
       </div>
       {opportunity.contact ? (
         <div className="mt-0.5 space-y-0.5">
-          <p className="truncate text-xs font-medium text-slate-700">
-            <Highlight query={query} text={opportunity.contact.name || "Unnamed contact"} />
-          </p>
+          {repeatsTitle ? null : (
+            <p className="truncate text-xs font-medium text-slate-700">
+              <Highlight query={query} text={contactName} />
+            </p>
+          )}
+          {company ? (
+            <p className="truncate text-xs text-slate-600">
+              <Highlight query={query} text={company} />
+            </p>
+          ) : null}
           {opportunity.contact.email ? (
             <p className="truncate text-xs text-slate-500">
               <Highlight query={query} text={opportunity.contact.email} />
