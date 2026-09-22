@@ -1,6 +1,6 @@
 # GHL custom fields the portal depends on
 
-_Last updated: 2026-08-31. Living log — add a row whenever the app starts
+_Last updated: 2026-09-22. Living log — add a row whenever the app starts
 reading or writing a GHL field, and create the field in GHL before shipping
 the feature that needs it._
 
@@ -26,9 +26,9 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | Event Planning App ID | `IDk5IeH17B5bpEqcHvkK` | `opportunity.event_planning_app_id` | App **writes** the portal event id here after the inquiry webhook creates the event (`GHL_OPPORTUNITY_EVENT_FIELD_ID`). |
 | Date of Interest | `EMDW0kB1fSuaq8Lixzpq` | `opportunity.date_of_interest` | App **reads** this live from GHL (`GHL_DATE_OF_INTEREST_FIELD_ID`) when loading the calendar's event list; the reservation modal auto-fills the booking date from it. Mapping it into the webhook as `event.date` remains a useful fallback. |
 | Group/Event Name | `Yz2CcYRaCRvjHK3FlekO` | `opportunity.groupevent_name` | **Read** (by key) when the admin event page auto-syncs from GHL; becomes the portal event name. Also map into the webhook as `event.name`. |
-| Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | **Read** (by key) on event-page auto-sync as the event type. Also map into the webhook as `event.type`. |
+| Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | **Read** (by key) on event-page auto-sync as the event type; **read** (by id) with every open opportunity for the Opportunities pipeline's group-type filter and card line. Also map into the webhook as `event.type`. |
 | Portal Link | `qV1K4voPyXZt2O5UiRBT` | `opportunity.portal_link` | App **writes** the absolute client portal URL (`PORTAL_BASE_URL` + path) when the coordinator prepares the portal launch (`GHL_PORTAL_LINK_FIELD_ID`), so GHL workflows can email/SMS the link. Blanked again when the event is deleted. |
-| Number of Guests | `WxC5gg3NuLHGBrdMx9YX` | `opportunity.number_of_guests` | **Two-way** (by key): read on event-page auto-sync into the Event summary's guest count; written back when the count is edited in the app. |
+| Number of Guests | `WxC5gg3NuLHGBrdMx9YX` | `opportunity.number_of_guests` | **Two-way** (by key): read on event-page auto-sync into the Event summary's guest count; written back when the count is edited in the app. Also **read** (by id) with every open opportunity for the Opportunities pipeline's group-size filter and card line. |
 | Activity Pass Count | `vFV0AVNqJTnzrO3miuHq` | `opportunity.activity_pass_count` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
 | Number of Parking Passes | `HfiRFH4P3jgBo0OCMw0F` | `opportunity.number_of_parking_passes` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |
 | Number of Storage Bins | `qpNF4ub5ggXDcyhTnjkJ` | `opportunity.number_of_storage_bins` | **Two-way** (by key): read on event-page auto-sync into the Event summary; written back when edited in the app. |

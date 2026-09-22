@@ -16,8 +16,18 @@ import {
   type DashboardContract,
   type DashboardVendorSubmission,
 } from "@/lib/admin/dashboard";
+import {
+  collectCoordinatorNames,
+  collectGroupTypes,
+  hasActiveFilters,
+  matchesDashboardEvent,
+  parseDashboardFilters,
+  type CurrentCoordinator,
+  type DashboardFilters as DashboardFilterState,
+} from "@/lib/admin/event-filters";
 import { listAdminEvents, type AdminEventListItem } from "@/lib/admin/events";
 import { getUserRole } from "@/lib/admin/users";
+import { listGhlUsers } from "@/lib/ghl/location-data";
 import {
   listStaleFollowUpPauses,
   reconcileFollowUpPauses,
@@ -26,6 +36,8 @@ import {
 } from "@/lib/ghl/follow-up-pauses";
 import { daysUntil, formatDisplayDate } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+import { DashboardFilters } from "./dashboard-filters";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -68,7 +80,35 @@ const deadlineCopy: Record<
   unpaid: { label: "Signed, unpaid", tone: "warning" },
 };
 
-export default async function AdminDashboardPage() {
+// The signed-in user as a coordinator, for the "My events" filter: their
+// login email plus the GHL user with that email, if any. Null when nothing
+// could identify them, which hides the option.
+async function resolveCurrentCoordinator(
+  email: string | null | undefined,
+): Promise<CurrentCoordinator | null> {
+  if (!email) return null;
+  const ghlUsers = await listGhlUsers();
+  const match = ghlUsers.find(
+    (ghlUser) => ghlUser.email?.trim().toLowerCase() === email.trim().toLowerCase(),
+  );
+  return { email, ghlUserId: match?.id ?? null, name: match?.name ?? null };
+}
+
+type AdminDashboardPageProps = {
+  searchParams: Promise<{
+    coordinator?: string;
+    min_guests?: string;
+    max_guests?: string;
+    from?: string;
+    to?: string;
+    type?: string;
+    contracts?: string;
+  }>;
+};
+
+export default async function AdminDashboardPage({
+  searchParams,
+}: AdminDashboardPageProps) {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -79,18 +119,41 @@ export default async function AdminDashboardPage() {
   }
 
   const isAdmin = getUserRole(user) === "admin";
+  const filters = parseDashboardFilters(await searchParams);
   // Pauses whose deal booked or died inside GHL get lifted before the list
   // is read, so nobody is nagged about a contact who no longer needs it.
   await reconcileFollowUpPauses();
-  const [metrics, events, vendorSubmissions, recentlySigned, stalePauses] =
+  const [metrics, allEvents, vendorSubmissions, allRecentlySigned, allStalePauses, me] =
     await Promise.all([
       getAdminDashboardMetrics(),
       listAdminEvents(),
       listVendorSubmissionsNeedingReview(),
       listRecentlySignedContracts(),
       listStaleFollowUpPauses(),
+      resolveCurrentCoordinator(user.email),
     ]);
-  const eventsById = new Map(events.map((event) => [event.id, event]));
+  const eventsById = new Map(allEvents.map((event) => [event.id, event]));
+
+  // Every list below is scoped to the events that pass the filter row. The
+  // metric tiles stay portal-wide. Rows that belong to no portal event
+  // (a paused contact with no draft yet) show only while nothing is
+  // filtered.
+  const filtering = hasActiveFilters(filters);
+  const events = filtering
+    ? allEvents.filter((event) => matchesDashboardEvent(event, filters, me))
+    : allEvents;
+  const visibleEventIds = new Set(events.map((event) => event.id));
+  const submissions = filtering
+    ? vendorSubmissions.filter((submission) => visibleEventIds.has(submission.eventId))
+    : vendorSubmissions;
+  const recentlySigned = filtering
+    ? allRecentlySigned.filter((contract) => visibleEventIds.has(contract.eventId))
+    : allRecentlySigned;
+  const stalePauses = filtering
+    ? allStalePauses.filter(
+        (pause) => pause.portalEventId !== null && visibleEventIds.has(pause.portalEventId),
+      )
+    : allStalePauses;
 
   const upcoming = upcomingLaunchedEvents(events);
   const todayEvents = upcoming.filter((item) => item.daysOut === 0);
@@ -99,8 +162,13 @@ export default async function AdminDashboardPage() {
   );
 
   // Contract deadline: three weeks out and not signed (or, inside two
-  // weeks, signed but unpaid).
-  const deadlineWindow = upcoming.filter((item) => item.daysOut <= 21);
+  // weeks, signed but unpaid). "All upcoming" drops the three-week cutoff
+  // so every launched event without a signed contract is listed, however
+  // far out.
+  const deadlineWindow =
+    filters.contracts === "all"
+      ? upcoming
+      : upcoming.filter((item) => item.daysOut <= 21);
   const contractsByEvent = await listContractsForEvents(
     deadlineWindow.map((item) => item.event.id),
   );
@@ -178,16 +246,27 @@ export default async function AdminDashboardPage() {
         />
       </div>
 
+      <DashboardFilters
+        canFilterToMe={me !== null}
+        contractsMode={filters.contracts}
+        coordinatorNames={collectCoordinatorNames(allEvents)}
+        groupTypes={collectGroupTypes(
+          allEvents.map((event) => ({ inquiryType: event.eventType })),
+        )}
+        initialFilters={filters}
+      />
+
       <div className="grid gap-6 xl:grid-cols-2">
         <VendorSubmissionsSection
           eventsById={eventsById}
-          submissions={vendorSubmissions}
+          submissions={submissions}
         />
         <UpcomingEventsSection today={todayEvents} week={weekEvents} />
       </div>
 
       <ContractsSection
         eventsById={eventsById}
+        filters={filters}
         needsAttention={needsAttention}
         recentlySigned={recentlySigned}
       />
@@ -487,10 +566,25 @@ function UpcomingEventsSection({
   );
 }
 
+// Link that keeps the current filter params and swaps the contracts switch.
+function contractsHref(filters: DashboardFilterState, mode: "window" | "all"): string {
+  const params = new URLSearchParams();
+  if (filters.coordinator) params.set("coordinator", filters.coordinator);
+  if (filters.minGuests !== null) params.set("min_guests", String(filters.minGuests));
+  if (filters.maxGuests !== null) params.set("max_guests", String(filters.maxGuests));
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  if (filters.type) params.set("type", filters.type);
+  if (mode === "all") params.set("contracts", "all");
+  const qs = params.toString();
+  return qs ? `/admin?${qs}#contracts` : "/admin#contracts";
+}
+
 function ContractsSection({
   recentlySigned,
   needsAttention,
   eventsById,
+  filters,
 }: {
   recentlySigned: DashboardContract[];
   needsAttention: {
@@ -499,11 +593,51 @@ function ContractsSection({
     state: ContractDeadlineState;
   }[];
   eventsById: Map<string, AdminEventListItem>;
+  filters: DashboardFilterState;
 }) {
+  const showingAll = filters.contracts === "all";
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <section
+      className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+      id="contracts"
+    >
       <SectionHeader
-        description="Contracts must be signed and paid two weeks before the event. Anything three weeks out without a signature is flagged below; expedited events are flagged only inside three days."
+        action={
+          <div
+            aria-label="Needs attention range"
+            className="flex shrink-0 gap-1 rounded-lg bg-slate-100 p-1"
+            role="group"
+          >
+            {(
+              [
+                { mode: "window", label: "Next 3 weeks" },
+                { mode: "all", label: "All upcoming" },
+              ] as const
+            ).map((option) => {
+              const active = showingAll === (option.mode === "all");
+              return (
+                <Link
+                  aria-current={active ? "true" : undefined}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    active
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-600 hover:text-slate-950"
+                  }`}
+                  href={contractsHref(filters, option.mode)}
+                  key={option.mode}
+                  scroll={false}
+                >
+                  {option.label}
+                </Link>
+              );
+            })}
+          </div>
+        }
+        description={
+          showingAll
+            ? "Every upcoming launched event without a signed contract, however far out, plus signed-but-unpaid ones inside two weeks. Expedited events are flagged only inside three days."
+            : "Contracts must be signed and paid two weeks before the event. Anything three weeks out without a signature is flagged below; expedited events are flagged only inside three days."
+        }
         title="Contracts"
       />
       <div className="grid xl:grid-cols-2 xl:divide-x xl:divide-slate-200">
@@ -584,7 +718,9 @@ function ContractsSection({
             </ul>
           ) : (
             <EmptyRow>
-              Every event inside three weeks has a signed contract.
+              {showingAll
+                ? "Every upcoming event has a signed contract."
+                : "Every event inside three weeks has a signed contract."}
             </EmptyRow>
           )}
         </div>

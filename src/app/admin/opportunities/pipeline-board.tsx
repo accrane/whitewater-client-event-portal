@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { ContactConversationsButton } from "@/components/admin/contact-conversations";
 import { ContactNotesButton } from "@/components/admin/contact-notes";
@@ -11,22 +11,34 @@ import {
   FollowUpPauseButton,
   type FollowUpPauseSummary,
 } from "@/components/admin/follow-up-pause-button";
+import { EventFilterFields } from "@/components/admin/event-filter-fields";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { EventFlags } from "@/lib/admin/events";
+import {
+  applyFiltersToParams,
+  hasActiveFilters,
+  matchesOpportunityFilters,
+  type OpportunityFilters,
+} from "@/lib/admin/event-filters";
 
-// The pipeline's stage tabs + card grid, client-side so a search box can
-// filter as you type. Every open opportunity is already on the page, so
-// searching costs nothing: tiles that don't match drop out of the grid,
-// matched text is highlighted, and while a term is active the stage tabs
-// show how many matches each stage holds instead of their totals — the
-// term travels in the URL (?q=) so it survives switching stages.
+// The pipeline's stage tabs + card grid, client-side so a search box and a
+// filter row can narrow the cards as you type or pick. Every open
+// opportunity is already on the page, so filtering costs nothing: tiles
+// that don't match drop out of the grid, matched text is highlighted, and
+// while a term or filter is active the stage tabs show how many matches
+// each stage holds instead of their totals — everything travels in the URL
+// (?q=, ?coordinator=, ?min_guests=, ?max_guests=, ?from=, ?to=, ?type=) so it survives
+// switching stages and reloads.
 
 export type BoardOpportunity = {
   id: string;
   name: string | null;
   monetaryValue: number | null;
   eventDate: string | null;
+  coordinatorId: string | null;
   coordinatorName: string | null;
+  guestCount: number | null;
+  inquiryType: string | null;
   contact: {
     id: string | null;
     name: string | null;
@@ -41,6 +53,8 @@ export type BoardStage = {
   items: BoardOpportunity[];
   guide: { happened: string; next: string };
 };
+
+export type BoardCoordinator = { id: string; name: string };
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -102,10 +116,28 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return <>{parts}</>;
 }
 
+// Serializes the board's view state (stage, search term, filters) into the
+// query string shared by stage links and the URL bar.
+function buildQueryString(
+  stageKey: string,
+  firstStageKey: string | undefined,
+  query: string,
+  filters: OpportunityFilters,
+): string {
+  const params = new URLSearchParams();
+  if (stageKey !== firstStageKey) params.set("stage", stageKey);
+  if (normalize(query)) params.set("q", query.trim());
+  applyFiltersToParams(params, filters);
+  return params.toString();
+}
+
 export function PipelineBoard({
   stages,
   activeKey,
   initialQuery,
+  initialFilters,
+  coordinators,
+  groupTypes,
   showValues,
   pauses,
   eventFlags,
@@ -113,6 +145,11 @@ export function PipelineBoard({
   stages: BoardStage[];
   activeKey: string;
   initialQuery: string;
+  initialFilters: OpportunityFilters;
+  // Coordinators with at least one open opportunity, for the dropdown.
+  coordinators: BoardCoordinator[];
+  // Inquiry Type values present in the pipeline, for the dropdown.
+  groupTypes: string[];
   showValues: boolean;
   pauses: Record<string, FollowUpPauseSummary>;
   eventFlags: Record<string, EventFlags>;
@@ -120,43 +157,50 @@ export function PipelineBoard({
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState(initialQuery);
+  const [filters, setFilters] = useState<OpportunityFilters>(initialFilters);
   const term = normalize(query);
+  const filtering = hasActiveFilters(filters);
+  const narrowing = Boolean(term) || filtering;
 
-  // Keep ?q= in the URL (debounced) so stage links and reloads keep it.
+  const firstStageKey = stages[0]?.key;
+  const queryString = buildQueryString(activeKey, firstStageKey, query, filters);
+  const initialQueryString = buildQueryString(
+    activeKey,
+    firstStageKey,
+    initialQuery,
+    initialFilters,
+  );
+
+  // Keep the term and filters in the URL (debounced) so stage links and
+  // reloads keep them.
   useEffect(() => {
-    if (normalize(initialQuery) === term) return;
+    if (queryString === initialQueryString) return;
     const timer = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (activeKey !== stages[0]?.key) params.set("stage", activeKey);
-      if (term) params.set("q", query.trim());
-      const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+        scroll: false,
+      });
     }, 300);
     return () => clearTimeout(timer);
-  }, [term, query, initialQuery, activeKey, stages, router, pathname]);
+  }, [queryString, initialQueryString, router, pathname]);
 
   const active = stages.find((stage) => stage.key === activeKey) ?? stages[0];
-  const matchCounts = useMemo(
-    () =>
-      new Map(
-        stages.map((stage) => [
-          stage.key,
-          term ? stage.items.filter((item) => matches(item, term)).length : stage.items.length,
-        ]),
-      ),
-    [stages, term],
+  const isVisible = (item: BoardOpportunity) =>
+    matches(item, term) && matchesOpportunityFilters(item, filters);
+  // A few hundred cards at most, so counting every stage per render is cheap.
+  const matchCounts = new Map(
+    stages.map((stage) => [
+      stage.key,
+      narrowing ? stage.items.filter(isVisible).length : stage.items.length,
+    ]),
   );
-  const visible = active.items.filter((item) => matches(item, term));
+  const visible = active.items.filter(isVisible);
   const total = visible.reduce((sum, item) => sum + (item.monetaryValue ?? 0), 0);
-  const otherStagesWithMatches = term
+  const otherStagesWithMatches = narrowing
     ? stages.filter((stage) => stage.key !== active.key && (matchCounts.get(stage.key) ?? 0) > 0)
     : [];
 
   const hrefFor = (stageKey: string) => {
-    const params = new URLSearchParams();
-    if (stageKey !== stages[0]?.key) params.set("stage", stageKey);
-    if (term) params.set("q", query.trim());
-    const qs = params.toString();
+    const qs = buildQueryString(stageKey, firstStageKey, query, filters);
     return qs ? `/admin/opportunities?${qs}` : "/admin/opportunities";
   };
 
@@ -231,12 +275,22 @@ export function PipelineBoard({
         </label>
       </div>
 
+      <EventFilterFields
+        coordinatorOptions={coordinators.map((coordinator) => ({
+          value: coordinator.id,
+          label: coordinator.name,
+        }))}
+        filters={filters}
+        groupTypes={groupTypes}
+        onChange={setFilters}
+      />
+
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 pb-3">
           <h2 className="text-sm font-semibold text-slate-950">
             {active.name}
             <span className="ml-2 font-normal text-slate-500">
-              {term
+              {narrowing
                 ? `${visible.length} of ${active.items.length} shown`
                 : active.items.length === 1
                   ? "1 open opportunity"
@@ -245,7 +299,7 @@ export function PipelineBoard({
           </h2>
           {showValues ? (
             <p className="text-xs font-medium text-slate-500">
-              {currency.format(total)} {term ? "in the matches" : "in this stage"}
+              {currency.format(total)} {narrowing ? "in the matches" : "in this stage"}
             </p>
           ) : null}
         </div>
@@ -261,10 +315,12 @@ export function PipelineBoard({
         </div>
         {visible.length === 0 ? (
           <div className="py-6 text-center text-sm text-slate-400">
-            {term ? (
+            {narrowing ? (
               <>
                 <p>
-                  No matches for &ldquo;{query.trim()}&rdquo; in {active.name}.
+                  {term
+                    ? `No matches for “${query.trim()}”${filtering ? " with these filters" : ""} in ${active.name}.`
+                    : `No opportunities in ${active.name} match these filters.`}
                 </p>
                 {otherStagesWithMatches.length > 0 ? (
                   <p className="mt-1 text-slate-500">
@@ -368,6 +424,12 @@ function OpportunityCard({
       ) : null}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
         {opportunity.eventDate ? <span>{formatEventDate(opportunity.eventDate)}</span> : null}
+        {opportunity.guestCount !== null ? (
+          <span>
+            {opportunity.guestCount} {opportunity.guestCount === 1 ? "guest" : "guests"}
+          </span>
+        ) : null}
+        {opportunity.inquiryType ? <span>{opportunity.inquiryType}</span> : null}
         {showValue && opportunity.monetaryValue ? (
           <span className="font-semibold text-slate-700">
             {currency.format(opportunity.monetaryValue)}

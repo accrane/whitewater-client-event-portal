@@ -8,6 +8,11 @@ import { ContactBadgesProvider } from "@/components/admin/contact-badges";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getEventFlagsByOpportunityIds } from "@/lib/admin/events";
+import {
+  collectGroupTypes,
+  parseOpportunityFilters,
+  type OpportunityFilters,
+} from "@/lib/admin/event-filters";
 import { getUserRole } from "@/lib/admin/users";
 import { listGhlUsers, type GhlUser } from "@/lib/ghl/location-data";
 import {
@@ -24,7 +29,11 @@ import {
 import { getActiveFollowUpPauses } from "@/lib/ghl/follow-up-pauses";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { PipelineBoard, type BoardStage } from "./pipeline-board";
+import {
+  PipelineBoard,
+  type BoardCoordinator,
+  type BoardStage,
+} from "./pipeline-board";
 
 // Accept only YYYY-MM-DD values from the query string; anything else is
 // treated as unset.
@@ -113,6 +122,10 @@ type AdminOpportunitiesPageProps = {
     range?: string;
     from?: string;
     to?: string;
+    coordinator?: string;
+    min_guests?: string;
+    max_guests?: string;
+    type?: string;
   }>;
 };
 
@@ -168,6 +181,7 @@ export default async function AdminOpportunitiesPage({
 
       {tab === "pipeline" ? (
         <PipelineView
+          filters={parseOpportunityFilters(params)}
           query={params.q ?? ""}
           showValues={isAdmin}
           stageParam={params.stage}
@@ -194,12 +208,16 @@ function coordinatorNameById(users: GhlUser[], userId: string | null) {
 // (with counts) above a full-width card grid for the chosen stage. A
 // column-per-stage board forced sideways scrolling and long columns once
 // the pipeline filled up (140-250 open in season); a single stage across
-// the whole screen keeps every card visible on a desktop.
+// the whole screen keeps every card visible on a desktop. The search term
+// and filters are applied client-side in the board; this view only reads
+// them from the URL so the first render already matches.
 async function PipelineView({
+  filters,
   query,
   showValues,
   stageParam,
 }: {
+  filters: OpportunityFilters;
   query: string;
   showValues: boolean;
   stageParam: string | undefined;
@@ -297,16 +315,35 @@ async function PipelineView({
       name: opportunity.name,
       monetaryValue: opportunity.monetaryValue,
       eventDate: opportunity.eventDate,
+      coordinatorId: opportunity.assignedTo,
       coordinatorName: coordinatorNameById(ghlUsers, opportunity.assignedTo),
+      guestCount: opportunity.guestCount,
+      inquiryType: opportunity.inquiryType,
       contact: opportunity.contact,
     })),
   }));
+
+  // Filter dropdowns offer only what the pipeline holds: coordinators with
+  // an open opportunity (not every GHL user) and the Inquiry Types in use.
+  const assignedIds = new Set(
+    opportunities
+      .map((opportunity) => opportunity.assignedTo)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const coordinators: BoardCoordinator[] = ghlUsers
+    .filter((user) => assignedIds.has(user.id))
+    .map((user) => ({ id: user.id, name: user.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const groupTypes = collectGroupTypes(opportunities);
 
   return (
     <ContactBadgesProvider badges={badges}>
       <PipelineBoard
         activeKey={activeStage.key}
+        coordinators={coordinators}
         eventFlags={Object.fromEntries(eventFlags)}
+        groupTypes={groupTypes}
+        initialFilters={filters}
         initialQuery={query}
         pauses={Object.fromEntries(
           [...pauses.entries()].map(([contactId, pause]) => [

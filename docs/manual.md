@@ -1,6 +1,6 @@
 # Portal Manual
 
-_Last updated: 2026-09-17._
+_Last updated: 2026-09-22._
 
 This is the working guide for the Whitewater event portal: what each screen
 is for, how an event moves from inquiry to event day, and what happens
@@ -339,7 +339,7 @@ contact and opportunity are otherwise untouched.
 
 | Screen | What it's for |
 | --- | --- |
-| **Dashboard** | Metric tiles, then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones; **Paused follow-ups** older than 14 days. |
+| **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones, with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
 | **Events** | All portal events with status filters (Draft, launched, past). Open one to work it. |
 | **New inquiry** | Phone intake form (creates the GHL contact and opportunity, then the draft event; Expedited opens the room-hold window) and the backfill list of GHL opportunities without a portal event. |
 | **Event page** | Summary (with the contracts list), coordinator, primary contact with the conversations, notes, and tasks buttons and the follow-ups pause switch, facilitator, room bookings, launch, review queues. |
@@ -348,7 +348,7 @@ contact and opportunity are otherwise untouched.
 | **— Schedule & Notes** | Event-day schedule grid and sectioned notes. |
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
 | **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
-| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator (the tabs switch to per-stage match counts while you type), and a **stage guide** explaining what has happened and what to do next. Each card has the conversations, notes, and tasks buttons and the pause switch. The **Won** tab is the contact list for rebooking. |
+| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card shows the event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has the conversations, notes, and tasks buttons and the pause switch. The **Won** tab is the contact list for rebooking. |
 | **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Past events list their PandaDoc documents (contract, additions, final payment) with each one's status; click one to open it in PandaDoc, where you need to be signed in. Dollar values are manager-only. |
 | **Settings** | Checklist and schedule templates that new events start from. Changes never touch events already set up. |
 | **Manual** | This guide. Opens in a new tab from the **?** beside the theme switch. |

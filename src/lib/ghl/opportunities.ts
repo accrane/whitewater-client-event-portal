@@ -1,10 +1,20 @@
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
-import { findDateOfInterest } from "@/lib/ghl/field-values";
+import {
+  findDateOfInterest,
+  findFieldNumber,
+  findFieldString,
+} from "@/lib/ghl/field-values";
 
 // Read-only lookups for the admin Opportunities views. Same degrade rules as
 // location-data: any GHL problem returns an empty result so pages keep
 // rendering.
+
+// Opportunity custom fields the pipeline board filters on, by id (see
+// docs/ghl-custom-fields.md). Also in INQUIRY_FIELD_IDS, which lives in a
+// module that imports this one.
+const NUMBER_OF_GUESTS_FIELD_ID = "WxC5gg3NuLHGBrdMx9YX";
+const INQUIRY_TYPE_FIELD_ID = "STQPdRrIfVqX3Sbqleew";
 
 export type GhlPipelineStage = {
   id: string;
@@ -130,6 +140,10 @@ export type GhlPipelineOpportunity = {
   createdAt: string | null;
   // Date of Interest custom field (yyyy-MM-dd) — the event date.
   eventDate: string | null;
+  // Number of Guests custom field — the group size.
+  guestCount: number | null;
+  // Inquiry Type custom field — the group type (Wedding Inquiry, …).
+  inquiryType: string | null;
   contact: GhlOpportunityContact | null;
 };
 
@@ -212,6 +226,14 @@ export async function searchPipelineOpportunities(
                 dateOfInterestFieldId,
               )
             : null,
+          guestCount: findFieldNumber(
+            opportunity.customFields,
+            NUMBER_OF_GUESTS_FIELD_ID,
+          ),
+          inquiryType: findFieldString(
+            opportunity.customFields,
+            INQUIRY_TYPE_FIELD_ID,
+          ),
           contact: opportunity.contact?.id
             ? {
                 id: opportunity.contact.id,

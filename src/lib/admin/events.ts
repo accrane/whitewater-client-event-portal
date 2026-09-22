@@ -30,6 +30,9 @@ export type AdminEventListItem = {
   eventType: string | null;
   eventDate: string | null;
   coordinatorName: string | null;
+  coordinatorEmail: string | null;
+  coordinatorGhlUserId: string | null;
+  numberOfGuests: number | null;
   clientPortalUrl: string | null;
   launchedAt: string | null;
   lastSyncedAt: string | null;
@@ -58,12 +61,9 @@ export type AdminEventDetail = AdminEventListItem & {
   arrivalTime: string | null;
   meetingLocation: string | null;
   value: number | null;
-  numberOfGuests: number | null;
   activityPassCount: number | null;
   numberOfParkingPasses: number | null;
   numberOfStorageBins: number | null;
-  coordinatorGhlUserId: string | null;
-  coordinatorEmail: string | null;
   coordinatorPhone: string | null;
   proposalUrl: string | null;
   contractUrl: string | null;
@@ -721,6 +721,9 @@ function mapEventRowToListItem({
     eventType: snapshot.eventType ?? null,
     eventDate: snapshot.eventDate ?? null,
     coordinatorName: snapshot.planner?.name ?? null,
+    coordinatorEmail: snapshot.planner?.email ?? null,
+    coordinatorGhlUserId: snapshot.planner?.id ?? null,
+    numberOfGuests: snapshot.numberOfGuests ?? null,
     clientPortalUrl: row.client_portal_url,
     launchedAt: row.launched_at,
     lastSyncedAt: row.last_synced_at,
@@ -751,12 +754,9 @@ function mapEventRowToDetail(row: EventRow): AdminEventDetail {
     arrivalTime: snapshot.arrivalTime ?? null,
     meetingLocation: snapshot.meetingLocation ?? null,
     value: snapshot.value ?? null,
-    numberOfGuests: snapshot.numberOfGuests ?? null,
     activityPassCount: snapshot.activityPassCount ?? null,
     numberOfParkingPasses: snapshot.numberOfParkingPasses ?? null,
     numberOfStorageBins: snapshot.numberOfStorageBins ?? null,
-    coordinatorGhlUserId: snapshot.planner?.id ?? null,
-    coordinatorEmail: snapshot.planner?.email ?? null,
     coordinatorPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
     contractUrl: snapshot.links?.contract ?? null,
