@@ -1,3 +1,6 @@
+import { after } from "next/server";
+
+import { notifyCoordinatorAssigned } from "@/lib/email/notify-coordinator-assigned";
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
@@ -462,9 +465,29 @@ async function moveOpportunityToStage(
 // Called when a coordinator picks an Event Coordinator on a reservation: assigns
 // that GHL user to the event's opportunity so they own it in GHL too. Never
 // throws — the reservation save is the primary action.
+// Runs work after the response is sent when inside a request, otherwise
+// right away (scripts, tests). Either way the caller isn't held up.
+function runAfterResponse(task: () => Promise<void>): void {
+  try {
+    after(task);
+  } catch {
+    void task();
+  }
+}
+
+// Writes the coordinator to the GHL opportunity and, when that succeeds and
+// the coordinator actually changed, emails them about the assignment
+// (see notify-coordinator-assigned). Every place the portal assigns a
+// coordinator goes through here, so the email is consistent across the
+// reservation modal, the event page, and phone intake.
 export async function assignOpportunityCoordinator(
   eventId: string,
   ghlUserId: string,
+  options: {
+    // Login email of whoever made the assignment, so self-assignments
+    // don't email the person who just clicked.
+    assignedByEmail?: string | null;
+  } = {},
 ): Promise<OpportunitySyncOutcome> {
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
@@ -492,6 +515,16 @@ export async function assignOpportunityCoordinator(
   const result = await updateGhlOpportunity(event.ghl_opportunity_id, {
     assignedTo: ghlUserId,
   });
+
+  if (result.ok) {
+    runAfterResponse(() =>
+      notifyCoordinatorAssigned({
+        event,
+        ghlUserId,
+        assignedByEmail: options.assignedByEmail ?? null,
+      }),
+    );
+  }
 
   await logIntegrationEvent({
     direction: "PORTAL_TO_GHL",

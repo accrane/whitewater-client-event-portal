@@ -115,7 +115,9 @@ the field in GHL and it disappears in the portal.
 **Automatically:**
 - Linking a reservation to an event moves the GHL opportunity to
   **Planning**. GHL's internal tasks and notifications key off this stage.
-- Picking a coordinator assigns them to the opportunity in GHL, and they
+- Picking a coordinator assigns them to the opportunity in GHL, emails them
+  that the event is theirs (with the date, contact, and a link to the event
+  page; not sent when you assign yourself or re-pick the same person), and they
   become the event's **Coordinator** in the portal.
 - Reservations start as **held** (faded and dashed on the calendar). Flip
   them to **booked** from the event page's Room bookings section, or let a

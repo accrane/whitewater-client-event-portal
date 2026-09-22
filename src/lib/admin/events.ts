@@ -558,6 +558,8 @@ export async function markEventFacilitatorConfirmed(
 export async function updateEventCoordinator(
   eventId: string,
   ghlUserId: string,
+  // Login email of the person reassigning, for the assignment email.
+  assignedByEmail: string | null = null,
 ): Promise<void> {
   const users = await listGhlCoordinatorUsers();
   const coordinator = users.find((user) => user.id === ghlUserId);
@@ -568,7 +570,9 @@ export async function updateEventCoordinator(
     );
   }
 
-  const outcome = await assignOpportunityCoordinator(eventId, ghlUserId);
+  const outcome = await assignOpportunityCoordinator(eventId, ghlUserId, {
+    assignedByEmail,
+  });
 
   if (!outcome.ok && !outcome.skipped) {
     throw new Error(

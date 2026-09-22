@@ -335,7 +335,9 @@ export async function createPhoneInquiry(
     .eq("id", eventId);
 
   if (input.coordinatorGhlUserId) {
-    await assignOpportunityCoordinator(eventId, input.coordinatorGhlUserId);
+    await assignOpportunityCoordinator(eventId, input.coordinatorGhlUserId, {
+      assignedByEmail: input.takenByEmail,
+    });
   }
 
   const users = await listGhlUsers();

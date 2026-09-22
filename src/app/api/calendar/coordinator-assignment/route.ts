@@ -6,7 +6,7 @@ import { assignOpportunityCoordinator } from "@/lib/ghl/opportunity-sync";
 
 export async function POST(request: Request) {
   try {
-    await requireAdminUser();
+    const user = await requireAdminUser();
     const body = (await request.json()) as {
       event_id?: string;
       ghl_user_id?: string;
@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const outcome = await assignOpportunityCoordinator(
       body.event_id,
       body.ghl_user_id,
+      { assignedByEmail: user.email ?? null },
     );
 
     return Response.json(outcome);

@@ -204,7 +204,7 @@ export async function updateEventCoordinatorAction(formData: FormData) {
     redirect("/admin/login");
   }
 
-  await updateEventCoordinator(eventId, ghlUserId);
+  await updateEventCoordinator(eventId, ghlUserId, user.email ?? null);
 
   revalidatePath("/admin");
   revalidatePath("/admin/events");
