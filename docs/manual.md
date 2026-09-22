@@ -35,6 +35,26 @@ pipeline in GHL reflects what actually happened.
 
 Roles are set by a manager under Admin → Users.
 
+### Adding a new coordinator
+
+A coordinator needs two things: a GHL staff user (that is what fills the
+**Event Coordinator** dropdown) and a portal login.
+
+1. **In GHL:** go to **Settings → Staff** and create the user. On the first
+   dropdown set the role to **User** (not Admin — only staff with the User
+   role show up in the coordinator dropdown). Then under **Permissions**,
+   click **Copy**, find **Sarah**, and choose her so the new person gets
+   the same permissions.
+2. **In the portal:** a manager creates their login under **Admin → Users**
+   using the same email address as their GHL user. The default role is
+   Coordinator. That email match is what lets the portal treat their
+   messages, notes, and tasks as theirs in GHL, and what makes the
+   dashboard's **My events** filter work.
+
+Once the GHL user is set to User, the person appears in the coordinator
+dropdown when reserving rooms or creating an event, and picking them there
+emails them about the assignment.
+
 ---
 
 ## 2. How an event moves through the system
