@@ -163,9 +163,11 @@ the field in GHL and it disappears in the portal.
     to reach us. A channel the contact has marked Do Not Disturb (or texted
     STOP to) is removed from the picker with a note saying why.
   - **Insert snippet** drops one of GHL's saved snippets into the message
-    as editable text, with the merge tags already filled in. "Refresh from
-    GHL" inside the menu picks up snippets you just edited in GHL. Tags you
-    can use when writing a snippet in GHL:
+    as editable text, with the merge tags already filled in. Bullet lists
+    show as • lines and links as "text (address)", and they go out as real
+    lists and links; start a line with • or - to make a bullet of your own.
+    "Refresh from GHL" inside the menu picks up snippets you just edited in
+    GHL. Tags you can use when writing a snippet in GHL:
 
     | Tag | Fills in with |
     | --- | --- |

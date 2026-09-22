@@ -1,6 +1,6 @@
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
-import { htmlToText, stripQuotedReply } from "@/lib/ghl/html-text";
+import { htmlToText, stripQuotedReply, textToEmailHtml } from "@/lib/ghl/html-text";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 
 // GHL Conversations API (message history + replies) for the admin event
@@ -275,10 +275,7 @@ export async function sendConversationMessage(
         contactId: input.contactId,
         ...(input.channel === "Email"
           ? {
-              html: `<p>${input.body
-                .split(/\n{2,}/)
-                .map((paragraph) => paragraph.replace(/\n/g, "<br/>"))
-                .join("</p><p>")}</p>`,
+              html: textToEmailHtml(input.body),
               ...(input.subject ? { subject: input.subject } : {}),
               ...(withThreading && input.replyToEmailMessageId
                 ? {
