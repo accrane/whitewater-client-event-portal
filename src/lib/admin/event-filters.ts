@@ -92,8 +92,10 @@ export function applyFiltersToParams(
   filters: OpportunityFilters,
 ): void {
   if (filters.coordinator) params.set("coordinator", filters.coordinator);
-  if (filters.minGuests !== null) params.set("min_guests", String(filters.minGuests));
-  if (filters.maxGuests !== null) params.set("max_guests", String(filters.maxGuests));
+  // typeof guards (not `!== null`) so a stale client state object from a
+  // hot reload can never write "undefined" into the URL.
+  if (typeof filters.minGuests === "number") params.set("min_guests", String(filters.minGuests));
+  if (typeof filters.maxGuests === "number") params.set("max_guests", String(filters.maxGuests));
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
   if (filters.type) params.set("type", filters.type);
@@ -253,4 +255,156 @@ export function collectCoordinatorNames(
     if (!seen.has(key)) seen.set(key, name);
   }
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// ---- Contracts page ---------------------------------------------------------
+//
+// Filters for the all-contracts list (/admin/contracts): tab, free-text
+// search, coordinator, status group, and event-date bounds. Coordinators
+// only ever see their own events' contracts; managers see everything.
+
+export type ContractListTab = "open" | "history";
+
+// Status groups as the page offers them; each maps to contract statuses.
+export type ContractStatusGroup =
+  | "needs_approval"
+  | "awaiting_signature"
+  | "viewed"
+  | "failed"
+  | "signed"
+  | "unpaid"
+  | "declined"
+  | "voided";
+
+export const CONTRACT_STATUS_GROUPS: Record<
+  ContractListTab,
+  { key: ContractStatusGroup; label: string }[]
+> = {
+  open: [
+    { key: "needs_approval", label: "Needs approval" },
+    { key: "awaiting_signature", label: "Awaiting signature" },
+    { key: "viewed", label: "Viewed by customer" },
+    { key: "failed", label: "Failed / draft" },
+  ],
+  history: [
+    { key: "signed", label: "Signed" },
+    { key: "unpaid", label: "Signed, unpaid" },
+    { key: "declined", label: "Declined" },
+    { key: "voided", label: "Voided" },
+  ],
+};
+
+export type ContractListFilters = {
+  tab: ContractListTab;
+  q: string;
+  // Coordinator name, "me", or null for everyone.
+  coordinator: string | null;
+  status: ContractStatusGroup | null;
+  from: string | null;
+  to: string | null;
+};
+
+export type FilterableContract = {
+  name: string;
+  status: string;
+  pandadocStatus: string | null;
+  recipientName: string | null;
+  event: FilterableEvent & { name: string };
+};
+
+// Statuses that count as still open (not signed, declined, or voided).
+export const OPEN_STATUSES = ["draft", "creating", "approval", "sent", "viewed", "error"];
+
+export function contractTab(status: string): ContractListTab {
+  return OPEN_STATUSES.includes(status) ? "open" : "history";
+}
+
+export function parseContractListFilters(params: {
+  tab?: string;
+  q?: string;
+  coordinator?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+}): ContractListFilters {
+  const tab: ContractListTab = params.tab === "history" ? "history" : "open";
+  const status = params.status?.trim() as ContractStatusGroup | undefined;
+  return {
+    tab,
+    q: params.q?.trim() ?? "",
+    coordinator: params.coordinator?.trim() || null,
+    status:
+      status && CONTRACT_STATUS_GROUPS[tab].some((group) => group.key === status)
+        ? status
+        : null,
+    from: parseDate(params.from),
+    to: parseDate(params.to),
+  };
+}
+
+export function contractStatusGroup(
+  status: string,
+  pandadocStatus: string | null,
+): ContractStatusGroup | null {
+  switch (status) {
+    case "approval":
+      return "needs_approval";
+    case "sent":
+      return "awaiting_signature";
+    case "viewed":
+      return "viewed";
+    case "draft":
+    case "creating":
+    case "error":
+      return "failed";
+    case "completed":
+      return pandadocStatus === "document.waiting_pay" ? "unpaid" : "signed";
+    case "declined":
+      return "declined";
+    case "voided":
+      return "voided";
+    default:
+      return null;
+  }
+}
+
+export function matchesContractFilters(
+  contract: FilterableContract,
+  filters: ContractListFilters,
+  me: CurrentCoordinator | null,
+): boolean {
+  if (contractTab(contract.status) !== filters.tab) return false;
+
+  if (filters.status) {
+    const group = contractStatusGroup(contract.status, contract.pandadocStatus);
+    // "Signed" also covers signed-but-unpaid; "unpaid" is the narrower view.
+    const matches =
+      group === filters.status || (filters.status === "signed" && group === "unpaid");
+    if (!matches) return false;
+  }
+
+  if (filters.q) {
+    const term = filters.q.toLowerCase();
+    const haystack = [
+      contract.name,
+      contract.event.name,
+      contract.recipientName,
+      contract.event.coordinatorName,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" ")
+      .toLowerCase();
+    if (!haystack.includes(term)) return false;
+  }
+
+  return matchesDashboardEvent(
+    contract.event,
+    {
+      ...EMPTY_FILTERS,
+      coordinator: filters.coordinator,
+      from: filters.from,
+      to: filters.to,
+    },
+    me,
+  );
 }

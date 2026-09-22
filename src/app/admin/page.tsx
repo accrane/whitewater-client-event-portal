@@ -22,12 +22,11 @@ import {
   hasActiveFilters,
   matchesDashboardEvent,
   parseDashboardFilters,
-  type CurrentCoordinator,
   type DashboardFilters as DashboardFilterState,
 } from "@/lib/admin/event-filters";
+import { resolveCurrentCoordinator } from "@/lib/admin/current-coordinator";
 import { listAdminEvents, type AdminEventListItem } from "@/lib/admin/events";
 import { getUserRole } from "@/lib/admin/users";
-import { listGhlUsers } from "@/lib/ghl/location-data";
 import {
   listStaleFollowUpPauses,
   reconcileFollowUpPauses,
@@ -79,20 +78,6 @@ const deadlineCopy: Record<
   awaiting_signature: { label: "Awaiting signature", tone: "warning" },
   unpaid: { label: "Signed, unpaid", tone: "warning" },
 };
-
-// The signed-in user as a coordinator, for the "My events" filter: their
-// login email plus the GHL user with that email, if any. Null when nothing
-// could identify them, which hides the option.
-async function resolveCurrentCoordinator(
-  email: string | null | undefined,
-): Promise<CurrentCoordinator | null> {
-  if (!email) return null;
-  const ghlUsers = await listGhlUsers();
-  const match = ghlUsers.find(
-    (ghlUser) => ghlUser.email?.trim().toLowerCase() === email.trim().toLowerCase(),
-  );
-  return { email, ghlUserId: match?.id ?? null, name: match?.name ?? null };
-}
 
 type AdminDashboardPageProps = {
   searchParams: Promise<{

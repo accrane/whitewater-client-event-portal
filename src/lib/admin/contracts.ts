@@ -3,6 +3,7 @@ import {
   getAdminEventById,
   mergeEventSnapshot,
   type AdminEventDetail,
+  parseGhlSnapshot,
 } from "@/lib/admin/events";
 import { formatDisplayDate } from "@/lib/dates";
 import { appConfig } from "@/lib/env";
@@ -1050,6 +1051,154 @@ export async function syncContractFromPandaDoc(
 
 // Page-load refresh for an event's open contracts (mirrors the GHL sync on
 // the admin event page). Final-state rows are left alone.
+// ---- All-contracts page ----------------------------------------------------
+
+export type AdminContractListItem = {
+  id: string;
+  eventId: string;
+  name: string;
+  status: ContractStatus;
+  pandadocStatus: string | null;
+  pandadocDocumentId: string | null;
+  recipientName: string | null;
+  // PandaDoc's total when known, else the app subtotal.
+  amount: number | null;
+  createdAt: string;
+  sentAt: string | null;
+  viewedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+  lastError: string | null;
+  event: {
+    name: string;
+    eventDate: string | null;
+    eventType: string | null;
+    coordinatorName: string | null;
+    coordinatorEmail: string | null;
+    coordinatorGhlUserId: string | null;
+    numberOfGuests: number | null;
+  };
+};
+
+// Every contract across every event, newest first, with the bits of the
+// event the Contracts page filters and displays. Two queries rather than a
+// join so the event snapshot goes through the same parser as everywhere.
+export async function listAllContracts(): Promise<AdminContractListItem[]> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("event_contracts")
+    .select(
+      "id, event_id, name, status, pandadoc_status, pandadoc_document_id, recipient_name, subtotal, grand_total, created_at, sent_at, viewed_at, completed_at, updated_at, last_error",
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Unable to load contracts: ${error.message}`);
+
+  const rows = (data ?? []) as Pick<
+    ContractRow,
+    | "id"
+    | "event_id"
+    | "name"
+    | "status"
+    | "pandadoc_status"
+    | "pandadoc_document_id"
+    | "recipient_name"
+    | "subtotal"
+    | "grand_total"
+    | "created_at"
+    | "sent_at"
+    | "viewed_at"
+    | "completed_at"
+    | "updated_at"
+    | "last_error"
+  >[];
+  const eventIds = [...new Set(rows.map((row) => row.event_id))];
+  const events = new Map<string, AdminContractListItem["event"]>();
+  if (eventIds.length > 0) {
+    const { data: eventRows, error: eventError } = await supabase
+      .from("events")
+      .select("id, ghl_snapshot")
+      .in("id", eventIds);
+    if (eventError) throw new Error(`Unable to load contract events: ${eventError.message}`);
+    for (const row of (eventRows ?? []) as Pick<EventRow, "id" | "ghl_snapshot">[]) {
+      const snapshot = parseGhlSnapshot(row.ghl_snapshot);
+      events.set(row.id, {
+        name: snapshot.eventName || "Untitled event",
+        eventDate: snapshot.eventDate ?? null,
+        eventType: snapshot.eventType ?? null,
+        coordinatorName: snapshot.planner?.name ?? null,
+        coordinatorEmail: snapshot.planner?.email ?? null,
+        coordinatorGhlUserId: snapshot.planner?.id ?? null,
+        numberOfGuests: snapshot.numberOfGuests ?? null,
+      });
+    }
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    eventId: row.event_id,
+    name: row.name,
+    status: row.status,
+    pandadocStatus: row.pandadoc_status,
+    pandadocDocumentId: row.pandadoc_document_id,
+    recipientName: row.recipient_name,
+    amount: toNumber(row.grand_total) ?? toNumber(row.subtotal),
+    createdAt: row.created_at,
+    sentAt: row.sent_at,
+    viewedAt: row.viewed_at,
+    completedAt: row.completed_at,
+    updatedAt: row.updated_at,
+    lastError: row.last_error,
+    event: events.get(row.event_id) ?? {
+      name: "Deleted event",
+      eventDate: null,
+      eventType: null,
+      coordinatorName: null,
+      coordinatorEmail: null,
+      coordinatorGhlUserId: null,
+      numberOfGuests: null,
+    },
+  }));
+}
+
+// Re-reads the stalest open contracts from PandaDoc (least recently
+// updated first, up to `limit`) so the all-contracts page reflects
+// approvals, views, and signatures made in PandaDoc. Events whose contract
+// status changed get their value re-summed. Never throws.
+export async function syncOpenContracts(limit: number): Promise<number> {
+  if (!isPandaDocConfigured()) return 0;
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("event_contracts")
+    .select("*")
+    .in("status", OPEN_CONTRACT_STATUSES)
+    .not("pandadoc_document_id", "is", null)
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+  if (error) {
+    console.error("Unable to load contracts for sync", error.message);
+    return 0;
+  }
+  const changedEvents = new Set<string>();
+  let synced = 0;
+  for (const row of (data ?? []) as ContractRow[]) {
+    try {
+      const after = await syncContractFromPandaDoc(row);
+      synced += 1;
+      if (after && after.status !== row.status) changedEvents.add(row.event_id);
+    } catch (syncError) {
+      console.error("Contract sync failed", row.id, syncError);
+    }
+  }
+  for (const eventId of changedEvents) {
+    try {
+      await syncEventValueFromContracts(eventId);
+    } catch (valueError) {
+      console.error("Event value sync failed", eventId, valueError);
+    }
+  }
+  return synced;
+}
+
 export async function syncEventContracts(eventId: string): Promise<void> {
   if (!isPandaDocConfigured()) return;
   const supabase = createServiceRoleSupabaseClient();

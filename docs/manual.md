@@ -288,8 +288,10 @@ tax; the form warns you if a catering item ends up in another table.
   new contract (order change, final payment).
 - **Approval workflow:** if the template has an approval step in PandaDoc,
   the portal shows **Awaiting PandaDoc approval** and the client sees
-  *Being finalized* with no sign button. Once someone approves it in
-  PandaDoc, the portal sends it to the client on the next refresh.
+  *Being finalized* with no sign button. A manager approves it from the
+  **Contracts** page, where anything waiting sits at the top of Open with an
+  **Approve in PandaDoc** button; once approved, the portal sends it to the
+  client on the next refresh.
 - **Event value = contracts combined.** After every contract is created,
   edited, or changes status, the event's **Value** becomes the sum of its
   live contracts (declined, voided, and failed ones don't count) and is
@@ -372,6 +374,7 @@ contact and opportunity are otherwise untouched.
 | **— Contracts** | PandaDoc contracts for the event: create, edit unsigned ones, history with status and totals, signed PDF, refresh status. |
 | **— Checklist** | The event's checklist. |
 | **— Schedule & Notes** | Event-day schedule grid and sectioned notes. |
+| **Contracts** | Every PandaDoc contract in one list. **Open** holds anything not yet signed, with contracts waiting for a manager's approval at the top and an **Approve in PandaDoc** button that opens the document directly; **History** holds signed, declined, and voided ones. Search by contract, event, or customer name; filter by coordinator (managers only), status, and event date. Managers see every event's contracts; coordinators see only their own. **Refresh statuses** re-reads every open contract from PandaDoc. |
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
 | **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
 | **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, and the pause switch; hover any of them for a label. The **Won** tab is the contact list for rebooking. |
@@ -428,7 +431,8 @@ Payment, the wedding ones) work as they are. If you build a new one:
   Salesforce integration (Client first/last name, email, phone, Account
   Name, Date) are filled too.
 - If the template has an **approval workflow**, contracts pause at
-  *Awaiting PandaDoc approval* until someone approves them in PandaDoc.
+  *Awaiting PandaDoc approval* until a manager approves them in PandaDoc
+  (the **Contracts** page lists them first, with a direct link).
 - If the template has a **payment step**, clients are asked to pay right
   after signing. The portal counts the signature as the commitment; turn
   the payment step off if clients should pay some other way.
