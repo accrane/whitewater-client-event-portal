@@ -11,6 +11,8 @@ import { getAdminEventById } from "@/lib/admin/events";
 import { formatEventDayHeading } from "@/lib/dates";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+import { defaultContractName } from "@/lib/contracts/shared";
+
 import { ContractsManager } from "./contracts-manager";
 
 type AdminContractsPageProps = {
@@ -78,6 +80,11 @@ export default async function AdminContractsPage({
           email: event.contactEmail,
         }}
         contracts={contracts}
+        defaultName={defaultContractName({
+          eventDate: event.eventDate,
+          eventName: event.eventName,
+          contactName: event.contactName,
+        })}
         defaultSectionTitle={defaultSectionTitle}
         eventId={eventId}
         eventName={event.eventName}

@@ -42,6 +42,8 @@ import { ContractItemsEditor, type CatalogState } from "./contract-items-editor"
 type ContractsManagerProps = {
   eventId: string;
   eventName: string;
+  // Prefilled contract name for a new contract.
+  defaultName: string;
   contracts: EventContract[];
   templateOptions: ContractTemplateOptions;
   contacts: { name: string | null; email: string | null };
@@ -79,6 +81,7 @@ function formatDateTime(iso: string | null): string {
 export function ContractsManager({
   eventId,
   eventName,
+  defaultName,
   contracts,
   templateOptions,
   contacts,
@@ -111,6 +114,7 @@ export function ContractsManager({
       {showForm ? (
         <ContractForm
           contacts={contacts}
+          defaultName={defaultName}
           defaultSectionTitle={defaultSectionTitle}
           eventId={eventId}
           eventName={eventName}
@@ -472,6 +476,7 @@ type ContractFormProps = {
       // Create: template picker and recipient are editable.
       contract?: undefined;
       eventName: string;
+      defaultName: string;
       templateOptions: ContractTemplateOptions;
       contacts: { name: string | null; email: string | null };
       defaultSectionTitle: string;
@@ -481,6 +486,7 @@ type ContractFormProps = {
       // because the PandaDoc document already exists for that recipient.
       contract: EventContract;
       eventName?: undefined;
+      defaultName?: undefined;
       templateOptions?: undefined;
       contacts?: undefined;
       defaultSectionTitle?: undefined;
@@ -493,7 +499,7 @@ function ContractForm(props: ContractFormProps) {
   const templateOptions = props.templateOptions;
 
   const [name, setName] = useState(
-    editing ? props.contract.name : `${props.eventName} — Event Contract`,
+    editing ? props.contract.name : props.defaultName,
   );
   // The configured default only counts if PandaDoc actually lists it;
   // otherwise the first template is selected so the picker never shows a

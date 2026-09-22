@@ -197,9 +197,11 @@ the field in GHL and it disappears in the portal.
 
 ### Step 4b — Contract (PandaDoc, from the portal)
 
-**You do:** on the event's **Contracts** tab, click **New contract**, name it
-(initial agreement, an event-order change, a 50% deposit — as many per
-event as needed), pick a PandaDoc template, write any description or terms,
+**You do:** on the event's **Contracts** tab, click **New contract**. The
+name starts as the event date, group name, and contact name (for example
+`12-31-2026 - Acme Retreat - Dana Lee`); change it if the contract is
+something narrower (an event-order change, a 50% deposit — as many per
+event as needed). Pick a PandaDoc template, write any description or terms,
 add the **items and prices** it covers (below), confirm the recipient
 (prefilled from the GHL contact), and click **Create and send**. The client
 signs it inside their portal (Step 6). Nothing goes through GHL.

@@ -179,6 +179,25 @@ export function parseContractLineItems(value: Json): ContractLineItem[] {
   return items;
 }
 
+// "12-31-2026 - Group name - Contact name": the name a new contract starts
+// with. Any missing piece is left out so the name never carries a stray
+// dash; the date is read from the yyyy-MM-dd string directly so it can't
+// shift a day across time zones.
+export function defaultContractName(input: {
+  eventDate: string | null;
+  eventName: string | null;
+  contactName: string | null;
+}): string {
+  const date = /^(\d{4})-(\d{2})-(\d{2})/.exec(input.eventDate ?? "");
+  return [
+    date ? `${date[2]}-${date[3]}-${date[1]}` : null,
+    input.eventName?.trim() || null,
+    input.contactName?.trim() || null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(" - ");
+}
+
 export function calculateContractSubtotal(items: ContractLineItem[]): number {
   return (
     Math.round(

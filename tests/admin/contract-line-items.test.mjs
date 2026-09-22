@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   calculateContractSubtotal,
+  defaultContractName,
   groupContractLineItems,
   isFoodCatalogCategory,
   isFoodTableHeading,
@@ -137,4 +138,24 @@ test("formatEventDayHeading writes the day the way coordinators title it", () =>
   assert.equal(formatEventDayHeading("2026-09-11"), "Friday, September 11th");
   assert.equal(formatEventDayHeading(null), "");
   assert.equal(formatEventDayHeading("not a date"), "");
+});
+
+test("defaultContractName is date - group - contact, skipping missing pieces", () => {
+  assert.equal(
+    defaultContractName({
+      eventDate: "2026-12-31",
+      eventName: "Acme Retreat",
+      contactName: "Dana Lee",
+    }),
+    "12-31-2026 - Acme Retreat - Dana Lee",
+  );
+  assert.equal(
+    defaultContractName({ eventDate: null, eventName: " Acme Retreat ", contactName: "" }),
+    "Acme Retreat",
+  );
+  assert.equal(
+    defaultContractName({ eventDate: "2026-01-05T00:00:00Z", eventName: null, contactName: "Dana Lee" }),
+    "01-05-2026 - Dana Lee",
+  );
+  assert.equal(defaultContractName({ eventDate: "soon", eventName: null, contactName: null }), "");
 });
