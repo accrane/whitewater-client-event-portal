@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { notifyCoordinatorAssigned } from "@/lib/email/notify-coordinator-assigned";
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { assignContactUser } from "@/lib/ghl/contacts";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { fetchOpportunityFieldIndex } from "@/lib/ghl/location-data";
 import { fetchConfiguredPipeline } from "@/lib/ghl/opportunities";
@@ -673,9 +674,53 @@ export async function assignOpportunityCoordinator(
     },
   });
 
+  // The contact's own Assigned To follows the opportunity so GHL's Contacts
+  // list and contact-owner workflow steps see the coordinator too. Logged
+  // separately; a failure here doesn't undo the opportunity assignment.
+  if (result.ok) {
+    await assignContactCoordinator(event, ghlUserId);
+  }
+
   return result.ok
     ? { ok: true }
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
+async function assignContactCoordinator(
+  event: EventRow,
+  ghlUserId: string,
+): Promise<void> {
+  if (!event.ghl_contact_id) {
+    await logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType: "contact_assign_coordinator",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: event.id,
+      status: "warning",
+      message:
+        "Skipped assigning the coordinator to the GHL contact: the event has no GHL contact id.",
+      details: { ghl_user_id: ghlUserId },
+    });
+    return;
+  }
+
+  const contactResult = await assignContactUser(event.ghl_contact_id, ghlUserId);
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "contact_assign_coordinator",
+    ghlLocationId: event.ghl_location_id,
+    portalEventId: event.id,
+    status: contactResult.ok ? "success" : "error",
+    message: contactResult.ok
+      ? "Event coordinator assigned to the GHL contact."
+      : "Failed assigning the event coordinator to the GHL contact.",
+    details: {
+      ghl_contact_id: event.ghl_contact_id,
+      ghl_user_id: ghlUserId,
+      ...(contactResult.ok ? {} : { error: contactResult.error }),
+    },
+  });
 }
 
 // Called when an event is deleted: blanks the Event Planning App ID custom

@@ -1,6 +1,6 @@
 # Portal Manual
 
-_Last updated: 2026-09-22._
+_Last updated: 2026-09-23._
 
 This is the working guide for the Whitewater event portal: what each screen
 is for, how an event moves from inquiry to event day, and what happens
@@ -143,7 +143,8 @@ Booked, or Lost? The stage is left alone.
 **Automatically:**
 - Linking a reservation to an event moves the GHL opportunity to
   **Planning**. GHL's internal tasks and notifications key off this stage.
-- Picking a coordinator assigns them to the opportunity in GHL, emails them
+- Picking a coordinator assigns them to the opportunity **and** the contact
+  in GHL (so the contact's Assigned To matches), emails them
   that the event is theirs (with the date, contact, and a link to the event
   page; not sent when you assign yourself or re-pick the same person), and they
   become the event's **Coordinator** in the portal.
@@ -230,7 +231,8 @@ Booked, or Lost? The stage is left alone.
   interest, contact, coordinator, proposal link, guest counts, value).
 - Saving the Event summary writes guest count, pass and bin counts, and
   Value back to the GHL opportunity.
-- Reassigning the coordinator updates the opportunity's assigned user in GHL.
+- Reassigning the coordinator updates the assigned user on both the
+  opportunity and the contact in GHL.
 
 ### Step 4b — Contract (PandaDoc, from the portal)
 

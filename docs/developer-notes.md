@@ -1,6 +1,6 @@
 # Developer Notes — Whitewater Event Ecosystem
 
-_Last updated: 2026-09-22. This is the engineering record for the portal app,
+_Last updated: 2026-09-23. This is the engineering record for the portal app,
 GoHighLevel (GHL), and PandaDoc: how the pieces fit, where data lives, when
 syncs fire, what configuration exists, and a changelog. The user-facing
 guide is [manual.md](manual.md) — it is rendered inside the app at
@@ -100,7 +100,7 @@ Admin → Users (service role), so users can't escalate themselves.
 | Contract signed | app → GHL | Opportunity moved to the Booked stage (`opportunity_move_to_booked`) |
 | Conversations send with a "Proposal" snippet | app → GHL | Opportunity moved to Proposal Sent, forward only (`opportunity_move_to_proposal_sent`) |
 | Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in coordinator's GHL user) or completion toggled |
-| Coordinator reassign / coordinator pick | app → GHL | Opportunity `assignedTo` |
+| Coordinator reassign / coordinator pick | app → GHL | Opportunity `assignedTo`, then the contact's `assignedTo` (`PUT /contacts/{id}`) so the contact owner in GHL matches; logged as `opportunity_assign_coordinator` and `contact_assign_coordinator` |
 | Reservation linked to event | app → GHL | Opportunity moved to Planning stage |
 | Portal launch | app → GHL | Portal Link field |
 | Event delete | app → GHL | Blanks Event Planning App ID + Portal Link |
@@ -350,7 +350,8 @@ action.
 **Private Integration scopes** the token needs beyond the basics (Settings →
 Private Integrations in GHL): *write conversation messages* (drawer replies),
 *view templates* / `locations/templates.readonly` (snippet menu), *edit
-contacts* / `contacts.write` (follow-ups pause tag). Each missing scope
+contacts* / `contacts.write` (follow-ups pause tag, contact owner on coordinator
+assignment). Each missing scope
 surfaces as a labeled 401 message in the feature it gates.
 
 **GHL workflow checklist for follow-up pauses** (someone with workflow
@@ -369,6 +370,22 @@ access does this once in GHL; the portal only sets and clears the tag):
    even if nobody opens the portal.)
 3. Don't create the tag by hand; the portal adds it the first time someone
    pauses, and GHL creates tags on first use.
+
+**Contact owner backfill.** Coordinators assigned before 2026-09-23 were
+written only to the opportunity, so their contacts showed *Unassigned* in
+GHL. `scripts/backfill-contact-assignments.ts` catches up every contact from
+the pipeline's open and won opportunities (`--include-closed` adds lost and
+abandoned; `planContactAssignments` in `src/lib/ghl/contact-assignment.ts`
+picks the newest open opportunity per contact). Dry run by default,
+`--apply` writes, re-runs skip contacts already on the right user:
+
+```
+npx tsx --env-file=.env.local scripts/backfill-contact-assignments.ts --apply
+```
+
+Run against production on 2026-09-23 (3 contacts updated). Reassigning in
+GHL itself still only changes the opportunity; the contact owner follows
+only assignments made in the portal.
 
 ---
 
@@ -433,6 +450,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-23 | **Coordinator assignment also sets the GHL contact owner.** `assignOpportunityCoordinator` (`src/lib/ghl/opportunity-sync.ts`) now follows a successful opportunity `assignedTo` write with `assignContactUser(contactId, ghlUserId)` (`src/lib/ghl/contacts.ts`, `PUT /contacts/{id}`) on the event's `ghl_contact_id`, so every portal path (reservation modal, event page reassign, phone intake) keeps the contact's Assigned To in step with the coordinator. Logged as `contact_assign_coordinator` (warning when the event has no contact id; an error there doesn't undo the opportunity assignment). `GhlContactSummary` gained `assignedTo`. One-time catch-up for existing contacts: `scripts/backfill-contact-assignments.ts` (§5), run in production the same day. Planner rules in `src/lib/ghl/contact-assignment.ts`, tests in `tests/ghl/contact-assignment.test.mjs`. |
 | 2026-09-22 | **Proposal snippets move the opportunity to Proposal Sent.** After a successful drawer send with a snippet named "…proposal…", `sendConversationMessage` calls `moveOpportunityToProposalSent` (`opportunity-sync.ts`): opportunity from the new `opportunityId` the pipeline card passes to the drawer, else the event's `ghl_opportunity_id`; GETs it, checks the contact, resolves the Proposal Sent stage by name from `fetchConfiguredPipeline`, and only moves forward (`shouldMoveToProposalSent`). Rules and tests: `src/lib/ghl/proposal-sent.ts`, `tests/ghl/proposal-sent.test.mjs`. Stage guide no longer tells coordinators to move it in GHL (§5). |
 | 2026-09-22 | **EC Welcome snippets start the Step 3 chase.** The drawer tracks which GHL snippets were inserted into the message (cleared when the box is emptied or sent) and posts their names; the route passes `snippetNames` to `sendConversationMessage`, which after a successful send adds `coordinator-intro-sent` to the contact when any name contains "EC Welcome" / "Event Coordinator Welcome" (`src/lib/ghl/coordinator-intro.ts`, tests in `tests/ghl/coordinator-intro.test.mjs`), logged as `coordinator_intro_tag`. The pause feature's tag write moved to a shared `setContactTag(contactId, tag, present)` in `src/lib/ghl/contact-tags.ts`. GHL workflow already retriggered on the tag by Cathy (§5). |
 | 2026-09-22 | **Contracts page** (`/admin/contracts`, nav under Events). All `event_contracts` across events (`listAllContracts`, two queries: contracts + their events' snapshots) in Open / History tabs (`contractTab`: draft/creating/approval/sent/viewed/error are open), sorted approvals-first so the manager's only manual step is on top, each row linking straight into the PandaDoc document (`pandaDocDocumentUrl`) — approval stays in PandaDoc because a coordinator must not approve their own contract, so the document owner is left as the API user. GET-form filters: search (contract/event/customer/coordinator), coordinator (managers; "My events" via `resolveCurrentCoordinator`, now in `src/lib/admin/current-coordinator.ts` and shared with the dashboard), status group (`CONTRACT_STATUS_GROUPS`, per tab), event date. Coordinators are scoped to their own events (`isCurrentCoordinatorsEvent`) before filtering; a login with no coordinator match sees an explanation. Statuses: `syncOpenContracts(limit)` re-reads the least-recently-updated open contracts from PandaDoc — 25 in `after()` on every load, 60 synchronously on **Refresh statuses** (`?refresh=1`) — and re-sums event value where a status changed. Filter logic in `event-filters.ts` (contracts section), tests in `tests/admin/contract-list-filters.test.mjs`. Dollar amounts manager-only. |

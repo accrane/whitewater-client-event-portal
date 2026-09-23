@@ -22,6 +22,8 @@ export type GhlContactSummary = {
   email: string | null;
   phone: string | null;
   companyName: string | null;
+  // GHL user id the contact is assigned to (Contacts → Assigned To).
+  assignedTo: string | null;
   dnd: GhlContactDnd;
 };
 
@@ -64,6 +66,7 @@ export async function fetchGhlContact(
         email?: string;
         phone?: string;
         companyName?: string;
+        assignedTo?: string | null;
         dnd?: boolean;
         dndSettings?: Record<string, { status?: string } | undefined>;
       };
@@ -85,6 +88,7 @@ export async function fetchGhlContact(
       email: contact.email?.trim() || null,
       phone: contact.phone?.trim() || null,
       companyName: contact.companyName?.trim() || null,
+      assignedTo: contact.assignedTo?.trim() || null,
       dnd: parseDnd(contact),
     };
   } catch (error) {
@@ -171,5 +175,44 @@ export async function upsertFacilitatorContact({
   } catch (error) {
     console.error("GHL facilitator contact upsert failed", error);
     return null;
+  }
+}
+
+// Sets the contact-level Assigned To (the owner GHL's Contacts list and
+// contact-owner workflow steps read) to a GHL user. Every coordinator
+// assignment in the portal calls this alongside the opportunity write so the
+// two never disagree. Needs the integration's contacts write scope.
+export async function assignContactUser(
+  contactId: string,
+  ghlUserId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { accessToken, apiBaseUrl } = appConfig.ghl;
+  if (!accessToken) return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
+
+  try {
+    const response = await fetch(
+      `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}`,
+      {
+        method: "PUT",
+        headers: getGhlApiHeaders(accessToken),
+        body: JSON.stringify({ assignedTo: ghlUserId }),
+      },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return {
+        ok: false,
+        error:
+          response.status === 401
+            ? "GHL rejected the contact assignment: the integration token is missing the contacts write scope."
+            : `GHL responded ${response.status}: ${text.slice(0, 200)}`,
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "GHL contact assignment failed",
+    };
   }
 }
