@@ -37,12 +37,12 @@ import {
   EDITABLE_CONTRACT_STATUSES,
   OPEN_CONTRACT_STATUSES,
   SIGNABLE_CONTRACT_STATUSES,
-  SIGNED_CONTRACT_STEPS,
   calculateContractSubtotal,
   failedSignedContractSteps,
   isCountedLineItem,
   parseContractLineItems,
   parseSignedContractSteps,
+  signedContractStepsToRun,
   toNumber,
   type ClientContract,
   type ContractCatalogItem,
@@ -1027,22 +1027,9 @@ export async function syncContractFromPandaDoc(
 
   if (
     updated.status === "completed" &&
-    (!updated.signed_actions_applied_at ||
-      parseSignedContractSteps(updated.signed_actions_pending).length > 0)
+    signedStepsToRun(updated).length > 0
   ) {
     updated = await applySignedContractActions(updated);
-  } else if (updated.status === "completed" && !updated.signed_pdf_path) {
-    const archived = await archiveSignedPdf(updated);
-    if (archived.ok) {
-      updated = await updateContractRow(updated.id, {
-        signed_pdf_bucket: archived.bucket,
-        signed_pdf_path: archived.path,
-      });
-    } else {
-      updated = await updateContractRow(updated.id, {
-        last_error: `Signed PDF not archived yet: ${archived.error}`,
-      });
-    }
   }
 
   // A changed total (PandaDoc recomputed) or a status leaving/entering the
@@ -1274,6 +1261,14 @@ async function archiveSignedPdf(
   return { ok: true, bucket, path };
 }
 
+function signedStepsToRun(row: ContractRow): SignedContractStep[] {
+  return signedContractStepsToRun({
+    signedActionsAppliedAt: row.signed_actions_applied_at,
+    signedActionsPending: row.signed_actions_pending,
+    signedPdfPath: row.signed_pdf_path,
+  });
+}
+
 // What "signed" sets in motion. Each step is independent: one that fails (GHL
 // down, PandaDoc slow) is recorded in signed_actions_pending and run again —
 // on its own — by the next sync (the PandaDoc webhook, page views, Refresh),
@@ -1284,9 +1279,7 @@ async function applySignedContractActions(
   row: ContractRow,
 ): Promise<ContractRow> {
   const firstRun = !row.signed_actions_applied_at;
-  const steps = firstRun
-    ? SIGNED_CONTRACT_STEPS
-    : parseSignedContractSteps(row.signed_actions_pending);
+  const steps = signedStepsToRun(row);
   if (steps.length === 0) return row;
 
   // Claim the run so the webhook, the portal signer and a page-load sync
@@ -1426,7 +1419,9 @@ export async function retryPendingSignedContracts(options: {
     .from("event_contracts")
     .select("*")
     .eq("status", "completed")
-    .or("signed_actions_applied_at.is.null,signed_actions_pending.neq.{}")
+    .or(
+      "signed_actions_applied_at.is.null,signed_actions_pending.neq.{},signed_pdf_path.is.null",
+    )
     .lt("signed_actions_attempts", SIGNED_STEP_MAX_AUTO_ATTEMPTS)
     .lt(
       "updated_at",

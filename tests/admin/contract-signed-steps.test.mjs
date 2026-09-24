@@ -6,6 +6,7 @@ import {
   SIGNED_CONTRACT_STEP_LABELS,
   failedSignedContractSteps,
   parseSignedContractSteps,
+  signedContractStepsToRun,
 } from "../../src/lib/contracts/shared.ts";
 
 test("only failed steps stay pending; done and skipped steps are finished", () => {
@@ -48,4 +49,52 @@ test("every step has a plain-language label for the Contracts tab", () => {
   for (const step of SIGNED_CONTRACT_STEPS) {
     assert.ok(SIGNED_CONTRACT_STEP_LABELS[step]);
   }
+});
+
+test("a contract that never ran its steps runs all of them", () => {
+  assert.deepEqual(
+    signedContractStepsToRun({
+      signedActionsAppliedAt: null,
+      signedActionsPending: [],
+      signedPdfPath: null,
+    }),
+    SIGNED_CONTRACT_STEPS,
+  );
+});
+
+test("after the first run only failed steps, plus a missing PDF, run again", () => {
+  assert.deepEqual(
+    signedContractStepsToRun({
+      signedActionsAppliedAt: "2026-09-24T13:33:00Z",
+      signedActionsPending: ["ghl_stage"],
+      signedPdfPath: "contracts/e1/c1.pdf",
+    }),
+    ["ghl_stage"],
+  );
+  // Signed before steps were tracked: the failure was never recorded, but
+  // the PDF is still missing, so it gets archived.
+  assert.deepEqual(
+    signedContractStepsToRun({
+      signedActionsAppliedAt: "2026-09-24T13:33:00Z",
+      signedActionsPending: [],
+      signedPdfPath: null,
+    }),
+    ["signed_pdf"],
+  );
+  assert.deepEqual(
+    signedContractStepsToRun({
+      signedActionsAppliedAt: "2026-09-24T13:33:00Z",
+      signedActionsPending: ["signed_pdf"],
+      signedPdfPath: null,
+    }),
+    ["signed_pdf"],
+  );
+  assert.deepEqual(
+    signedContractStepsToRun({
+      signedActionsAppliedAt: "2026-09-24T14:24:00Z",
+      signedActionsPending: [],
+      signedPdfPath: "contracts/e2/c2.pdf",
+    }),
+    [],
+  );
 });

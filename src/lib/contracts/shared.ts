@@ -149,6 +149,24 @@ export function parseSignedContractSteps(value: unknown): SignedContractStep[] {
   return SIGNED_CONTRACT_STEPS.filter((step) => value.includes(step));
 }
 
+// The steps a completed contract still needs. First run: all of them. After
+// that: whatever failed, plus the PDF archive whenever no PDF is on file —
+// that also catches contracts signed before the steps were tracked, whose
+// failures were never recorded.
+export function signedContractStepsToRun(contract: {
+  signedActionsAppliedAt: string | null;
+  signedActionsPending: unknown;
+  signedPdfPath: string | null;
+}): SignedContractStep[] {
+  if (!contract.signedActionsAppliedAt) return [...SIGNED_CONTRACT_STEPS];
+  const pending = parseSignedContractSteps(contract.signedActionsPending);
+  return SIGNED_CONTRACT_STEPS.filter(
+    (step) =>
+      pending.includes(step) ||
+      (step === "signed_pdf" && !contract.signedPdfPath),
+  );
+}
+
 // A step outcome starting "error" means it has to run again; anything else
 // (done, or "skipped: …" when there was nothing to do) is finished.
 export function failedSignedContractSteps(
