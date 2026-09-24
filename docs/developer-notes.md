@@ -92,8 +92,8 @@ Every page, server action and API route checks through
 | Event summary save | app → GHL | Guest/pass/bin counts, Value |
 | Facilitator save (admin or client portal) | app → GHL | Facilitator name/email/phone custom fields + `facilitator`-tagged contact upsert (one-way; GHL never writes back). "Same as current contact" saves instead read the primary GHL contact and skip the upsert |
 | Conversations drawer open | GHL → app | Contact's conversations + message history, read live (never stored); threaded email rows are expanded one email at a time (`/conversations/messages/email/{id}`) so client replies show |
-| Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope) |
-| Conversations drawer snippet menu | GHL → app | Location snippets (`/locations/{id}/templates`), read live and cached 5 min per server process (never stored). Merge tags are rendered by the app, not GHL (`src/lib/ghl/snippet-merge-tags.ts`, route `/api/ghl/contacts/[contactId]/message-templates?eventId=`): `contact.*` from the GHL contact, `user.*` from the signed-in user's GHL match (falling back to the event's coordinator), and `opportunity.assigned_to` / `groupevent_name` / `event_date` / `portal_link` from the event's stored snapshot + `client_portal_url` — no extra GHL call |
+| Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope). Emails end with GHL's `{{user.email_signature}}` tag, which GHL fills with the contact's assigned user's signature, unless the coordinator unticks it (§5 Email signatures) |
+| Conversations drawer snippet menu | GHL → app | Location snippets (`/locations/{id}/templates`), read live and cached 5 min per server process (never stored). Merge tags are rendered by the app before the snippet is inserted (`src/lib/ghl/snippet-merge-tags.ts`, route `/api/ghl/contacts/[contactId]/message-templates?eventId=`): GHL would fill `user.*` with the contact's assigned user rather than the sender and has no opportunity context on API sends. `contact.*` from the GHL contact, `user.*` from the signed-in user's GHL match (falling back to the event's coordinator), and `opportunity.assigned_to` / `groupevent_name` / `event_date` / `portal_link` from the event's stored snapshot + `client_portal_url` — no extra GHL call. The same response carries `signer` (the contact's assigned user's name, and whether that's the signed-in user) for the drawer's signature checkbox |
 | Follow-ups pause / resume | app → GHL | `follow-ups-paused` tag added to / removed from the contact (`POST`/`DELETE /contacts/{id}/tags`) plus a GHL note; the pause row lives in `follow_up_pauses` (who, when, why, how it ended). Lifted automatically on contract signature (Booked) and by the dashboard's reconcile pass when GHL shows the opportunity Booked/Lost/won/lost |
 | Notes drawer open | GHL → app | Contact's GHL notes, read live (never stored); count shown as a badge on the notepad button |
 | Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
@@ -180,8 +180,10 @@ tables don't.
 
 ### Email
 
-The app sends **only password-reset emails**, via Mailgun
-(`mg.whitewater.org`). All client-facing email/SMS is GHL's job.
+The app sends **only staff emails** (password resets and
+coordinator-assignment notices), via Mailgun (`mg.whitewater.org`). All
+client-facing email/SMS is GHL's job; emails from the conversations drawer
+carry the assigned coordinator's GHL signature (§5 Email signatures).
 
 ---
 
@@ -488,6 +490,35 @@ Booked, and Lost are left alone. Logged as
 `opportunity_move_to_proposal_sent`; a failure never fails the send.
 Renaming the stage or the snippets away from "proposal" breaks it.
 
+### Email signatures
+
+Each coordinator's signature is set in GHL only (Settings → My Staff → edit
+the user → Email Signature). Emails sent from the conversations drawer end
+with GHL's `{{user.email_signature}}` tag (`appendEmailSignature`, added in
+`sendConversationMessage`), and GHL fills it as the email goes out. Found
+with two test sends to Austin's own contacts on 2026-09-24:
+
+- The public API can't read a signature. `GET /users/{id}`, `GET /users/`,
+  and `GET /users/search` all leave it out after one is saved, and no
+  signature endpoint exists, so the drawer names whose signature it will
+  be instead of previewing it.
+- GHL merge-renders Conversations API emails, using the contact and the
+  **contact's assigned user** as `{{user.*}}`. A `userId` in the send is
+  ignored for email (the message is recorded under the assigned user), so
+  the signature is the assigned coordinator's whoever sends. An assigned
+  user with no signature renders as nothing; the route skips the tag for
+  a contact with nobody assigned.
+- GHL added no signature of its own to the API sends. If emails ever show
+  two, check the user's "Enable signature on all outgoing messages" box.
+
+The contact owner only follows coordinator assignments made in the portal
+(see the backfill note above), so reassigning an opportunity in GHL keeps
+the old coordinator's signature on that contact's emails until the contact
+is reassigned too. The email snippets still end with a typed sign-off
+(`{{user.first_name}}` or `{{opportunity.assigned_to}}`, then "Whitewater
+Group Sales Team") that now sits right above the signature; trimming it is
+a snippet edit in GHL.
+
 ## 6. Keeping the docs current
 
 When you ship a feature, ask:
@@ -505,6 +536,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-24 | **Email signatures from GHL.** Drawer emails end with GHL's `{{user.email_signature}}` tag (`appendEmailSignature` in `src/lib/ghl/snippet-merge-tags.ts`, applied by `sendConversationMessage` when `includeSignature` is set; never twice if the message already has the tag). The conversations route sets it unless the POST body says `includeSignature: false`, and skips contacts with nobody assigned; the integration log records `signature` on email sends. The message-templates route returns `signer` (`{ name, isSender }`, from the contact's `assignedTo`) so the checkbox beside Send names whose signature it is. `findUnfilledMergeTags` no longer flags the signature tag. The two test sends behind it (§5 Email signatures) also showed that GHL does merge-render API sends — contact tags from the contact, `user.*` from the contact's assigned user — correcting the 2026-09-21 note below; opportunity tags still go out blank. Tests in `tests/admin/snippet-merge-tags.test.mjs`. |
 | 2026-09-24 | **Review follow-ups (Greptile on PR #1).** Signed-contract runs now hold a lease (`signed_actions_running_until`, migration `20260924120000`) instead of an `updated_at` check, which let a sync that wrote the row first claim a run already in progress. Reply "seen" is the time the conversation was read (captured before the GHL call) and only moves forward; the card's flag clears after the drawer loads, not on click. `listUpcomingLaunchedEvents` pages by exact count past the API's max-rows. `vendorFetch` re-wraps response bodies so a timeout while reading one reports "… did not finish responding within Ns" (tests in `tests/http/vendor-fetch.test.mjs`). |
 | 2026-09-24 | **Audit fixes (security, reliability, scale).** From the 2026-09-23 read-only audit's "fix first" list. (1) **Staff access is granted, not assumed:** `getUserRole` (`src/lib/admin/roles.ts`) returns null for an account without an `admin`/`coordinator` role or an anonymous session; proxy, login, and every page/action/API route check through the new `src/lib/admin/session.ts` (`getStaffUser` is `cache()`d per request; the calendar-api guard, which only checked sign-in, is now `requireStaffApiUser`). Admin → Users shows role-less accounts as **No access** with a required role picker. Supabase public sign-up was found enabled; turn it off in the dashboard. (2) **Rich text is sanitized** (`src/lib/html/sanitize.ts`, `sanitize-html`): schedule notes and checklist FAQ HTML on every save and load — formatting, lists, links (new tab, noopener) and https/data-URL images kept; styles, classes, scripts, handlers, iframes and forms removed; output matches the browser's serialization so untouched notes don't look edited. Tests: `tests/html/sanitize.test.mjs`. (3) **Timeouts and 429 retries** on every vendor call (`vendorFetch`, §2); `updateGhlOpportunity` returns a failure instead of throwing. Tests: `tests/http/vendor-fetch.test.mjs`. (4) **Signed-contract steps retry** (§3): migration `20260924100000` adds `signed_actions_pending` / `signed_actions_attempts` and queues `signed_pdf` for signed contracts whose PDF never archived; any signed contract with no PDF on file counts as having that step left (`signedContractStepsToRun`); Contracts tab shows **Still to do**; the PandaDoc webhook answers 500 on a failed document. Tests: `tests/admin/contract-signed-steps.test.mjs`. (5) **New reply flags replace the badge sweep:** the pipeline's background note/task sweep (up to 120 GHL calls a view, over GHL's burst limit) is gone; a GHL Customer Replied workflow (§5) posts to `/api/ghl/replies` (migration `20260924110000`, table `ghl_contact_replies`, `src/lib/ghl/replies.ts`, rules in `reply-flags.ts`, tests `tests/ghl/reply-flags.test.mjs`); cards show **New reply** and a dot on the conversations button, stage tabs a red dot; opening the drawer clears it. (6) **No more 50-event cap:** `listAdminEvents` is gone. The Events page pages 50 at a time with filter, search (event name, type, coordinator) and tab counts in SQL (`listAdminEventsPage`, `?page=`); the dashboard reads every upcoming launched event (`listUpcomingLaunchedEvents`, served by `events_status_event_date_idx`) plus the events its lists point at (`listAdminEventsByIds`). |
 | 2026-09-23 | **Coordinator assignment also sets the GHL contact owner.** `assignOpportunityCoordinator` (`src/lib/ghl/opportunity-sync.ts`) now follows a successful opportunity `assignedTo` write with `assignContactUser(contactId, ghlUserId)` (`src/lib/ghl/contacts.ts`, `PUT /contacts/{id}`) on the event's `ghl_contact_id`, so every portal path (reservation modal, event page reassign, phone intake) keeps the contact's Assigned To in step with the coordinator. Logged as `contact_assign_coordinator` (warning when the event has no contact id; an error there doesn't undo the opportunity assignment). `GhlContactSummary` gained `assignedTo`. One-time catch-up for existing contacts: `scripts/backfill-contact-assignments.ts` (§5), run in production the same day. Planner rules in `src/lib/ghl/contact-assignment.ts`, tests in `tests/ghl/contact-assignment.test.mjs`. |

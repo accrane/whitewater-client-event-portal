@@ -47,7 +47,9 @@ A coordinator needs two things: a GHL staff user (that is what fills the
    dropdown set the role to **User** (not Admin — only staff with the User
    role show up in the coordinator dropdown). Then under **Permissions**,
    click **Copy**, find **Sarah**, and choose her so the new person gets
-   the same permissions.
+   the same permissions. Fill in their **Email Signature** in the same
+   user settings too: emails sent from the portal to their clients end
+   with it.
 2. **In the portal:** a manager creates their login under **Admin → Users**
    using the same email address as their GHL user, with the Coordinator
    role. That email match is what lets the portal treat their
@@ -199,6 +201,15 @@ Booked, or Lost? The stage is left alone.
     launched, or a tag the portal doesn't know) it stays in the message as
     `{{…}}` and an amber warning lists it under the message box. Replace it
     with the real text before sending, or it reaches the client as a blank.
+  - **Email signature:** every email you send from here ends with the
+    signature saved in GHL for the contact's assigned coordinator — normally
+    you, because assigning an event's coordinator also assigns its contact.
+    The checkbox beside Send names whose signature it will be; untick it to
+    send without one. If you're covering for someone, it names them: GHL
+    always signs with the assigned coordinator, whoever sends. A contact
+    with no coordinator assigned gets no signature, and texts never do.
+    Signatures are written and changed in GHL, not in the portal, and the
+    portal can't show a preview of them.
   - The notepad button (red badge = note count) opens the contact's **GHL
     notes**; notes you add there save to GHL under your name.
   - The tasks button (badge = open tasks) opens the contact's **GHL

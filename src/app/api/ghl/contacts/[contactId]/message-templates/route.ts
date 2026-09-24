@@ -13,14 +13,15 @@ import {
 } from "@/lib/ghl/snippet-merge-tags";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
-// Feeds the conversations drawer's "Insert snippet" menu. Keyed by contact
-// so snippet merge tags ({{contact.first_name}}, {{user.name}}, …) come back
-// already filled in for this contact and the signed-in coordinator. With
-// `?eventId=` the event's tags fill in too ({{opportunity.assigned_to}} is
-// the event's coordinator, plus the event name, date, and portal link), read
-// from the stored snapshot — no extra GHL call. The list carries its own
-// ok/error so a missing scope renders inside the menu. `?refresh=1` bypasses
-// the cache after someone edits snippets in GHL.
+// Feeds the conversations drawer's compose box: the "Insert snippet" menu
+// and whose email signature GHL will add. Keyed by contact so snippet merge
+// tags ({{contact.first_name}}, {{user.name}}, …) come back already filled in
+// for this contact and the signed-in coordinator. With `?eventId=` the
+// event's tags fill in too ({{opportunity.assigned_to}} is the event's
+// coordinator, plus the event name, date, and portal link), read from the
+// stored snapshot — no extra GHL call. The list carries its own ok/error so a
+// missing scope renders inside the menu. `?refresh=1` bypasses the cache
+// after someone edits snippets in GHL.
 
 async function loadEventMergeContext(
   eventId: string | null,
@@ -82,7 +83,20 @@ export async function GET(
       },
     };
 
+    // GHL signs drawer emails with the contact's assigned user, whoever
+    // sends them; null when nobody is assigned (no signature goes out).
+    const assignedTo = contact?.assignedTo ?? null;
+    const signer = assignedTo
+      ? {
+          name:
+            ghlUsers.find((candidate) => candidate.id === assignedTo)?.name ??
+            null,
+          isSender: ghlUser?.id === assignedTo,
+        }
+      : null;
+
     return Response.json({
+      signer,
       snippets: snippets.ok
         ? {
             ok: true,

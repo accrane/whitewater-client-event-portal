@@ -9,6 +9,7 @@ import { htmlToText, stripQuotedReply, textToEmailHtml } from "@/lib/ghl/html-te
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { moveOpportunityToProposalSent } from "@/lib/ghl/opportunity-sync";
 import { hasProposalSnippet } from "@/lib/ghl/proposal-sent";
+import { appendEmailSignature } from "@/lib/ghl/snippet-merge-tags";
 
 // GHL Conversations API (message history + replies) for the admin event
 // page's conversations drawer. Conversations live per GHL contact, so the
@@ -252,6 +253,9 @@ export type SendConversationMessageInput = {
   // Email id of the message being replied to; keeps the client's inbox
   // thread intact. Dropped automatically if GHL rejects it.
   replyToEmailMessageId?: string | null;
+  // Ends an email with GHL's signature tag, which GHL fills with the
+  // signature of the contact's assigned user. Ignored for SMS.
+  includeSignature?: boolean;
   ghlLocationId: string | null;
   portalEventId: string | null;
   // Names of the GHL snippets inserted into this message, so a sent EC
@@ -280,6 +284,9 @@ export async function sendConversationMessage(
     return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
   }
 
+  const signed = input.channel === "Email" && Boolean(input.includeSignature);
+  const html = textToEmailHtml(input.body);
+
   const send = async (withThreading: boolean) =>
     ghlFetch(`${apiBaseUrl}/conversations/messages`, {
       method: "POST",
@@ -289,7 +296,7 @@ export async function sendConversationMessage(
         contactId: input.contactId,
         ...(input.channel === "Email"
           ? {
-              html: textToEmailHtml(input.body),
+              html: signed ? appendEmailSignature(html) : html,
               ...(input.subject ? { subject: input.subject } : {}),
               ...(withThreading && input.replyToEmailMessageId
                 ? {
@@ -333,6 +340,7 @@ export async function sendConversationMessage(
     details: {
       ghl_contact_id: input.contactId,
       channel: input.channel,
+      ...(input.channel === "Email" ? { signature: signed } : {}),
       ...(error ? { error } : {}),
     },
   });
