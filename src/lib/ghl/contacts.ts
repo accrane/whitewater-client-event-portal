@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 
 // Reads one GHL contact's name/email/phone — used to fill the facilitator
@@ -49,7 +49,7 @@ export async function fetchGhlContact(
   if (!accessToken) return null;
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}`,
       { headers: getGhlApiHeaders(accessToken) },
     );
@@ -127,7 +127,7 @@ export async function upsertFacilitatorContact({
   const lastName = rest.join(" ");
 
   try {
-    const response = await fetch(`${apiBaseUrl}/contacts/upsert`, {
+    const response = await ghlFetch(`${apiBaseUrl}/contacts/upsert`, {
       method: "POST",
       headers: getGhlApiHeaders(accessToken),
       body: JSON.stringify({
@@ -190,7 +190,7 @@ export async function assignContactUser(
   if (!accessToken) return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}`,
       {
         method: "PUT",

@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import {
   deleteScheduleTemplateItem,
@@ -9,18 +8,7 @@ import {
   saveScheduleTemplateItem,
   type ScheduleItemInput,
 } from "@/lib/admin/event-schedule";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-
-async function requireCoordinator() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
-}
+import { requireStaffUser } from "@/lib/admin/session";
 
 function revalidateTemplate() {
   revalidatePath("/admin/settings/schedule-template");
@@ -29,13 +17,13 @@ function revalidateTemplate() {
 export async function saveScheduleTemplateItemAction(
   input: ScheduleItemInput,
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await saveScheduleTemplateItem(input);
   revalidateTemplate();
 }
 
 export async function deleteScheduleTemplateItemAction(itemId: string) {
-  await requireCoordinator();
+  await requireStaffUser();
   await deleteScheduleTemplateItem(itemId);
   revalidateTemplate();
 }
@@ -44,7 +32,7 @@ export async function moveScheduleTemplateItemAction(
   itemId: string,
   direction: "up" | "down",
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await moveScheduleTemplateItem(itemId, direction);
   revalidateTemplate();
 }

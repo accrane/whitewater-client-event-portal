@@ -1,7 +1,5 @@
 import { format, subMonths } from "date-fns";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { after } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ContactBadgesProvider } from "@/components/admin/contact-badges";
@@ -15,11 +13,8 @@ import {
 } from "@/lib/admin/event-filters";
 import { getUserRole } from "@/lib/admin/users";
 import { listGhlUsers, type GhlUser } from "@/lib/ghl/location-data";
-import {
-  findStaleContactIds,
-  getStoredContactBadges,
-  refreshContactBadges,
-} from "@/lib/ghl/badge-cache";
+import { getStoredContactBadges } from "@/lib/ghl/badge-cache";
+import { getContactsWithNewReplies } from "@/lib/ghl/replies";
 import {
   fetchConfiguredPipeline,
   searchPipelineOpportunities,
@@ -27,7 +22,7 @@ import {
   describePipelineProblem,
 } from "@/lib/ghl/opportunities";
 import { getActiveFollowUpPauses } from "@/lib/ghl/follow-up-pauses";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import {
   PipelineBoard,
@@ -132,14 +127,7 @@ type AdminOpportunitiesPageProps = {
 export default async function AdminOpportunitiesPage({
   searchParams,
 }: AdminOpportunitiesPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const params = await searchParams;
   const tab = params.tab === "won" ? "won" : "pipeline";
@@ -272,30 +260,25 @@ async function PipelineView({
   const activeStage =
     stages.find((stage) => stage.key === stageParam) ?? stages[0] ?? null;
 
-  // Card badges come from the local ghl_contact_badges cache — instant at
-  // any pipeline size. Only the visible stage's contacts are read, but the
-  // stale sweep covers the whole pipeline so the other tabs are already
-  // fresh when the coordinator switches to them.
+  // Everything the cards show beyond the opportunity itself comes from local
+  // tables — no GHL calls per card, at any pipeline size. Note/task counts
+  // are whatever the drawers last saw; "New reply" flags are pushed by a GHL
+  // workflow (see src/lib/ghl/replies.ts) and read for every stage so the
+  // tabs can show where new replies are.
   const allContactIds = opportunities
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
   const visibleContactIds = (activeStage?.items ?? [])
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
-  const [badges, pauses, eventFlags] = await Promise.all([
+  const [badges, pauses, eventFlags, newReplyContactIds] = await Promise.all([
     getStoredContactBadges(visibleContactIds),
     getActiveFollowUpPauses(visibleContactIds),
     getEventFlagsByOpportunityIds(
       (activeStage?.items ?? []).map((opportunity) => opportunity.id),
     ),
+    getContactsWithNewReplies(allContactIds),
   ]);
-
-  after(async () => {
-    const staleIds = await findStaleContactIds(allContactIds);
-    if (staleIds.length > 0) {
-      await refreshContactBadges(staleIds);
-    }
-  });
 
   if (!activeStage) {
     return (
@@ -347,6 +330,7 @@ async function PipelineView({
         groupTypes={groupTypes}
         initialFilters={filters}
         initialQuery={query}
+        newReplyContactIds={newReplyContactIds}
         pauses={Object.fromEntries(
           [...pauses.entries()].map(([contactId, pause]) => [
             contactId,

@@ -9,7 +9,7 @@ import { verifyPandaDocWebhookSignature } from "@/lib/pandadoc/client";
 // `signature` query parameter. Each delivery is an array of events; every
 // document mentioned is re-read from the PandaDoc API so the app never
 // trusts the payload's status directly. Idempotent: syncing an already
-// completed contract is a no-op.
+// completed contract only retries any signed-contract steps still pending.
 //
 // The app must be reachable from the internet for this to fire (deploy or
 // tunnel). Until then the portal's embedded signer and page-load refreshes
@@ -63,5 +63,11 @@ export async function POST(request: Request) {
     }
   }
 
-  return Response.json({ ok: true, documents: results });
+  // A document that failed to process answers 500 so PandaDoc delivers it
+  // again (re-syncing is safe: the app re-reads the document either way).
+  const anyFailed = Object.values(results).includes("error");
+  return Response.json(
+    { ok: !anyFailed, documents: results },
+    { status: anyFailed ? 500 : 200 },
+  );
 }

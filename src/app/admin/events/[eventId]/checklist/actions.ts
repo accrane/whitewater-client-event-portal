@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import {
   applyChecklistSectionsTemplate,
@@ -12,18 +11,7 @@ import {
   type ChecklistSectionInput,
 } from "@/lib/admin/checklist-sections";
 import type { ChecklistSectionStatus } from "@/lib/checklist";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-
-async function requireCoordinator() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
-}
+import { requireStaffUser } from "@/lib/admin/session";
 
 function revalidateChecklist(eventId: string) {
   revalidatePath(`/admin/events/${eventId}/checklist`);
@@ -31,7 +19,7 @@ function revalidateChecklist(eventId: string) {
 }
 
 export async function applyChecklistSectionsTemplateAction(eventId: string) {
-  await requireCoordinator();
+  await requireStaffUser();
   await applyChecklistSectionsTemplate(eventId);
   revalidateChecklist(eventId);
 }
@@ -40,7 +28,7 @@ export async function saveEventChecklistSectionAction(
   eventId: string,
   input: ChecklistSectionInput,
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await saveEventChecklistSection(eventId, input);
   revalidateChecklist(eventId);
 }
@@ -49,7 +37,7 @@ export async function deleteEventChecklistSectionAction(
   eventId: string,
   sectionId: string,
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await deleteEventChecklistSection(eventId, sectionId);
   revalidateChecklist(eventId);
 }
@@ -59,7 +47,7 @@ export async function setEventChecklistSectionStatusAction(
   sectionId: string,
   status: ChecklistSectionStatus,
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await setEventChecklistSectionStatus(eventId, sectionId, status);
   revalidateChecklist(eventId);
 }
@@ -69,7 +57,7 @@ export async function moveEventChecklistSectionAction(
   sectionId: string,
   direction: "up" | "down",
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await moveEventChecklistSection(eventId, sectionId, direction);
   revalidateChecklist(eventId);
 }

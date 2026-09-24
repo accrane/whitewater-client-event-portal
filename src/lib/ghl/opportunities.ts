@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import {
   findDateOfInterest,
   findFieldNumber,
@@ -41,7 +41,7 @@ export async function describePipelineProblem(): Promise<string> {
   }
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/opportunities/pipelines?locationId=${encodeURIComponent(locationId as string)}`,
       { headers: getGhlApiHeaders(accessToken as string) },
     );
@@ -81,7 +81,7 @@ export async function fetchConfiguredPipeline(): Promise<GhlPipeline | null> {
   if (!accessToken || !locationId) return null;
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/opportunities/pipelines?locationId=${encodeURIComponent(locationId)}`,
       { headers: getGhlApiHeaders(accessToken) },
     );
@@ -197,7 +197,7 @@ export async function searchPipelineOpportunities(
 
   try {
     for (let page = 0; url && page < 10; page++) {
-      const response: Response = await fetch(url, {
+      const response: Response = await ghlFetch(url, {
         headers: getGhlApiHeaders(accessToken),
       });
       if (!response.ok) {

@@ -30,6 +30,8 @@ export type Database = {
           viewed_at: string | null;
           completed_at: string | null;
           signed_actions_applied_at: string | null;
+          signed_actions_pending: string[];
+          signed_actions_attempts: number;
           signed_pdf_bucket: string | null;
           signed_pdf_path: string | null;
           last_error: string | null;
@@ -60,6 +62,8 @@ export type Database = {
           viewed_at?: string | null;
           completed_at?: string | null;
           signed_actions_applied_at?: string | null;
+          signed_actions_pending?: string[];
+          signed_actions_attempts?: number;
           signed_pdf_bucket?: string | null;
           signed_pdf_path?: string | null;
           last_error?: string | null;
@@ -90,6 +94,8 @@ export type Database = {
           viewed_at?: string | null;
           completed_at?: string | null;
           signed_actions_applied_at?: string | null;
+          signed_actions_pending?: string[];
+          signed_actions_attempts?: number;
           signed_pdf_bucket?: string | null;
           signed_pdf_path?: string | null;
           last_error?: string | null;
@@ -549,6 +555,22 @@ export type Database = {
         };
         Update: Partial<
           Database["public"]["Tables"]["ghl_contact_badges"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      ghl_contact_replies: {
+        Row: {
+          ghl_contact_id: string;
+          last_inbound_at: string;
+          seen_at: string | null;
+        };
+        Insert: {
+          ghl_contact_id: string;
+          last_inbound_at?: string;
+          seen_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["ghl_contact_replies"]["Insert"]
         >;
         Relationships: [];
       };

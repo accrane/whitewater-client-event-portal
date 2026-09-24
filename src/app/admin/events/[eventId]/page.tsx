@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import { after } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ContactConversationsButton } from "@/components/admin/contact-conversations";
@@ -17,6 +18,7 @@ import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import {
   contractStatusLabels,
   listEventContracts,
+  retryPendingSignedContracts,
   syncEventContracts,
 } from "@/lib/admin/contracts";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
@@ -55,7 +57,7 @@ import {
 } from "@/lib/admin/portal-urls";
 import { getUserRole } from "@/lib/admin/users";
 import { formatDisplayDate } from "@/lib/dates";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import {
   listEventReservations,
@@ -188,14 +190,7 @@ export default async function AdminEventDetailPage({
   params,
   searchParams,
 }: AdminEventDetailPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const isAdmin = getUserRole(user) === "admin";
   const { eventId } = await params;
@@ -215,6 +210,9 @@ export default async function AdminEventDetailPage({
   // Pull current opportunity data (Date of Interest, assigned coordinator,
   // contact, event type) from GHL before rendering; degrades quietly.
   await Promise.all([syncEventFromGhl(eventId), syncEventContracts(eventId)]);
+  // Signed-contract steps that failed earlier (e.g. GHL was down) get another
+  // try once the page is on its way.
+  after(() => retryPendingSignedContracts({ eventId, limit: 5 }));
 
   const [
     event,

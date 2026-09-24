@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { setContactTag } from "@/lib/ghl/contact-tags";
 import {
   COORDINATOR_INTRO_TAG,
@@ -76,7 +76,7 @@ export async function listContactConversations(
   const { accessToken, apiBaseUrl, locationId } = appConfig.ghl;
   if (!accessToken || !locationId) return [];
 
-  const searchResponse = await fetch(
+  const searchResponse = await ghlFetch(
     `${apiBaseUrl}/conversations/search?locationId=${encodeURIComponent(locationId)}&contactId=${encodeURIComponent(contactId)}&limit=20`,
     { headers: conversationsHeaders(accessToken) },
   );
@@ -112,7 +112,7 @@ async function listConversationMessages(
   const { accessToken, apiBaseUrl } = appConfig.ghl;
   if (!accessToken) return [];
 
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/conversations/${encodeURIComponent(conversationId)}/messages?limit=100`,
     { headers: conversationsHeaders(accessToken) },
   );
@@ -207,7 +207,7 @@ async function listThreadEmails(
   try {
     return await Promise.all(
       emailMessageIds.slice(-MAX_THREAD_EMAILS).map(async (emailId) => {
-        const response = await fetch(
+        const response = await ghlFetch(
           `${apiBaseUrl}/conversations/messages/email/${encodeURIComponent(emailId)}`,
           { headers: conversationsHeaders(accessToken) },
         );
@@ -281,7 +281,7 @@ export async function sendConversationMessage(
   }
 
   const send = async (withThreading: boolean) =>
-    fetch(`${apiBaseUrl}/conversations/messages`, {
+    ghlFetch(`${apiBaseUrl}/conversations/messages`, {
       method: "POST",
       headers: conversationsHeaders(accessToken),
       body: JSON.stringify({

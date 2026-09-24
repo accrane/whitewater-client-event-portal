@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { getAdminEventById } from "@/lib/admin/events";
 import { getEventChecklistSections } from "@/lib/admin/checklist-sections";
 import { buildMergeTagContext } from "@/lib/merge-tags";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import { ChecklistBuilder } from "./checklist-builder";
 
@@ -16,14 +16,7 @@ type AdminChecklistPageProps = {
 export default async function AdminChecklistPage({
   params,
 }: AdminChecklistPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const { eventId } = await params;
   const event = await getAdminEventById(eventId);

@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { appConfig } from "@/lib/env";
+import { vendorFetch } from "@/lib/http/vendor-fetch";
 
 // Thin PandaDoc REST client (public API v1). Sandbox and production keys use
 // the same host; only the key differs. Every call degrades to a typed
@@ -39,11 +40,15 @@ export async function pandaDocRequest<T>(
   }
 
   try {
-    const response = await fetch(`${baseUrl(init.version ?? "v1")}${path}`, {
-      method: init.method ?? "GET",
-      headers: headers(),
-      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-    });
+    const response = await vendorFetch(
+      `${baseUrl(init.version ?? "v1")}${path}`,
+      {
+        method: init.method ?? "GET",
+        headers: headers(),
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      },
+      { label: "PandaDoc", timeoutMs: 20_000 },
+    );
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
@@ -84,9 +89,12 @@ export async function pandaDocDownload(
   }
 
   try {
-    const response = await fetch(`${appConfig.pandadoc.apiBaseUrl}${path}`, {
-      headers: headers(),
-    });
+    // Executed PDFs can be several MB; allow for the transfer.
+    const response = await vendorFetch(
+      `${appConfig.pandadoc.apiBaseUrl}${path}`,
+      { headers: headers() },
+      { label: "PandaDoc", timeoutMs: 60_000 },
+    );
     if (!response.ok) {
       return {
         ok: false,

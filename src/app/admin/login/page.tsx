@@ -17,6 +17,8 @@ const errorMessages: Record<string, string> = {
   "missing-fields": "Enter both an email and password.",
   "invalid-login": "That email/password combination did not work.",
   "missing-email": "Enter the email on your account.",
+  "no-access":
+    "That account doesn't have access to the portal yet. Ask a manager to give it a role.",
 };
 
 export default async function AdminLoginPage({

@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { createOrReuseInquiryEvent } from "@/lib/ghl/inquiry-events";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { listGhlUsers } from "@/lib/ghl/location-data";
@@ -95,7 +95,7 @@ export async function fetchInquiryFieldOptions(): Promise<{
   };
   if (!accessToken || !locationId) return fallback;
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/locations/${encodeURIComponent(locationId)}/customFields?model=opportunity`,
       { headers: getGhlApiHeaders(accessToken) },
     );
@@ -123,7 +123,7 @@ async function upsertInquiryContact(
   if (!accessToken || !locationId) {
     return { ok: false, error: "GHL is not configured." };
   }
-  const response = await fetch(`${apiBaseUrl}/contacts/upsert`, {
+  const response = await ghlFetch(`${apiBaseUrl}/contacts/upsert`, {
     method: "POST",
     headers: getGhlApiHeaders(accessToken),
     body: JSON.stringify({
@@ -164,7 +164,7 @@ async function findOpenOpportunityForContact(
     limit: "20",
   });
   if (pipelineId) params.set("pipeline_id", pipelineId);
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/opportunities/search?${params.toString()}`,
     { headers: getGhlApiHeaders(accessToken) },
   );
@@ -205,7 +205,7 @@ export async function findNewestOpenOpportunityIdForContact(
     limit: "20",
   });
   if (pipelineId) params.set("pipeline_id", pipelineId);
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/opportunities/search?${params.toString()}`,
     { headers: getGhlApiHeaders(accessToken) },
   );
@@ -276,7 +276,7 @@ export async function createPhoneInquiry(
     ...field(dateOfInterestFieldId, input.dateOfInterest),
   ];
 
-  const response = await fetch(`${apiBaseUrl}/opportunities/`, {
+  const response = await ghlFetch(`${apiBaseUrl}/opportunities/`, {
     method: "POST",
     headers: getGhlApiHeaders(accessToken),
     body: JSON.stringify({
@@ -450,7 +450,7 @@ export async function buildInquiryPayloadFromOpportunity(
   const { accessToken, apiBaseUrl, locationId, dateOfInterestFieldId } = appConfig.ghl;
   if (!accessToken || !locationId) return { ok: false, error: "GHL is not configured." };
 
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/opportunities/${encodeURIComponent(opportunityId)}`,
     { headers: getGhlApiHeaders(accessToken) },
   );

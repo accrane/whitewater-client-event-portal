@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 
 // Adds or removes one tag on a GHL contact. Removing a tag the contact
 // doesn't carry is a no-op in GHL, so removal is safe to call blind. Used
@@ -15,7 +15,7 @@ export async function setContactTag(
   if (!accessToken) return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}/tags`,
       {
         method: present ? "POST" : "DELETE",

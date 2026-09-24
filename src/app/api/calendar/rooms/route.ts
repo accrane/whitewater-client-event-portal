@@ -1,12 +1,12 @@
 import {
   calendarErrorResponse,
-  requireAdminUser,
+  requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import { createRoom, listRooms } from "@/lib/admin/room-calendar";
 
 export async function GET() {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     return Response.json(await listRooms());
   } catch (error) {
     return calendarErrorResponse(error);
@@ -15,7 +15,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const body = await request.json();
     const room = await createRoom(body);
     return Response.json(room, { status: 201 });

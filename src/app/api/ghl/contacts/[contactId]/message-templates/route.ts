@@ -1,6 +1,6 @@
 import {
   calendarErrorResponse,
-  requireAdminUser,
+  requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import { parseGhlSnapshot } from "@/lib/admin/events";
 import { formatDisplayDate } from "@/lib/dates";
@@ -55,7 +55,7 @@ export async function GET(
   { params }: { params: Promise<{ contactId: string }> },
 ) {
   try {
-    const user = await requireAdminUser();
+    const user = await requireStaffApiUser();
     const { contactId } = await params;
     const searchParams = new URL(request.url).searchParams;
     const refresh = searchParams.get("refresh") === "1";

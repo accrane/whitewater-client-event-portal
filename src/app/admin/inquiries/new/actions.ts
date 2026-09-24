@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { getSignedInPortalUser } from "@/lib/admin/users";
+import { requireStaffUser } from "@/lib/admin/session";
 import {
   backfillInquiryEvent,
   createPhoneInquiry,
@@ -29,8 +29,7 @@ export async function createPhoneInquiryAction(
   _previous: PhoneInquiryFormState,
   formData: FormData,
 ): Promise<PhoneInquiryFormState> {
-  const portalUser = await getSignedInPortalUser();
-  if (!portalUser) redirect("/admin/login");
+  const portalUser = await requireStaffUser();
 
   const firstName = text(formData, "firstName") ?? "";
   const lastName = text(formData, "lastName") ?? "";
@@ -88,8 +87,7 @@ export async function createPhoneInquiryAction(
 }
 
 export async function backfillInquiryEventAction(formData: FormData) {
-  const portalUser = await getSignedInPortalUser();
-  if (!portalUser) redirect("/admin/login");
+  const portalUser = await requireStaffUser();
 
   const opportunityId = String(formData.get("opportunityId") ?? "").trim();
   if (!opportunityId) throw new Error("Missing opportunity id");

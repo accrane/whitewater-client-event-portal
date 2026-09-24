@@ -29,6 +29,9 @@ export default function AdminError({
         <div className="mt-5 flex gap-2">
           <Button onClick={reset}>Try again</Button>
           <Button
+            // A full reload on purpose: it drops whatever client state broke
+            // the page, which a client-side navigation would keep.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
             onClick={() => window.location.assign("/admin")}
             variant="secondary"
           >

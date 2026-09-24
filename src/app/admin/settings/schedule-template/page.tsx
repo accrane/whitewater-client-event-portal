@@ -1,21 +1,13 @@
-import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SettingsNav } from "@/components/admin/settings-nav";
 import { getScheduleTemplateItems } from "@/lib/admin/event-schedule";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import { TemplateEditor } from "./template-editor";
 
 export default async function ScheduleTemplatePage() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const items = await getScheduleTemplateItems();
 

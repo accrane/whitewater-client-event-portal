@@ -1,6 +1,6 @@
 import {
   calendarErrorResponse,
-  requireAdminUser,
+  requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import {
   createReservation,
@@ -13,7 +13,7 @@ type ReservationInsert = Database["public"]["Tables"]["reservations"]["Insert"];
 
 export async function GET(request: Request) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const { searchParams } = new URL(request.url);
     const reservations = await listReservations({
       start: searchParams.get("start") ?? undefined,
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireAdminUser();
+    const user = await requireStaffApiUser();
     const body = (await request.json()) as ReservationInsert;
     const reservation = await createReservation({
       ...body,

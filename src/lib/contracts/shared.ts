@@ -95,6 +95,8 @@ export type EventContract = {
   viewedAt: string | null;
   completedAt: string | null;
   signedActionsAppliedAt: string | null;
+  // Signed-contract steps that failed and are waiting to be retried.
+  signedActionsPending: SignedContractStep[];
   // Short-lived download link for the archived signed PDF (admin only).
   signedPdfUrl: string | null;
   lastError: string | null;
@@ -117,6 +119,45 @@ export const OPEN_CONTRACT_STATUSES: ContractStatus[] = [
 // Statuses where the client can sign right now. "approval" is open but not
 // signable: the template's approval workflow is holding it in PandaDoc.
 export const SIGNABLE_CONTRACT_STATUSES: ContractStatus[] = ["sent", "viewed"];
+
+// What signing a contract sets in motion (applySignedContractActions). A step
+// that fails is kept on the contract row and retried on its own until it
+// succeeds; the Contracts tab lists what's left as "Still to do".
+export type SignedContractStep =
+  | "reservations"
+  | "ghl_stage"
+  | "follow_ups"
+  | "signed_pdf";
+
+export const SIGNED_CONTRACT_STEPS: SignedContractStep[] = [
+  "reservations",
+  "ghl_stage",
+  "follow_ups",
+  "signed_pdf",
+];
+
+export const SIGNED_CONTRACT_STEP_LABELS: Record<SignedContractStep, string> = {
+  reservations: "Mark the event's rooms as booked",
+  ghl_stage: "Move the GHL opportunity to Booked",
+  follow_ups: "Resume the contact's paused follow-ups",
+  signed_pdf: "Save a copy of the signed PDF",
+};
+
+// Known steps only, in their usual order (the column is a free text[]).
+export function parseSignedContractSteps(value: unknown): SignedContractStep[] {
+  if (!Array.isArray(value)) return [];
+  return SIGNED_CONTRACT_STEPS.filter((step) => value.includes(step));
+}
+
+// A step outcome starting "error" means it has to run again; anything else
+// (done, or "skipped: …" when there was nothing to do) is finished.
+export function failedSignedContractSteps(
+  outcomes: Partial<Record<SignedContractStep, string>>,
+): SignedContractStep[] {
+  return SIGNED_CONTRACT_STEPS.filter((step) =>
+    outcomes[step]?.startsWith("error"),
+  );
+}
 
 // Statuses a coordinator can still edit (the PandaDoc document exists and no one
 // has signed). "draft" covers a re-send that failed halfway.

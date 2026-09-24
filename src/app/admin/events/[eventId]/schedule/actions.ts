@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import {
   applyScheduleItemsTemplate,
@@ -10,18 +9,7 @@ import {
   saveScheduleItem,
   type ScheduleItemInput,
 } from "@/lib/admin/event-schedule";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-
-async function requireCoordinator() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
-}
+import { requireStaffUser } from "@/lib/admin/session";
 
 function revalidateSchedule(eventId: string) {
   revalidatePath(`/admin/events/${eventId}/schedule`);
@@ -29,7 +17,7 @@ function revalidateSchedule(eventId: string) {
 }
 
 export async function applyScheduleItemsTemplateAction(eventId: string) {
-  await requireCoordinator();
+  await requireStaffUser();
   await applyScheduleItemsTemplate(eventId);
   revalidateSchedule(eventId);
 }
@@ -38,13 +26,13 @@ export async function saveScheduleItemAction(
   eventId: string,
   input: ScheduleItemInput,
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await saveScheduleItem(eventId, input);
   revalidateSchedule(eventId);
 }
 
 export async function deleteScheduleItemAction(eventId: string, itemId: string) {
-  await requireCoordinator();
+  await requireStaffUser();
   await deleteScheduleItem(eventId, itemId);
   revalidateSchedule(eventId);
 }
@@ -54,7 +42,7 @@ export async function moveScheduleItemAction(
   itemId: string,
   direction: "up" | "down",
 ) {
-  await requireCoordinator();
+  await requireStaffUser();
   await moveScheduleItem(eventId, itemId, direction);
   revalidateSchedule(eventId);
 }

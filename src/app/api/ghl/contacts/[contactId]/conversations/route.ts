@@ -1,6 +1,8 @@
+import { after } from "next/server";
+
 import {
   calendarErrorResponse,
-  requireAdminUser,
+  requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import { appConfig } from "@/lib/env";
 import { fetchGhlContact, type GhlContactDnd } from "@/lib/ghl/contacts";
@@ -8,6 +10,7 @@ import {
   listContactConversations,
   sendConversationMessage,
 } from "@/lib/ghl/conversations";
+import { markContactRepliesSeen } from "@/lib/ghl/replies";
 
 // Conversations drawer backend, keyed by GHL contact id so the drawer works
 // anywhere a contact appears (admin event page, opportunities board). GET
@@ -15,7 +18,8 @@ import {
 // Not Disturb state; POST sends a typed reply through GHL, refusing a
 // channel the contact has DND on (the drawer hides it, but this is the
 // backstop). An optional eventId in the POST body links the integration log
-// row to a portal event when the drawer was opened from one.
+// row to a portal event when the drawer was opened from one. Opening the
+// drawer (or replying) clears the pipeline's "New reply" flag for the contact.
 
 const NO_DND: GhlContactDnd = { all: false, sms: false, email: false };
 
@@ -28,12 +32,13 @@ export async function GET(
   { params }: { params: Promise<{ contactId: string }> },
 ) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const { contactId } = await params;
     const [conversations, contact] = await Promise.all([
       listContactConversations(contactId),
       fetchGhlContact(contactId),
     ]);
+    after(() => markContactRepliesSeen(contactId));
     return Response.json({ conversations, dnd: contact?.dnd ?? NO_DND });
   } catch (error) {
     return calendarErrorResponse(error);
@@ -45,7 +50,7 @@ export async function POST(
   { params }: { params: Promise<{ contactId: string }> },
 ) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const { contactId } = await params;
 
     const payload = (await request.json()) as {
@@ -100,6 +105,7 @@ export async function POST(
       return Response.json({ error: outcome.error }, { status: 502 });
     }
 
+    after(() => markContactRepliesSeen(contactId));
     return Response.json({ ok: true });
   } catch (error) {
     return calendarErrorResponse(error);

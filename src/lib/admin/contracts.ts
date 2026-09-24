@@ -37,9 +37,12 @@ import {
   EDITABLE_CONTRACT_STATUSES,
   OPEN_CONTRACT_STATUSES,
   SIGNABLE_CONTRACT_STATUSES,
+  SIGNED_CONTRACT_STEPS,
   calculateContractSubtotal,
+  failedSignedContractSteps,
   isCountedLineItem,
   parseContractLineItems,
+  parseSignedContractSteps,
   toNumber,
   type ClientContract,
   type ContractCatalogItem,
@@ -47,6 +50,7 @@ import {
   type ContractStatus,
   type ContractTemplateLayout,
   type EventContract,
+  type SignedContractStep,
 } from "@/lib/contracts/shared";
 import type { Database, Json } from "@/types/database";
 
@@ -98,6 +102,7 @@ function mapContractRow(
     viewedAt: row.viewed_at,
     completedAt: row.completed_at,
     signedActionsAppliedAt: row.signed_actions_applied_at,
+    signedActionsPending: parseSignedContractSteps(row.signed_actions_pending),
     signedPdfUrl,
     lastError: row.last_error,
     createdBy: row.created_by,
@@ -1020,7 +1025,11 @@ export async function syncContractFromPandaDoc(
 
   let updated = await updateContractRow(row.id, patch);
 
-  if (updated.status === "completed" && !updated.signed_actions_applied_at) {
+  if (
+    updated.status === "completed" &&
+    (!updated.signed_actions_applied_at ||
+      parseSignedContractSteps(updated.signed_actions_pending).length > 0)
+  ) {
     updated = await applySignedContractActions(updated);
   } else if (updated.status === "completed" && !updated.signed_pdf_path) {
     const archived = await archiveSignedPdf(updated);
@@ -1196,6 +1205,7 @@ export async function syncOpenContracts(limit: number): Promise<number> {
       console.error("Event value sync failed", eventId, valueError);
     }
   }
+  await retryPendingSignedContracts({ limit: 10 });
   return synced;
 }
 
@@ -1264,83 +1274,184 @@ async function archiveSignedPdf(
   return { ok: true, bucket, path };
 }
 
-// What "signed" sets in motion. Each step is independent and best-effort;
-// the applied timestamp is written once regardless so nothing re-runs, and
-// every outcome is in integration_logs for the admin to audit.
+// What "signed" sets in motion. Each step is independent: one that fails (GHL
+// down, PandaDoc slow) is recorded in signed_actions_pending and run again —
+// on its own — by the next sync (the PandaDoc webhook, page views, Refresh),
+// and the Contracts tab lists it as still to do. Finished steps never re-run,
+// so rooms a coordinator changes after signing aren't touched again. Every
+// attempt is in integration_logs.
 async function applySignedContractActions(
   row: ContractRow,
 ): Promise<ContractRow> {
+  const firstRun = !row.signed_actions_applied_at;
+  const steps = firstRun
+    ? SIGNED_CONTRACT_STEPS
+    : parseSignedContractSteps(row.signed_actions_pending);
+  if (steps.length === 0) return row;
+
+  // Claim the run so the webhook, the portal signer and a page-load sync
+  // can't apply the same steps twice at once. The first run stamps
+  // signed_actions_applied_at and marks every step pending, so a run that
+  // dies midway leaves them all to retry; a retry claims by updated_at,
+  // which every write to the row bumps.
   const supabase = createServiceRoleSupabaseClient();
-  const { data: eventData } = await supabase
+  const claim = supabase
+    .from("event_contracts")
+    .update({
+      signed_actions_applied_at:
+        row.signed_actions_applied_at ?? new Date().toISOString(),
+      signed_actions_pending: steps,
+      signed_actions_attempts: (row.signed_actions_attempts ?? 0) + 1,
+    } as never)
+    .eq("id", row.id);
+  const { data: claimed, error: claimError } = await (firstRun
+    ? claim.is("signed_actions_applied_at", null)
+    : claim.eq("updated_at", row.updated_at)
+  )
+    .select("*")
+    .maybeSingle();
+  if (claimError) {
+    throw new Error(`Unable to start signed-contract steps: ${claimError.message}`);
+  }
+  if (!claimed) {
+    // Another sync is already on it.
+    return (await getContractRow(row.id)) ?? row;
+  }
+
+  const { data: eventData, error: eventError } = await supabase
     .from("events")
     .select("*")
     .eq("id", row.event_id)
     .maybeSingle();
   const event = (eventData as EventRow | null) ?? null;
+  // A failed lookup is worth another try; a deleted event isn't.
+  const noEvent = eventError
+    ? `error: couldn't load the event (${eventError.message})`
+    : "skipped: event not found";
 
-  const outcomes: Record<string, string> = {};
+  const outcomes: Partial<Record<SignedContractStep, string>> = {};
 
-  // 1. Rooms: every held reservation on the event becomes booked.
-  try {
-    await setEventReservationsStatus({
-      eventId: row.event_id,
-      status: "booked",
-    });
-    outcomes.reservations = "booked";
-  } catch (error) {
-    outcomes.reservations = `error: ${error instanceof Error ? error.message : String(error)}`;
+  // 1. Rooms: every reservation on the event becomes booked.
+  if (steps.includes("reservations")) {
+    try {
+      await setEventReservationsStatus({
+        eventId: row.event_id,
+        status: "booked",
+      });
+      outcomes.reservations = "booked";
+    } catch (error) {
+      outcomes.reservations = `error: ${error instanceof Error ? error.message : String(error)}`;
+    }
   }
 
   // 2. GHL: opportunity → Booked stage.
-  if (event) {
-    const moved = await moveOpportunityToBooked(event);
-    outcomes.ghl_stage = moved.ok
-      ? "booked"
-      : moved.skipped
-        ? `skipped: ${moved.error}`
-        : `error: ${moved.error}`;
-  } else {
-    outcomes.ghl_stage = "skipped: event not found";
+  if (steps.includes("ghl_stage")) {
+    if (event) {
+      const moved = await moveOpportunityToBooked(event);
+      outcomes.ghl_stage = moved.ok
+        ? "booked"
+        : moved.skipped
+          ? `skipped: ${moved.error}`
+          : `error: ${moved.error}`;
+    } else {
+      outcomes.ghl_stage = noEvent;
+    }
   }
 
-  // 2b. A booked deal no longer needs its follow-ups paused.
-  if (event) {
-    outcomes.follow_ups = await resumeFollowUpsForEvent(event, "booked");
+  // 3. A booked deal no longer needs its follow-ups paused.
+  if (steps.includes("follow_ups")) {
+    outcomes.follow_ups = event
+      ? await resumeFollowUpsForEvent(event, "booked")
+      : noEvent;
   }
 
-  // 3. Archive the executed PDF in Supabase storage.
-  const archived = await archiveSignedPdf(row);
-  outcomes.signed_pdf = archived.ok
-    ? archived.path
-    : `error: ${archived.error}`;
+  // 4. Archive the executed PDF in Supabase storage.
+  let archived: Awaited<ReturnType<typeof archiveSignedPdf>> | null = null;
+  if (steps.includes("signed_pdf")) {
+    archived = await archiveSignedPdf(row);
+    outcomes.signed_pdf = archived.ok
+      ? archived.path
+      : `error: ${archived.error}`;
+  }
 
+  const stillPending = failedSignedContractSteps(outcomes);
   const updated = await updateContractRow(row.id, {
-    signed_actions_applied_at: new Date().toISOString(),
-    ...(archived.ok
+    signed_actions_pending: stillPending,
+    ...(archived?.ok
       ? { signed_pdf_bucket: archived.bucket, signed_pdf_path: archived.path }
       : {}),
   });
 
-  const anyError = Object.values(outcomes).some((value) =>
-    value.startsWith("error"),
-  );
   await logIntegrationEvent({
     direction: "PANDADOC_TO_PORTAL",
-    eventType: "contract_signed",
+    eventType: firstRun ? "contract_signed" : "contract_signed_retry",
     ghlLocationId: event?.ghl_location_id ?? null,
     portalEventId: row.event_id,
-    status: anyError ? "warning" : "success",
-    message: anyError
-      ? "Contract signed; some follow-up actions need attention."
-      : "Contract signed: rooms booked, GHL opportunity moved to Booked, PDF archived.",
+    status: stillPending.length > 0 ? "warning" : "success",
+    message: firstRun
+      ? stillPending.length > 0
+        ? "Contract signed; some follow-up steps failed and will be retried automatically."
+        : "Contract signed: rooms booked, GHL opportunity moved to Booked, PDF archived."
+      : stillPending.length > 0
+        ? "Retried the signed-contract steps that failed earlier; some still need another try."
+        : "Signed-contract steps that failed earlier have now finished.",
     details: {
       contract_id: row.id,
       pandadoc_document_id: row.pandadoc_document_id,
       ...outcomes,
+      still_pending: stillPending,
     },
   });
 
   return updated;
+}
+
+// Safety net for signed contracts whose follow-up steps haven't all run: a
+// step that failed, or a run that never started (a webhook that errored just
+// after saving the status). Completed contracts aren't in the open-status
+// sweeps, so page loads call this too. Rows written in the last two minutes
+// are left alone so an outage isn't retried on every page view, and a step
+// that keeps failing (say, an opportunity deleted in GHL) stops retrying on
+// its own after ten runs; the webhook and Refresh status still try. Never
+// throws.
+const SIGNED_STEP_RETRY_AFTER_MS = 2 * 60 * 1000;
+const SIGNED_STEP_MAX_AUTO_ATTEMPTS = 10;
+
+export async function retryPendingSignedContracts(options: {
+  eventId?: string;
+  limit: number;
+}): Promise<number> {
+  const supabase = createServiceRoleSupabaseClient();
+  let query = supabase
+    .from("event_contracts")
+    .select("*")
+    .eq("status", "completed")
+    .or("signed_actions_applied_at.is.null,signed_actions_pending.neq.{}")
+    .lt("signed_actions_attempts", SIGNED_STEP_MAX_AUTO_ATTEMPTS)
+    .lt(
+      "updated_at",
+      new Date(Date.now() - SIGNED_STEP_RETRY_AFTER_MS).toISOString(),
+    )
+    .order("updated_at", { ascending: true })
+    .limit(options.limit);
+  if (options.eventId) query = query.eq("event_id", options.eventId);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Unable to load contracts with pending signed steps", error.message);
+    return 0;
+  }
+
+  let retried = 0;
+  for (const row of (data ?? []) as ContractRow[]) {
+    try {
+      await applySignedContractActions(row);
+      retried += 1;
+    } catch (retryError) {
+      console.error("Signed-contract retry failed", row.id, retryError);
+    }
+  }
+  return retried;
 }
 
 // Coordinator-side refresh button.

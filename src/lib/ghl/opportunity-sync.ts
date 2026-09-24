@@ -2,7 +2,7 @@ import { after } from "next/server";
 
 import { notifyCoordinatorAssigned } from "@/lib/email/notify-coordinator-assigned";
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { assignContactUser } from "@/lib/ghl/contacts";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { fetchOpportunityFieldIndex } from "@/lib/ghl/location-data";
@@ -35,14 +35,24 @@ async function updateGhlOpportunity(
     return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
   }
 
-  const response = await fetch(
-    `${apiBaseUrl}/opportunities/${encodeURIComponent(opportunityId)}`,
-    {
-      method: "PUT",
-      headers: getGhlApiHeaders(accessToken),
-      body: JSON.stringify(body),
-    },
-  );
+  // Callers record the outcome (and the signed-contract steps retry on it),
+  // so a network error or timeout must come back as a result, not a throw.
+  let response: Response;
+  try {
+    response = await ghlFetch(
+      `${apiBaseUrl}/opportunities/${encodeURIComponent(opportunityId)}`,
+      {
+        method: "PUT",
+        headers: getGhlApiHeaders(accessToken),
+        body: JSON.stringify(body),
+      },
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Could not reach GHL: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 
   if (!response.ok) {
     const responseText = await response.text().catch(() => "");
@@ -456,7 +466,7 @@ export async function moveOpportunityToProposalSent(input: {
 
     const [pipeline, response] = await Promise.all([
       fetchConfiguredPipeline(),
-      fetch(`${apiBaseUrl}/opportunities/${encodeURIComponent(opportunityId)}`, {
+      ghlFetch(`${apiBaseUrl}/opportunities/${encodeURIComponent(opportunityId)}`, {
         headers: getGhlApiHeaders(accessToken),
       }),
     ]);

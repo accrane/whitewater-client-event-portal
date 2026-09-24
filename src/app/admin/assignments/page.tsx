@@ -1,6 +1,5 @@
 import { addMonths, format, isSameMonth, subMonths } from "date-fns";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { buttonClasses } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import {
   type UpcomingAssignment,
 } from "@/lib/admin/room-calendar";
 import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import {
   monthGridRange,
@@ -147,14 +146,7 @@ type AdminAssignmentsPageProps = {
 export default async function AdminAssignmentsPage({
   searchParams,
 }: AdminAssignmentsPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const params = await searchParams;
   const view = params.view === "columns" ? "columns" : "calendar";

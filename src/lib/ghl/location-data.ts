@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { findDateOfInterest } from "@/lib/ghl/field-values";
 
 // Read-only lookups against the GHL location. Every function degrades to an
@@ -19,7 +19,7 @@ export async function listGhlUsers(): Promise<GhlUser[]> {
   if (!accessToken || !locationId) return [];
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/users/?locationId=${encodeURIComponent(locationId)}`,
       { headers: getGhlApiHeaders(accessToken) },
     );
@@ -80,7 +80,7 @@ export async function fetchOpportunity(
   if (!accessToken) return null;
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/opportunities/${encodeURIComponent(opportunityId)}`,
       { headers: getGhlApiHeaders(accessToken) },
     );
@@ -128,7 +128,7 @@ export async function fetchOpportunityFieldIndex(): Promise<Map<string, string>>
   if (!accessToken || !locationId) return index;
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       `${apiBaseUrl}/locations/${encodeURIComponent(locationId)}/customFields?model=opportunity`,
       { headers: getGhlApiHeaders(accessToken) },
     );
@@ -165,7 +165,7 @@ export async function fetchDatesOfInterest(): Promise<Map<string, string>> {
   try {
     // Follow pagination a few pages deep; active opportunities land early.
     for (let page = 0; url && page < 5; page++) {
-      const response: Response = await fetch(url, {
+      const response: Response = await ghlFetch(url, {
         headers: getGhlApiHeaders(accessToken),
       });
       if (!response.ok) {

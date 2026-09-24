@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { setContactTag } from "@/lib/ghl/contact-tags";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { listGhlUsers } from "@/lib/ghl/location-data";
@@ -276,7 +276,7 @@ export async function reconcileFollowUpPauses(limit = 25): Promise<number> {
   let lifted = 0;
   for (const pause of active.slice(0, limit)) {
     try {
-      const response = await fetch(
+      const response = await ghlFetch(
         `${apiBaseUrl}/opportunities/${encodeURIComponent(pause.ghlOpportunityId!)}`,
         { headers: getGhlApiHeaders(accessToken) },
       );

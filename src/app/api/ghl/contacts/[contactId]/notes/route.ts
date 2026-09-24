@@ -2,7 +2,7 @@ import { after } from "next/server";
 
 import {
   calendarErrorResponse,
-  requireAdminUser,
+  requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import { appConfig } from "@/lib/env";
 import { storeContactBadgeCounts } from "@/lib/ghl/badge-cache";
@@ -19,7 +19,7 @@ export async function GET(
   { params }: { params: Promise<{ contactId: string }> },
 ) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const { contactId } = await params;
 
     const [notes, users] = await Promise.all([
@@ -49,7 +49,7 @@ export async function POST(
   { params }: { params: Promise<{ contactId: string }> },
 ) {
   try {
-    const user = await requireAdminUser();
+    const user = await requireStaffApiUser();
     const { contactId } = await params;
 
     const payload = (await request.json()) as { body?: string; eventId?: string };
