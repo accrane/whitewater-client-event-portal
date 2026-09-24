@@ -367,14 +367,15 @@ tax; the form warns you if a catering item ends up in another table.
   emails the client if you tick "also email from PandaDoc".
 - Every contract stays on the event: name, terms, items, status, PandaDoc
   link, signed date. The Event summary lists them with a status pill and two
-  links: **View in PandaDoc** (staff, needs your PandaDoc login) and
+  links: **View in PandaDoc** (managers only, needs a PandaDoc login) and
   **Customer View**, the customer's own public PandaDoc link — no login
   needed. Clicking it **copies** the link (you'll see "Copied!") instead of
   opening it, so you can paste it to the customer without your own visit
   showing up as theirs. It appears once PandaDoc has
   sent the contract (not for drafts or ones awaiting approval). The
   Contracts tab shows the full history, totals, **Refresh status**, **Open
-  in PandaDoc**, and the archived **Signed PDF** once executed.
+  in PandaDoc** (managers only), and the archived **Signed PDF** once
+  executed.
 - **When the client signs:** the GHL opportunity moves to **Booked** and
   the signed PDF is archived. This happens the moment they finish signing in
   the portal, or on the next refresh of the event page. The rooms stay
@@ -500,7 +501,7 @@ contact and opportunity are otherwise untouched.
 | **— Contracts** | PandaDoc contracts for the event: create, edit unsigned ones, history with status and totals, signed PDF, refresh status. |
 | **— Checklist** | The event's checklist. |
 | **— Schedule & Notes** | Event-day schedule grid and sectioned notes. |
-| **Contracts** | Every PandaDoc contract in one list. **Open** holds anything not yet signed, with contracts waiting for a manager's approval at the top and an **Approve in PandaDoc** button that opens the document directly; **History** holds signed, declined, and voided ones. Search by contract, event, or customer name; filter by coordinator (managers only), status, and event date. Managers see every event's contracts; coordinators see only their own. **Refresh statuses** re-reads every open contract from PandaDoc. |
+| **Contracts** | Every PandaDoc contract in one list. **Open** holds anything not yet signed, with contracts waiting for a manager's approval at the top and, for managers, an **Approve in PandaDoc** button that opens the document directly (coordinators see the status but no PandaDoc buttons); **History** holds signed, declined, and voided ones. Search by contract, event, or customer name; filter by coordinator (managers only), status, and event date. Managers see every event's contracts; coordinators see only their own. **Refresh statuses** re-reads every open contract from PandaDoc. |
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
 | **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
 | **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, and the pause switch; hover any of them for a label. When a client writes in (email, text, chat), their card gets a blue **New reply** badge and a red dot on the conversations button, and the stage tab gets a red dot too, so you can see at a glance which stages have clients waiting. Opening that contact's conversations (or replying) clears it. The **Won** tab is the contact list for rebooking. |
@@ -568,11 +569,13 @@ Payment, the wedding ones) work as they are. If you build a new one:
 
 - **Refresh status** on the Contracts tab re-reads the document from
   PandaDoc; the event page does the same each time it opens.
-- **Open in PandaDoc** / **View in PandaDoc** goes to the document for
-  staff. **Customer View** on the Event summary is the customer's personal
-  PandaDoc link: whoever opens it *is* the customer as far as PandaDoc is
-  concerned — it marks the contract viewed and the page can sign it. That
-  is why it copies rather than opens; only send it to the customer.
+- **Open in PandaDoc** / **View in PandaDoc** goes to the document in
+  PandaDoc. Only managers see these links: contracts are approved in
+  PandaDoc, and coordinators don't approve their own. **Customer View** on
+  the Event summary is the customer's personal PandaDoc link: whoever
+  opens it *is* the customer as far as PandaDoc is concerned — it marks the
+  contract viewed and the page can sign it. That is why it copies rather
+  than opens; only send it to the customer.
 - A contract can only be signed while it is sent or viewed — not while it
   is a draft or awaiting approval.
 - **Contract payments** are tracked on each signed contract: Payment

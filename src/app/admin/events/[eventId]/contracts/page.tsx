@@ -8,6 +8,7 @@ import {
   syncEventContracts,
 } from "@/lib/admin/contracts";
 import { getAdminEventById } from "@/lib/admin/events";
+import { getUserRole } from "@/lib/admin/users";
 import { formatEventDayHeading } from "@/lib/dates";
 import { eventDayList } from "@/lib/dates/event-dates";
 import { requireStaffUser } from "@/lib/admin/session";
@@ -28,6 +29,7 @@ export default async function AdminContractsPage({
   params,
 }: AdminContractsPageProps) {
   const { user } = await requireStaffUser();
+  const isAdmin = getUserRole(user) === "admin";
 
   const { eventId } = await params;
   const event = await getAdminEventById(eventId);
@@ -38,10 +40,16 @@ export default async function AdminContractsPage({
 
   await syncEventContracts(eventId);
 
-  const [contracts, templateOptions] = await Promise.all([
+  const [allContracts, templateOptions] = await Promise.all([
     listEventContracts(eventId, { withSignedUrls: true }),
     getContractTemplateOptions(),
   ]);
+  // PandaDoc is where contracts are approved and coordinators may not
+  // approve their own, so only managers get the staff PandaDoc link (left
+  // out of the page entirely for coordinators, not just hidden).
+  const contracts = isAdmin
+    ? allContracts
+    : allContracts.map((contract) => ({ ...contract, pandadocUrl: null }));
 
   const eventDay = formatEventDayHeading(event.eventDate);
   const defaultSectionTitle =

@@ -467,11 +467,13 @@ export default async function AdminEventDetailPage({
                       {contractPaymentLabel(contract)}
                     </span>
                   ) : null}
-                  {/* PandaDoc needs a staff login. Customer View is the
-                      customer's own public PandaDoc link (issued on send):
-                      copy-only, because opening it counts as the customer
-                      viewing the contract. */}
-                  {contract.pandadocUrl ? (
+                  {/* PandaDoc needs a staff login, and it's where contracts
+                      are approved, so only managers get the link:
+                      coordinators may not approve their own. Customer View
+                      is the customer's own public PandaDoc link (issued on
+                      send): copy-only, because opening it counts as the
+                      customer viewing the contract. */}
+                  {isAdmin && contract.pandadocUrl ? (
                     <a
                       className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
                       href={contract.pandadocUrl}
@@ -481,7 +483,7 @@ export default async function AdminEventDetailPage({
                       View in PandaDoc
                     </a>
                   ) : null}
-                  {contract.pandadocUrl && contract.customerViewUrl ? (
+                  {isAdmin && contract.pandadocUrl && contract.customerViewUrl ? (
                     <span aria-hidden="true" className="text-slate-300">
                       |
                     </span>

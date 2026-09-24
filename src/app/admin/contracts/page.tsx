@@ -316,6 +316,7 @@ export default async function AdminContractsPage({
       ) : (
         <ContractTable
           rows={rows}
+          showPandaDocLinks={isAdmin}
           showValues={isAdmin}
           tab={filters.tab}
         />
@@ -329,10 +330,14 @@ const controlClass =
 
 function ContractTable({
   rows,
+  showPandaDocLinks,
   showValues,
   tab,
 }: {
   rows: AdminContractListItem[];
+  // PandaDoc is where contracts are approved and coordinators may not
+  // approve their own, so the column is managers-only.
+  showPandaDocLinks: boolean;
   showValues: boolean;
   tab: ContractListTab;
 }) {
@@ -348,7 +353,9 @@ function ContractTable({
               <th className="px-4 py-2">Customer</th>
               <th className="px-4 py-2">Status</th>
               {showValues ? <th className="px-4 py-2 text-right">Amount</th> : null}
-              <th className="px-5 py-2 text-right">PandaDoc</th>
+              {showPandaDocLinks ? (
+                <th className="px-5 py-2 text-right">PandaDoc</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -396,28 +403,30 @@ function ContractTable({
                       {contract.amount !== null ? currency.format(contract.amount) : "—"}
                     </td>
                   ) : null}
-                  <td className="px-5 py-3 text-right align-top whitespace-nowrap">
-                    {contract.pandadocDocumentId ? (
-                      <a
-                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                          needsApproval
-                            ? "bg-slate-950 text-white hover:bg-slate-800"
-                            : "border border-slate-300 text-slate-700 hover:bg-slate-100"
-                        }`}
-                        href={pandaDocDocumentUrl(contract.pandadocDocumentId)}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {needsApproval ? "Approve in PandaDoc" : tab === "open" ? "Open in PandaDoc" : "View in PandaDoc"}
-                        <Icon className="h-3.5 w-3.5">
-                          <path d="M7 17 17 7" />
-                          <path d="M8 7h9v9" />
-                        </Icon>
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-400">Not in PandaDoc</span>
-                    )}
-                  </td>
+                  {showPandaDocLinks ? (
+                    <td className="px-5 py-3 text-right align-top whitespace-nowrap">
+                      {contract.pandadocDocumentId ? (
+                        <a
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                            needsApproval
+                              ? "bg-slate-950 text-white hover:bg-slate-800"
+                              : "border border-slate-300 text-slate-700 hover:bg-slate-100"
+                          }`}
+                          href={pandaDocDocumentUrl(contract.pandadocDocumentId)}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {needsApproval ? "Approve in PandaDoc" : tab === "open" ? "Open in PandaDoc" : "View in PandaDoc"}
+                          <Icon className="h-3.5 w-3.5">
+                            <path d="M7 17 17 7" />
+                            <path d="M8 7h9v9" />
+                          </Icon>
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-400">Not in PandaDoc</span>
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
