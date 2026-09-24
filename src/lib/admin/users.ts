@@ -2,64 +2,31 @@ import { redirect } from "next/navigation";
 
 import type { User } from "@supabase/supabase-js";
 
+import { getUserRole, type PortalRole } from "@/lib/admin/roles";
+import { requireStaffUser, type StaffUser } from "@/lib/admin/session";
 import { sendEmail } from "@/lib/email";
 import { buildPasswordResetEmail } from "@/lib/email/password-reset";
-import {
-  createServerSupabaseClient,
-  createServiceRoleSupabaseClient,
-} from "@/lib/supabase/server";
+import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 
-// Roles live in Supabase auth app_metadata.role — only the service role can
-// write it, so a signed-in user cannot escalate themselves. Anyone without an
-// explicit role is treated as a coordinator (least privilege). The "admin"
-// role is shown to people as "Manager"; "admin" stays the stored value.
-export type PortalRole = "admin" | "coordinator";
-
-export const PORTAL_ROLES: PortalRole[] = ["admin", "coordinator"];
-
-export function getUserRole(user: User): PortalRole {
-  return user.app_metadata?.role === "admin" ? "admin" : "coordinator";
-}
-
-export async function getSignedInPortalUser(): Promise<{
-  user: User;
-  role: PortalRole;
-} | null> {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return null;
-  }
-
-  return { user, role: getUserRole(user) };
-}
+export { getUserRole, PORTAL_ROLES, type PortalRole } from "@/lib/admin/roles";
 
 // Page/action guard for the admin-only section: signed out lands on login,
 // coordinators land back on the dashboard.
-export async function requireAdminUser(): Promise<{
-  user: User;
-  role: PortalRole;
-}> {
-  const portalUser = await getSignedInPortalUser();
+export async function requireAdminUser(): Promise<StaffUser> {
+  const staff = await requireStaffUser();
 
-  if (!portalUser) {
-    redirect("/admin/login");
-  }
-
-  if (portalUser.role !== "admin") {
+  if (staff.role !== "admin") {
     redirect("/admin");
   }
 
-  return portalUser;
+  return staff;
 }
 
 export type PortalUserSummary = {
   id: string;
   email: string;
-  role: PortalRole;
+  // Null: the account has no portal access until a manager picks a role.
+  role: PortalRole | null;
   createdAt: string;
   lastSignInAt: string | null;
 };

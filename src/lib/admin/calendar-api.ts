@@ -1,18 +1,16 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { RoomCalendarError } from "@/lib/admin/room-calendar";
+import { getStaffUser } from "@/lib/admin/session";
 
-// /api routes are outside the /admin proxy matcher, so each calendar handler
-// authenticates the coordinator session itself.
-export async function requireAdminUser() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+// /api routes are outside the /admin proxy matcher, so each handler checks
+// for a staff session itself: signed in, with a portal role (any role —
+// coordinators use these routes too).
+export async function requireStaffApiUser() {
+  const staff = await getStaffUser();
 
-  if (!user) {
+  if (!staff) {
     throw new RoomCalendarError("Unauthorized", 401);
   }
-  return user;
+  return staff.user;
 }
 
 export function calendarErrorResponse(error: unknown) {

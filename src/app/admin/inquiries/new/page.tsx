@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { buttonClasses } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import {
   fetchInquiryFieldOptions,
   listOpportunitiesWithoutPortalEvent,
 } from "@/lib/ghl/phone-inquiries";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import { backfillInquiryEventAction } from "./actions";
 import { PhoneInquiryForm } from "./phone-inquiry-form";
@@ -19,11 +18,7 @@ import { PhoneInquiryForm } from "./phone-inquiry-form";
 // webhook deliveries that never arrived.
 
 export default async function NewInquiryPage() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
+  const { user } = await requireStaffUser();
 
   const [coordinators, options, missing] = await Promise.all([
     listGhlCoordinatorUsers(),

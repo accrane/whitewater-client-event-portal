@@ -19,7 +19,7 @@ import {
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
 import { setEventReservationsStatus } from "@/lib/admin/room-calendar";
 import { getUserRole } from "@/lib/admin/users";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 const launchConfirmationValue = "coordinator-approved-launch";
 
@@ -35,14 +35,7 @@ export async function launchPortalAction(formData: FormData) {
     throw new Error("Unable to launch portal: coordinator approval confirmation missing");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  await requireStaffUser();
 
   await prepareAdminPortalLaunch(eventId);
 
@@ -62,14 +55,7 @@ export async function updateEventDetailsAction(formData: FormData) {
     throw new Error("Unable to update event details: missing event ID");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const arrivalTime = String(formData.get("arrivalTime") || "").trim();
   const meetingLocation = String(formData.get("meetingLocation") || "").trim();
@@ -131,14 +117,7 @@ export async function updateEventFacilitatorAction(formData: FormData) {
     throw new Error("Unable to update facilitator: missing event ID");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  await requireStaffUser();
 
   const name = String(formData.get("facilitatorName") || "").trim();
   const email = String(formData.get("facilitatorEmail") || "").trim();
@@ -167,14 +146,7 @@ export async function reviewFacilitatorAction(formData: FormData) {
     throw new Error("Unable to review facilitator: missing event ID");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  await requireStaffUser();
 
   await markEventFacilitatorConfirmed(eventId);
 
@@ -195,14 +167,7 @@ export async function updateEventCoordinatorAction(formData: FormData) {
     throw new Error("Unable to update coordinator: select a coordinator");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   await updateEventCoordinator(eventId, ghlUserId, user.email ?? null);
 
@@ -228,14 +193,7 @@ export async function deleteEventAction(formData: FormData) {
     throw new Error("Unable to delete event: confirmation missing");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  await requireStaffUser();
 
   await deleteAdminEvent(eventId);
 
@@ -258,14 +216,7 @@ export async function applyChecklistTemplateAction(formData: FormData) {
     throw new Error("Unable to apply checklist template: missing template ID");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  await requireStaffUser();
 
   await applyChecklistTemplateToEvent({ eventId, templateId });
 
@@ -293,14 +244,7 @@ export async function updateChecklistItemAction(formData: FormData) {
     throw new Error("Unable to update checklist item: missing checklist item ID");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   await updateEventChecklistItem({
     clientVisible: formData.get("clientVisible") === "on",
@@ -335,14 +279,7 @@ export async function updateRoomBookingStatusAction(formData: FormData) {
     throw new Error("Unable to update room booking: invalid status");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  await requireStaffUser();
 
   await setEventReservationsStatus({
     eventId,
@@ -369,14 +306,7 @@ export async function reviewVendorSubmissionAction(formData: FormData) {
     throw new Error("Unable to review vendor submission: missing vendor ID");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   await markEventVendorReviewed({
     eventId,
@@ -403,14 +333,7 @@ export async function reviewUploadAction(formData: FormData) {
     throw new Error("Unable to review upload: missing upload ID");
   }
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   await markEventUploadReviewed({
     eventId,

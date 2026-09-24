@@ -1,4 +1,5 @@
 import { appConfig } from "@/lib/env";
+import { vendorFetch } from "@/lib/http/vendor-fetch";
 
 // Read-only Salesforce client for the SF → GHL contact migration
 // (docs/developer-notes.md §2). Auth is the OAuth client-credentials flow
@@ -36,15 +37,19 @@ async function getToken(): Promise<CachedToken> {
     throw new Error("Salesforce env vars are not configured");
   }
 
-  const response = await fetch(`${domain}/services/oauth2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  });
+  const response = await vendorFetch(
+    `${domain}/services/oauth2/token`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    },
+    { label: "Salesforce", timeoutMs: 30_000 },
+  );
 
   const data = (await response.json()) as TokenResponse;
   if (!response.ok || !data.access_token || !data.instance_url) {
@@ -84,9 +89,12 @@ export async function querySoql(
   let total = 0;
 
   while (url) {
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    // A page holds up to 2,000 records.
+    const response = await vendorFetch(
+      url,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      { label: "Salesforce", timeoutMs: 60_000 },
+    );
     if (!response.ok) {
       const body = await response.text();
       throw new Error(

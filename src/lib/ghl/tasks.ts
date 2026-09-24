@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { textFromMaybeHtml } from "@/lib/ghl/html-text";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 
@@ -28,7 +28,7 @@ export async function listContactTasks(
   const { accessToken, apiBaseUrl } = appConfig.ghl;
   if (!accessToken) return [];
 
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}/tasks`,
     { headers: getGhlApiHeaders(accessToken) },
   );
@@ -89,7 +89,7 @@ export async function createContactTask({
     return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
   }
 
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}/tasks`,
     {
       method: "POST",
@@ -151,7 +151,7 @@ export async function setContactTaskCompleted({
     return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
   }
 
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}/tasks/${encodeURIComponent(taskId)}/completed`,
     {
       method: "PUT",

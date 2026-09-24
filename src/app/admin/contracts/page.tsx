@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { after } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -29,7 +28,7 @@ import {
 import { getUserRole } from "@/lib/admin/users";
 import { formatDisplayDate } from "@/lib/dates";
 import { pandaDocDocumentUrl } from "@/lib/pandadoc/documents";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 // Every PandaDoc contract across every event, for the manager's approval
 // pass and for coordinators keeping an eye on their own. Open contracts
@@ -94,14 +93,7 @@ type AdminContractsPageProps = {
 export default async function AdminContractsPage({
   searchParams,
 }: AdminContractsPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const params = await searchParams;
   const isAdmin = getUserRole(user) === "admin";

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -13,7 +12,7 @@ import {
   type CompanySort,
   type CompanySortDir,
 } from "@/lib/admin/companies";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 // Companies directory: the app's permanent archive of booking history,
 // seeded from Salesforce (docs/developer-notes.md §2). Stats are computed
@@ -83,13 +82,7 @@ type CompaniesPageProps = {
 export default async function CompaniesPage({
   searchParams,
 }: CompaniesPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const params = await searchParams;
   const search = params.q?.trim() || undefined;

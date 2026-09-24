@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { htmlToText } from "@/lib/ghl/html-text";
 
 // GHL Snippets (GHL Settings → Snippets; API "location templates"), read for
@@ -66,7 +66,7 @@ async function fetchSnippets(): Promise<TemplateListResult<GhlSnippet>> {
   }
 
   try {
-    const response = await fetch(
+    const response = await ghlFetch(
       // No `originId`: GHL treats it as a filter on the snippet's origin
       // record (an agency/parent id), not the location, and setting it to the
       // location id returns an empty list even when snippets exist.

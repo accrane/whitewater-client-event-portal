@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminStatCard } from "@/components/admin/admin-stat-card";
@@ -21,7 +21,7 @@ import {
 } from "@/lib/admin/companies";
 import { getUserRole } from "@/lib/admin/users";
 import { pandaDocDocumentUrl } from "@/lib/pandadoc/documents";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 // Company detail: the Salesforce-account view their sales team is used to,
 // rebuilt on the app's own archive — header stats computed live from the
@@ -86,13 +86,7 @@ export default async function CompanyDetailPage({
   params,
   searchParams,
 }: CompanyDetailPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
   const isAdmin = getUserRole(user) === "admin";
 
   const { sfId } = await params;

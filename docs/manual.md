@@ -1,6 +1,6 @@
 # Portal Manual
 
-_Last updated: 2026-09-23._
+_Last updated: 2026-09-24._
 
 This is the working guide for the Whitewater event portal: what each screen
 is for, how an event moves from inquiry to event day, and what happens
@@ -29,11 +29,14 @@ pipeline in GHL reflects what actually happened.
 | Person | Where they work | Access |
 | --- | --- | --- |
 | **Manager** | The portal — everything, including the Admin section, user management, reports, and dollar values | Portal login, Manager role |
-| **Coordinator** | The portal — daily event work; no Admin section, no dollar values | Portal login (the default role) |
+| **Coordinator** | The portal — daily event work; no Admin section, no dollar values | Portal login, Coordinator role |
 | **Client** | Their event portal page | A private link the coordinator sends; no login |
 | **Sales** | GoHighLevel | GHL login |
 
-Roles are set by a manager under Admin → Users.
+Roles are set by a manager under Admin → Users. A login needs a role to get
+in: without one, the sign-in page says the account doesn't have access yet,
+and Admin → Users lists it as **No access** until a manager picks Manager or
+Coordinator.
 
 ### Adding a new coordinator
 
@@ -46,8 +49,8 @@ A coordinator needs two things: a GHL staff user (that is what fills the
    click **Copy**, find **Sarah**, and choose her so the new person gets
    the same permissions.
 2. **In the portal:** a manager creates their login under **Admin → Users**
-   using the same email address as their GHL user. The default role is
-   Coordinator. That email match is what lets the portal treat their
+   using the same email address as their GHL user, with the Coordinator
+   role. That email match is what lets the portal treat their
    messages, notes, and tasks as theirs in GHL, and what makes the
    dashboard's **My events** filter work.
 
@@ -201,6 +204,10 @@ Booked, or Lost? The stage is left alone.
   - The tasks button (badge = open tasks) opens the contact's **GHL
     tasks**: create tasks with a due date and assignee, and check them off,
     exactly as in GHL.
+  - The note and task counts are the ones the portal saw the last time
+    someone opened those buttons, so a note or task added straight in GHL
+    shows up in the count once someone opens it here. The drawers
+    themselves always show everything.
 - **Pause follow-ups** — GHL's chase workflows keep nudging a contact who
   has gone quiet, but a phone call never reaches GHL, so the nudges would
   keep going. The pause button (on each Opportunities card, in the
@@ -223,7 +230,9 @@ Booked, or Lost? The stage is left alone.
   includes a "Provide your event facilitator's contact info" section —
   delete it when there's no separate facilitator.
 - **Schedule & Notes** — build the event-day schedule from the whitewater
-  day template. Text fields accept merge tags that fill in per event.
+  day template. Text fields accept merge tags that fill in per event. Notes
+  keep bold, italic, lists, links, and pictures; text pasted from elsewhere
+  keeps its paragraphs and lists but takes the portal's own font and colors.
 - **Room bookings** — confirm held rooms as booked.
 
 **Automatically:**
@@ -293,6 +302,11 @@ tax; the form warns you if a catering item ends up in another table.
   **booked**, the GHL opportunity moves to **Booked**, and the signed PDF is
   archived. This happens the moment they finish signing in the portal, or
   on the next refresh of the event page.
+- **If one of those steps doesn't go through** (GHL was down for a
+  moment, say), the contract shows an amber **Still to do** list instead of
+  the green signed note. The portal tries again on its own every few
+  minutes as people use it; **Refresh status** tries again right away. Once
+  everything is done, the green note appears.
 - **Editing before signature:** an unsigned contract (Awaiting PandaDoc
   approval, Awaiting signature, Viewed by customer, or a Draft left by a
   failed send) has an **Edit** button. The same form opens prefilled;
@@ -383,7 +397,7 @@ contact and opportunity are otherwise untouched.
 | Screen | What it's for |
 | --- | --- |
 | **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones, with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
-| **Events** | All portal events with status filters (Draft, launched, past). Open one to work it. |
+| **Events** | All portal events, newest first, 50 to a page with Previous/Next at the bottom. Status filters (Draft, Launched, Past) show how many events each holds, and the search box finds an event by name, type, or coordinator across every page. Open one to work it. |
 | **New inquiry** | Phone intake form (creates the GHL contact and opportunity, then the draft event; Expedited opens the room-hold window) and the backfill list of GHL opportunities without a portal event. |
 | **Event page** | Summary (with the contracts list), coordinator, primary contact with the conversations, notes, and tasks buttons and the follow-ups pause switch, facilitator, room bookings, launch, review queues. |
 | **— Contracts** | PandaDoc contracts for the event: create, edit unsigned ones, history with status and totals, signed PDF, refresh status. |
@@ -392,7 +406,7 @@ contact and opportunity are otherwise untouched.
 | **Contracts** | Every PandaDoc contract in one list. **Open** holds anything not yet signed, with contracts waiting for a manager's approval at the top and an **Approve in PandaDoc** button that opens the document directly; **History** holds signed, declined, and voided ones. Search by contract, event, or customer name; filter by coordinator (managers only), status, and event date. Managers see every event's contracts; coordinators see only their own. **Refresh statuses** re-reads every open contract from PandaDoc. |
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
 | **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
-| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, and the pause switch; hover any of them for a label. The **Won** tab is the contact list for rebooking. |
+| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, and the pause switch; hover any of them for a label. When a client writes in (email, text, chat), their card gets a blue **New reply** badge and a red dot on the conversations button, and the stage tab gets a red dot too, so you can see at a glance which stages have clients waiting. Opening that contact's conversations (or replying) clears it. The **Won** tab is the contact list for rebooking. |
 | **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Past events list their PandaDoc documents (contract, additions, final payment) with each one's status; click one to open it in PandaDoc, where you need to be signed in. Dollar values are manager-only. |
 | **Settings** | Checklist and schedule templates that new events start from. Changes never touch events already set up. |
 | **Manual** | This guide. Opens in a new tab from the **?** beside the theme switch. |

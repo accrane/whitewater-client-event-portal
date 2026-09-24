@@ -14,6 +14,7 @@ import {
 } from "@/lib/contracts/draft-tables";
 import {
   EDITABLE_CONTRACT_STATUSES,
+  SIGNED_CONTRACT_STEP_LABELS,
   contractStatusLabels,
   groupContractLineItems,
   isCountedLineItem,
@@ -250,7 +251,21 @@ function ContractCard({
         </p>
       ) : null}
 
-      {contract.status === "completed" && contract.signedActionsAppliedAt ? (
+      {contract.status === "completed" &&
+      contract.signedActionsPending.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p>Signed {formatDateTime(contract.completedAt)}. Still to do:</p>
+          <ul className="mt-1 list-disc pl-5">
+            {contract.signedActionsPending.map((step) => (
+              <li key={step}>{SIGNED_CONTRACT_STEP_LABELS[step]}</li>
+            ))}
+          </ul>
+          <p className="mt-1">
+            The portal retries these a few times on its own; Refresh status
+            tries again now. Details are in the integration logs.
+          </p>
+        </div>
+      ) : contract.status === "completed" && contract.signedActionsAppliedAt ? (
         <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
           Signed {formatDateTime(contract.completedAt)}. Room reservations were
           marked booked and the GHL opportunity moved to Booked. Details are in

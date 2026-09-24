@@ -65,6 +65,11 @@ type ContactConversationsButtonProps = {
   opportunityId?: string;
   // Smaller trigger for tight spots like opportunity cards.
   compact?: boolean;
+  // The client has written in since anyone last opened this (pipeline cards).
+  newReply?: boolean;
+  // Called once the conversation has loaded (and the server has marked the
+  // reply seen), so a failed load leaves the flag showing.
+  onConversationLoaded?: () => void;
 };
 
 const channelLabels: Record<string, string> = {
@@ -103,15 +108,29 @@ export function ContactConversationsButton({
   eventId,
   opportunityId,
   compact = false,
+  newReply = false,
+  onConversationLoaded,
 }: ContactConversationsButtonProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      <Tooltip label={contactId ? "Conversations" : "No GHL contact linked"}>
+      <Tooltip
+        label={
+          contactId
+            ? newReply
+              ? "Conversations: new reply"
+              : "Conversations"
+            : "No GHL contact linked"
+        }
+      >
         <button
-          aria-label="Open conversations with this contact"
-          className={`rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
+          aria-label={
+            newReply
+              ? "Open conversations with this contact (new reply)"
+              : "Open conversations with this contact"
+          }
+          className={`relative rounded-full border border-slate-300 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 ${
             compact ? "p-1.5" : "p-2"
           }`}
           disabled={!contactId}
@@ -119,6 +138,9 @@ export function ContactConversationsButton({
           type="button"
         >
           <SpeechBubbleIcon size={compact ? 15 : 20} />
+          {newReply ? (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white" />
+          ) : null}
         </button>
       </Tooltip>
       {open && contactId ? (
@@ -127,6 +149,7 @@ export function ContactConversationsButton({
           contactName={contactName}
           eventId={eventId}
           onClose={() => setOpen(false)}
+          onLoaded={onConversationLoaded}
           opportunityId={opportunityId}
         />
       ) : null}
@@ -139,14 +162,22 @@ function ConversationsDrawer({
   contactName,
   eventId,
   onClose,
+  onLoaded,
   opportunityId,
 }: {
   contactId: string;
   contactName: string | null;
   eventId?: string;
   onClose: () => void;
+  onLoaded?: () => void;
   opportunityId?: string;
 }) {
+  // Latest callback without making loadConversations (and its effect) re-run
+  // whenever the parent re-renders.
+  const onLoadedRef = useRef(onLoaded);
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  });
   const [conversations, setConversations] = useState<DrawerConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -221,6 +252,7 @@ function ConversationsDrawer({
         return preferred;
       });
       setLoadError(null);
+      onLoadedRef.current?.();
     } catch (error) {
       setLoadError(
         error instanceof Error ? error.message : "Unable to load conversations",

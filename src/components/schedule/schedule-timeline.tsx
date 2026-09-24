@@ -132,7 +132,8 @@ function NotePanel({ html }: { html: string }) {
   );
 }
 
-// Renders coordinator-authored WYSIWYG HTML (trusted admin input).
+// Renders note/FAQ HTML from the admin WYSIWYG. The server sanitizes it on
+// save and on load (src/lib/html/sanitize.ts), so only formatting reaches here.
 export function NoteHtml({ html }: { html: string }) {
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(
     null,

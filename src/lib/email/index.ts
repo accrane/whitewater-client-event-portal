@@ -1,4 +1,5 @@
 import { getEnv, getOptionalEnv } from "@/lib/env";
+import { vendorFetch } from "@/lib/http/vendor-fetch";
 
 // Server-side email via the client's Mailgun account. Uses the HTTP API
 // directly (no SDK): POST /v3/{domain}/messages with basic auth.
@@ -25,13 +26,17 @@ export async function sendEmail({
 
   const body = new URLSearchParams({ from, to, subject, text, html });
 
-  const response = await fetch(`${baseUrl}/v3/${domain}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString("base64")}`,
+  const response = await vendorFetch(
+    `${baseUrl}/v3/${domain}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString("base64")}`,
+      },
+      body,
     },
-    body,
-  });
+    { label: "Mailgun", timeoutMs: 15_000 },
+  );
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 300);

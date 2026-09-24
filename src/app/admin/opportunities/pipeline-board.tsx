@@ -147,6 +147,7 @@ export function PipelineBoard({
   showValues,
   pauses,
   eventFlags,
+  newReplyContactIds,
 }: {
   stages: BoardStage[];
   activeKey: string;
@@ -159,8 +160,20 @@ export function PipelineBoard({
   showValues: boolean;
   pauses: Record<string, FollowUpPauseSummary>;
   eventFlags: Record<string, EventFlags>;
+  // Contacts whose latest client reply nobody has opened yet.
+  newReplyContactIds: string[];
 }) {
   const router = useRouter();
+  // Loading a card's conversations clears its flag on the server; hide it
+  // here as soon as they load rather than waiting for the next render.
+  const [seenReplies, setSeenReplies] = useState<Set<string>>(() => new Set());
+  const unseenReplies = new Set(
+    newReplyContactIds.filter((contactId) => !seenReplies.has(contactId)),
+  );
+  const hasNewReply = (item: BoardOpportunity) =>
+    Boolean(item.contact?.id && unseenReplies.has(item.contact.id));
+  const markRepliesSeen = (contactId: string) =>
+    setSeenReplies((current) => new Set(current).add(contactId));
   const pathname = usePathname();
   const [query, setQuery] = useState(initialQuery);
   const [filters, setFilters] = useState<OpportunityFilters>(initialFilters);
@@ -221,6 +234,7 @@ export function PipelineBoard({
           {stages.map((stage) => {
             const isActive = stage.key === active.key;
             const count = matchCounts.get(stage.key) ?? 0;
+            const replies = stage.items.filter(hasNewReply).length;
             return (
               <Link
                 aria-current={isActive ? "page" : undefined}
@@ -249,6 +263,15 @@ export function PipelineBoard({
                 >
                   {count}
                 </span>
+                {/* Where clients are waiting on an answer, across every stage. */}
+                {replies > 0 ? (
+                  <span
+                    aria-label={`${replies} new ${replies === 1 ? "reply" : "replies"}`}
+                    className="h-2 w-2 rounded-full bg-red-600"
+                    role="img"
+                    title={`${replies} new ${replies === 1 ? "reply" : "replies"}`}
+                  />
+                ) : null}
               </Link>
             );
           })}
@@ -358,6 +381,8 @@ export function PipelineBoard({
               <OpportunityCard
                 flags={eventFlags[opportunity.id] ?? null}
                 key={opportunity.id}
+                newReply={hasNewReply(opportunity)}
+                onRepliesSeen={markRepliesSeen}
                 opportunity={opportunity}
                 pause={
                   opportunity.contact?.id
@@ -377,12 +402,16 @@ export function PipelineBoard({
 
 function OpportunityCard({
   flags,
+  newReply,
+  onRepliesSeen,
   opportunity,
   pause,
   query,
   showValue,
 }: {
   flags: EventFlags | null;
+  newReply: boolean;
+  onRepliesSeen: (contactId: string) => void;
   opportunity: BoardOpportunity;
   pause: FollowUpPauseSummary | null;
   query: string;
@@ -419,11 +448,14 @@ function OpportunityCard({
             <Highlight query={query} text={name} />
           )}
         </p>
-        {flags?.expedited ? (
-          <StatusBadge tone="danger">Expedited</StatusBadge>
-        ) : flags?.inquirySource === "phone" ? (
-          <StatusBadge tone="neutral">Phone</StatusBadge>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {newReply ? <StatusBadge tone="info">New reply</StatusBadge> : null}
+          {flags?.expedited ? (
+            <StatusBadge tone="danger">Expedited</StatusBadge>
+          ) : flags?.inquirySource === "phone" ? (
+            <StatusBadge tone="neutral">Phone</StatusBadge>
+          ) : null}
+        </div>
       </div>
       {opportunity.contact ? (
         <div className="mt-0.5 space-y-0.5">
@@ -483,6 +515,10 @@ function OpportunityCard({
               contactId={opportunity.contact.id}
               contactName={opportunity.contact.name}
               eventId={flags?.eventId}
+              newReply={newReply}
+              onConversationLoaded={() => {
+                if (opportunity.contact?.id) onRepliesSeen(opportunity.contact.id);
+              }}
               opportunityId={opportunity.id}
             />
             <ContactNotesButton

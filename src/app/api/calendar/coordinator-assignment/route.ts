@@ -1,12 +1,12 @@
 import {
   calendarErrorResponse,
-  requireAdminUser,
+  requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import { assignOpportunityCoordinator } from "@/lib/ghl/opportunity-sync";
 
 export async function POST(request: Request) {
   try {
-    const user = await requireAdminUser();
+    const user = await requireStaffApiUser();
     const body = (await request.json()) as {
       event_id?: string;
       ghl_user_id?: string;

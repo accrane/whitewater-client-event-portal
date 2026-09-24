@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { ButtonLink } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import {
 } from "@/lib/admin/contracts";
 import { getAdminEventById } from "@/lib/admin/events";
 import { formatEventDayHeading } from "@/lib/dates";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import { defaultContractName } from "@/lib/contracts/shared";
 
@@ -26,14 +26,7 @@ type AdminContractsPageProps = {
 export default async function AdminContractsPage({
   params,
 }: AdminContractsPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const { eventId } = await params;
   const event = await getAdminEventById(eventId);

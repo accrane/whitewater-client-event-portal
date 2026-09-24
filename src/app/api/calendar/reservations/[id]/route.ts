@@ -1,6 +1,6 @@
 import {
   calendarErrorResponse,
-  requireAdminUser,
+  requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import {
   deleteReservation,
@@ -16,7 +16,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const { id } = await params;
     return Response.json(await getReservation(id));
   } catch (error) {
@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const { id } = await params;
     const patch = (await request.json()) as ReservationUpdate;
     const before = await getReservation(id);
@@ -46,7 +46,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
 export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
-    await requireAdminUser();
+    await requireStaffApiUser();
     const { id } = await params;
     await deleteReservation(id);
     return new Response(null, { status: 204 });

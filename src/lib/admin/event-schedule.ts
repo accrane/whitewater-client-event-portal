@@ -1,3 +1,4 @@
+import { sanitizeRichHtml } from "@/lib/html/sanitize";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type {
   EventNote,
@@ -217,7 +218,12 @@ export async function getScheduleItems(
     .eq("event_id", eventId)
     .order("sort_order");
   if (error) throw error;
-  return (data ?? []) as ScheduleItem[];
+  // Notes render as HTML on the client portal; clean them on the way out too
+  // (rows saved before sanitizing existed).
+  return ((data ?? []) as ScheduleItem[]).map((item) => ({
+    ...item,
+    note_html: sanitizeRichHtml(item.note_html),
+  }));
 }
 
 export type ScheduleItemInput = {
@@ -236,7 +242,7 @@ export async function saveScheduleItem(
   const values = {
     title: input.title,
     description: input.description,
-    note_html: input.noteHtml,
+    note_html: sanitizeRichHtml(input.noteHtml),
   };
 
   if (input.id) {
@@ -345,7 +351,10 @@ export async function getScheduleTemplateItems(): Promise<
     .select("*")
     .order("sort_order");
   if (error) throw error;
-  return (data ?? []) as ScheduleTemplateItem[];
+  return ((data ?? []) as ScheduleTemplateItem[]).map((item) => ({
+    ...item,
+    note_html: sanitizeRichHtml(item.note_html),
+  }));
 }
 
 export async function saveScheduleTemplateItem(
@@ -355,7 +364,7 @@ export async function saveScheduleTemplateItem(
   const values = {
     title: input.title,
     description: input.description,
-    note_html: input.noteHtml,
+    note_html: sanitizeRichHtml(input.noteHtml),
   };
 
   if (input.id) {

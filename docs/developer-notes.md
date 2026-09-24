@@ -1,6 +1,6 @@
 # Developer Notes — Whitewater Event Ecosystem
 
-_Last updated: 2026-09-23. This is the engineering record for the portal app,
+_Last updated: 2026-09-24. This is the engineering record for the portal app,
 GoHighLevel (GHL), and PandaDoc: how the pieces fit, where data lives, when
 syncs fire, what configuration exists, and a changelog. The user-facing
 guide is [manual.md](manual.md) — it is rendered inside the app at
@@ -44,12 +44,21 @@ Two rules keep the integration sane:
 | Person | Where they work | Access |
 | --- | --- | --- |
 | **Manager** (Austin / managers) | `/admin` — everything, incl. Admin section, user management, reports, dollar values | Supabase login, role `admin` (shown as "Manager") |
-| **Coordinator** | `/admin` — daily event work; no Admin section, no dollar values | Supabase login, role `coordinator` (the default role) |
+| **Coordinator** | `/admin` — daily event work; no Admin section, no dollar values | Supabase login, role `coordinator` |
 | **Client** | `/e/<token>` — their event portal | Secure tokenized link, no login |
 | **Sales** | GoHighLevel | GHL login |
 
 Roles live in Supabase auth `app_metadata.role` and can only be changed from
-Admin → Users (service role), so users can't escalate themselves.
+Admin → Users (service role), so users can't escalate themselves. Access is
+granted, not assumed: an account with no role (or an unknown one, or an
+anonymous session) gets no portal access — the login page says so and a
+manager assigns a role on Admin → Users, where such accounts show as
+**No access**. Supabase's own "Allow new users to sign up" should stay off
+(Authentication → Sign In / Providers); users are created from Admin → Users.
+Every page, server action and API route checks through
+`src/lib/admin/session.ts` (`getStaffUser` / `requireStaffUser`, and
+`requireStaffApiUser` for `/api` routes) because the proxy only covers
+`/admin` pages; the role rule itself is `src/lib/admin/roles.ts`.
 
 ---
 
@@ -89,14 +98,16 @@ Admin → Users (service role), so users can't escalate themselves.
 | Notes drawer open | GHL → app | Contact's GHL notes, read live (never stored); count shown as a badge on the notepad button |
 | Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
 | Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
-| Opportunities pipeline view | GHL → app | Badge counts for the visible stage read from the local `ghl_contact_badges` cache; stale rows (>5 min) across the whole pipeline re-swept from GHL after the response, paced (60 contacts/view, concurrency 5) for the 140–250-card in-season pipeline (see roadmap "Expected volume") |
+| Opportunities pipeline view | local only | No GHL calls per card. Note/task badge counts come from `ghl_contact_badges`, written only when a notes/tasks drawer loads (so they can lag notes/tasks added straight in GHL — there is deliberately no background sweep). **New reply** flags come from `ghl_contact_replies` for every stage (red dot on stage tabs, badge + dot on cards) |
+| Client replies | GHL → app | GHL workflow (Customer Replied → Webhook, §5) posts `ghl_contact_id` to `POST /api/ghl/replies` → `ghl_contact_replies.last_inbound_at`. Loading the contact's conversations drawer (or replying from it) stamps `seen_at` with the time the messages were read (never moving it backwards), so a reply that lands during the load stays flagged; the card clears its flag only once the drawer has loaded |
 | Contracts tab "Save and re-send" (Edit) | app → PandaDoc | Document moved to draft, updated (name, tokens, pricing table), sent again; row gets `revision`+1, `revised_at/by`; `contract_update` log |
 | Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + one pricing table per tax treatment from the line items, option ticks included), waited to draft, sent silently (or emailed) |
 | Contract form opens / template changes | PandaDoc → app | Template details (pricing tables, headings, option and starter rows) and the product catalog, both read live and cached 5 min per server process (never stored). On save the server re-reads the catalog to set catalog rows' names and prices |
 | Admin event page / Contracts tab load | PandaDoc → app | Open contracts re-read from PandaDoc (status, total); signed side effects run if newly completed |
 | Portal "Review and sign" | app → PandaDoc | Embedded-signing session minted for the recipient (1-hour link) |
 | Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (rooms booked, GHL Booked, PDF archived) |
-| PandaDoc webhook | PandaDoc → app | `POST /api/pandadoc/webhook?signature=…` (HMAC-SHA256 with `PANDADOC_WEBHOOK_KEY`); each document in the delivery is re-read and synced — needs a public URL |
+| PandaDoc webhook | PandaDoc → app | `POST /api/pandadoc/webhook?signature=…` (HMAC-SHA256 with `PANDADOC_WEBHOOK_KEY`); each document in the delivery is re-read and synced — needs a public URL. Answers 500 when a document failed to process so PandaDoc redelivers |
+| Signed-step retries | app → GHL / storage | Signed contracts with steps left in `signed_actions_pending`, never started, or with no PDF on file are retried on their own: event page load (after the response), the Contracts page sweep and Refresh statuses, 2+ minutes apart, at most 10 automatic runs (`signed_actions_attempts`); the webhook and Refresh status always retry |
 | Contract signed | app → GHL | Opportunity moved to the Booked stage (`opportunity_move_to_booked`) |
 | Conversations send with a "Proposal" snippet | app → GHL | Opportunity moved to Proposal Sent, forward only (`opportunity_move_to_proposal_sent`) |
 | Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in coordinator's GHL user) or completion toggled |
@@ -110,6 +121,14 @@ coordinator's primary action) *except* coordinator reassignment, which surfaces 
 error because a silent failure would revert on the next sync. All exchanges
 land in **integration_logs** (`GHL_TO_PORTAL` / `PORTAL_TO_GHL`) — that page
 is the first stop when "something didn't sync."
+
+**Outbound calls** all go through `vendorFetch` (`src/lib/http/vendor-fetch.ts`;
+GHL via `ghlFetch` in `src/lib/ghl/client.ts`): every request has a timeout
+(GHL 15 s, PandaDoc 20 s / 60 s for PDFs, Salesforce 30–60 s, Mailgun 15 s), so
+a hung vendor fails fast instead of holding a page until the platform kills
+it. GET/PUT/DELETE retry up to twice on 429/502/503/504, honouring
+`Retry-After` up to 5 s; POSTs never retry (they create notes, messages,
+documents). A timeout surfaces as "GHL did not respond within 15s".
 
 ### Salesforce migration (staging)
 
@@ -263,8 +282,24 @@ field, read-only in the app — see Step 2).
   approval.
 - **Status back to the app:** three paths funnel through one sync
   (`src/lib/admin/contracts.ts` → `syncContractFromPandaDoc`): page-load
-  refresh, portal signer completion, and the webhook. The signed side
-  effects run exactly once per contract.
+  refresh, portal signer completion, and the webhook.
+- **Signed side effects** (`applySignedContractActions`): four independent
+  steps — `reservations` (rooms booked), `ghl_stage` (opportunity → Booked),
+  `follow_ups` (pause lifted), `signed_pdf` (executed PDF archived). A run
+  first takes a lease (`signed_actions_running_until`, set only while empty
+  or expired, 5 minutes, cleared when the run ends), so the webhook, the
+  signer and a page load can't run the same steps at once; the steps are then
+  decided from the freshly claimed row and recorded as pending before any
+  runs. Steps that fail go into
+  `signed_actions_pending` and only those re-run later
+  (`retryPendingSignedContracts`) — a finished step never repeats, so rooms a
+  coordinator changes after signing aren't re-booked. A signed contract with
+  no PDF on file always counts as having the PDF step left
+  (`signedContractStepsToRun`), which also catches contracts signed before
+  steps were tracked. A "skipped" outcome
+  (no linked opportunity, stage env var unset) counts as finished. The event's
+  Contracts tab lists pending steps as **Still to do**; every run logs
+  `contract_signed` (first) or `contract_signed_retry`.
 - **Webhook:** register `https://<app>/api/pandadoc/webhook` in PandaDoc for
   *document_state_changed* and *recipient_completed*, and put the shared key
   in `PANDADOC_WEBHOOK_KEY`. Only matters once the app has a public URL —
@@ -289,7 +324,7 @@ All in `.env.local` (see `src/lib/env.ts` for the full list):
 | Variable | Breaks what when missing/invalid |
 | --- | --- |
 | `GHL_ACCESS_TOKEN` / `GHL_LOCATION_ID` | All GHL sync; coordinator dropdowns fall back to read-only; Opportunities page shows empty states |
-| `GHL_WEBHOOK_SECRET` | Inquiry webhook rejects deliveries |
+| `GHL_WEBHOOK_SECRET` | Inquiry and reply webhooks reject deliveries (sent as the `x-portal-webhook-secret` header) |
 | `GHL_PIPELINE_ID` / `GHL_PLANNING_STAGE_ID` | Planning-stage moves; Opportunities pipeline board |
 | `GHL_BOOKED_STAGE_ID` | Contract-signed move to the Booked stage (logged as a skipped warning when missing) |
 | `PANDADOC_API_KEY` | Contracts tab can't create documents; portal shows no signing; template picker explains |
@@ -297,7 +332,9 @@ All in `.env.local` (see `src/lib/env.ts` for the full list):
 | `PANDADOC_WEBHOOK_KEY` | Webhook deliveries rejected (401); signer completion + page refresh still work |
 | Field id vars (`GHL_OPPORTUNITY_EVENT_FIELD_ID`, `GHL_PORTAL_LINK_FIELD_ID`, `GHL_DATE_OF_INTEREST_FIELD_ID`) | The respective field reads/writes |
 | Supabase vars | Everything — auth, data, storage |
+| `SUPABASE_STORAGE_BUCKET` | Where signed contract PDFs are archived (defaults to `event-uploads`; production uses `event-portal-uploads`). Must name a bucket that exists: in September 2026 archives failed with `Bucket not found` because the Vercel value was wrong (first another variable's name, then a typo). Contracts missing a PDF retry on their own once it's right |
 | `MAILGUN_API_KEY` | Password-reset and coordinator-assignment emails (with `MAILGUN_DOMAIN`, `EMAIL_FROM`) |
+| `EMAIL_FROM` | Every email. Format `USNWC Event Portal <no-reply@mg.whitewater.org>`. In Vercel enter it **without** surrounding quotes: `.env.local` quotes are stripped when loaded, but Vercel keeps them, and Mailgun then rejects the sender ("from parameter is not a valid address") |
 | `SALESFORCE_DOMAIN` / `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | Salesforce contact pulls (migration staging) |
 
 A GHL **401** in the dev logs means the access token is expired/invalid —
@@ -344,6 +381,24 @@ action right after *Create opportunity*, named "Portal: create draft event".
 Wired for the Event Sales pipeline on 2026-09-15. Any other form or pipeline
 that should produce portal events needs its own workflow with the same
 action.
+
+### Customer replied webhook (GHL → app)
+
+Drives the **New reply** flag on Opportunities cards and stage tabs (§2).
+One workflow per environment:
+
+- Trigger **Customer Replied** (any reply channel).
+- Action **Webhook**, method `POST`, URL
+  `https://groupsales.whitewater.org/api/ghl/replies`.
+- Header `x-portal-webhook-secret` = the app's `GHL_WEBHOOK_SECRET` (same as
+  the inquiry webhook).
+- Custom data `ghl_contact_id` = `{{contact.id}}` (the route also accepts
+  GHL's default `contact_id`).
+
+It fires on every inbound message, so the route stays quiet: rejected
+deliveries (401 bad secret, 400 no contact id) go to the server log, not
+integration_logs. A 500 means the database write failed and GHL may retry.
+To check it end to end, reply to a test contact and watch the card.
 
 ### Private Integration scopes and follow-up pauses
 
@@ -450,6 +505,8 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-24 | **Review follow-ups (Greptile on PR #1).** Signed-contract runs now hold a lease (`signed_actions_running_until`, migration `20260924120000`) instead of an `updated_at` check, which let a sync that wrote the row first claim a run already in progress. Reply "seen" is the time the conversation was read (captured before the GHL call) and only moves forward; the card's flag clears after the drawer loads, not on click. `listUpcomingLaunchedEvents` pages by exact count past the API's max-rows. `vendorFetch` re-wraps response bodies so a timeout while reading one reports "… did not finish responding within Ns" (tests in `tests/http/vendor-fetch.test.mjs`). |
+| 2026-09-24 | **Audit fixes (security, reliability, scale).** From the 2026-09-23 read-only audit's "fix first" list. (1) **Staff access is granted, not assumed:** `getUserRole` (`src/lib/admin/roles.ts`) returns null for an account without an `admin`/`coordinator` role or an anonymous session; proxy, login, and every page/action/API route check through the new `src/lib/admin/session.ts` (`getStaffUser` is `cache()`d per request; the calendar-api guard, which only checked sign-in, is now `requireStaffApiUser`). Admin → Users shows role-less accounts as **No access** with a required role picker. Supabase public sign-up was found enabled; turn it off in the dashboard. (2) **Rich text is sanitized** (`src/lib/html/sanitize.ts`, `sanitize-html`): schedule notes and checklist FAQ HTML on every save and load — formatting, lists, links (new tab, noopener) and https/data-URL images kept; styles, classes, scripts, handlers, iframes and forms removed; output matches the browser's serialization so untouched notes don't look edited. Tests: `tests/html/sanitize.test.mjs`. (3) **Timeouts and 429 retries** on every vendor call (`vendorFetch`, §2); `updateGhlOpportunity` returns a failure instead of throwing. Tests: `tests/http/vendor-fetch.test.mjs`. (4) **Signed-contract steps retry** (§3): migration `20260924100000` adds `signed_actions_pending` / `signed_actions_attempts` and queues `signed_pdf` for signed contracts whose PDF never archived; any signed contract with no PDF on file counts as having that step left (`signedContractStepsToRun`); Contracts tab shows **Still to do**; the PandaDoc webhook answers 500 on a failed document. Tests: `tests/admin/contract-signed-steps.test.mjs`. (5) **New reply flags replace the badge sweep:** the pipeline's background note/task sweep (up to 120 GHL calls a view, over GHL's burst limit) is gone; a GHL Customer Replied workflow (§5) posts to `/api/ghl/replies` (migration `20260924110000`, table `ghl_contact_replies`, `src/lib/ghl/replies.ts`, rules in `reply-flags.ts`, tests `tests/ghl/reply-flags.test.mjs`); cards show **New reply** and a dot on the conversations button, stage tabs a red dot; opening the drawer clears it. (6) **No more 50-event cap:** `listAdminEvents` is gone. The Events page pages 50 at a time with filter, search (event name, type, coordinator) and tab counts in SQL (`listAdminEventsPage`, `?page=`); the dashboard reads every upcoming launched event (`listUpcomingLaunchedEvents`, served by `events_status_event_date_idx`) plus the events its lists point at (`listAdminEventsByIds`). |
 | 2026-09-23 | **Coordinator assignment also sets the GHL contact owner.** `assignOpportunityCoordinator` (`src/lib/ghl/opportunity-sync.ts`) now follows a successful opportunity `assignedTo` write with `assignContactUser(contactId, ghlUserId)` (`src/lib/ghl/contacts.ts`, `PUT /contacts/{id}`) on the event's `ghl_contact_id`, so every portal path (reservation modal, event page reassign, phone intake) keeps the contact's Assigned To in step with the coordinator. Logged as `contact_assign_coordinator` (warning when the event has no contact id; an error there doesn't undo the opportunity assignment). `GhlContactSummary` gained `assignedTo`. One-time catch-up for existing contacts: `scripts/backfill-contact-assignments.ts` (§5), run in production the same day. Planner rules in `src/lib/ghl/contact-assignment.ts`, tests in `tests/ghl/contact-assignment.test.mjs`. |
 | 2026-09-22 | **Proposal snippets move the opportunity to Proposal Sent.** After a successful drawer send with a snippet named "…proposal…", `sendConversationMessage` calls `moveOpportunityToProposalSent` (`opportunity-sync.ts`): opportunity from the new `opportunityId` the pipeline card passes to the drawer, else the event's `ghl_opportunity_id`; GETs it, checks the contact, resolves the Proposal Sent stage by name from `fetchConfiguredPipeline`, and only moves forward (`shouldMoveToProposalSent`). Rules and tests: `src/lib/ghl/proposal-sent.ts`, `tests/ghl/proposal-sent.test.mjs`. Stage guide no longer tells coordinators to move it in GHL (§5). |
 | 2026-09-22 | **EC Welcome snippets start the Step 3 chase.** The drawer tracks which GHL snippets were inserted into the message (cleared when the box is emptied or sent) and posts their names; the route passes `snippetNames` to `sendConversationMessage`, which after a successful send adds `coordinator-intro-sent` to the contact when any name contains "EC Welcome" / "Event Coordinator Welcome" (`src/lib/ghl/coordinator-intro.ts`, tests in `tests/ghl/coordinator-intro.test.mjs`), logged as `coordinator_intro_tag`. The pause feature's tag write moved to a shared `setContactTag(contactId, tag, present)` in `src/lib/ghl/contact-tags.ts`. GHL workflow already retriggered on the tag by Cathy (§5). |

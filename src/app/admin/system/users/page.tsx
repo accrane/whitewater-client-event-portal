@@ -107,8 +107,9 @@ export default async function AdminUsersPage({
   );
 }
 
-function roleLabel(role: string): string {
-  return role === "admin" ? "Manager" : "Coordinator";
+function roleLabel(role: string | null): string {
+  if (role === "admin") return "Manager";
+  return role === "coordinator" ? "Coordinator" : "No access";
 }
 
 function UserCard({
@@ -128,7 +129,9 @@ function UserCard({
           className={`rounded-full px-3 py-1 text-xs font-semibold ${
             user.role === "admin"
               ? "bg-violet-100 text-violet-800"
-              : "bg-slate-100 text-slate-700"
+              : user.role === "coordinator"
+                ? "bg-slate-100 text-slate-700"
+                : "bg-amber-100 text-amber-800"
           }`}
         >
           {roleLabel(user.role)}
@@ -157,11 +160,18 @@ function UserCard({
           <input name="email" type="hidden" value={user.email} />
           <label className="grid flex-1 gap-1 text-xs font-semibold text-slate-500">
             Role
+            {/* No role = no portal access; a manager has to pick one on purpose. */}
             <select
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
-              defaultValue={user.role}
+              defaultValue={user.role ?? ""}
               name="role"
+              required
             >
+              {user.role ? null : (
+                <option disabled value="">
+                  Choose a role
+                </option>
+              )}
               {PORTAL_ROLES.map((role) => (
                 <option key={role} value={role}>
                   {roleLabel(role)}

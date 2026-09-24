@@ -1,3 +1,4 @@
+import { sanitizeRichHtml } from "@/lib/html/sanitize";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type {
   ChecklistSectionStatus,
@@ -20,7 +21,10 @@ export async function getChecklistTemplateSections(): Promise<
     .select("*")
     .order("sort_order");
   if (error) throw error;
-  return (data ?? []) as ChecklistTemplateSection[];
+  return ((data ?? []) as ChecklistTemplateSection[]).map((section) => ({
+    ...section,
+    content_html: sanitizeRichHtml(section.content_html),
+  }));
 }
 
 export type ChecklistSectionInput = {
@@ -36,7 +40,7 @@ export async function saveChecklistTemplateSection(
   const supabase = createServiceRoleSupabaseClient();
   const values = {
     title: input.title,
-    content_html: input.contentHtml,
+    content_html: sanitizeRichHtml(input.contentHtml),
   };
 
   if (input.id) {
@@ -79,7 +83,12 @@ export async function getEventChecklistSections(
     .eq("event_id", eventId)
     .order("sort_order");
   if (error) throw error;
-  return (data ?? []) as EventChecklistSection[];
+  // FAQ content renders as HTML on the client portal; clean it on the way out
+  // too (rows saved before sanitizing existed).
+  return ((data ?? []) as EventChecklistSection[]).map((section) => ({
+    ...section,
+    content_html: sanitizeRichHtml(section.content_html),
+  }));
 }
 
 export async function saveEventChecklistSection(
@@ -89,7 +98,7 @@ export async function saveEventChecklistSection(
   const supabase = createServiceRoleSupabaseClient();
   const values = {
     title: input.title,
-    content_html: input.contentHtml,
+    content_html: sanitizeRichHtml(input.contentHtml),
   };
 
   if (input.id) {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import {
@@ -10,7 +10,7 @@ import {
   renderManualDoc,
   type ManualDocSlug,
 } from "@/lib/admin/manual";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 // The user guide, rendered from docs/manual.md. Reached from the "?" in the
 // top bar (opens in a new tab so it can sit beside the screen being learned).
@@ -20,11 +20,7 @@ export default async function ManualPage({
 }: {
   params: Promise<{ slug?: string[] }>;
 }) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
+  const { user } = await requireStaffUser();
 
   const { slug: segments = [] } = await params;
   if (segments.length > 1) notFound();

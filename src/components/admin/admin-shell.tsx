@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AdminDock, AdminTopBar } from "@/components/admin/admin-dock";
 import { AdminThemeScope } from "@/components/admin/admin-theme";
 import { Icon } from "@/components/ui/icon";
-import { getSignedInPortalUser } from "@/lib/admin/users";
+import { getStaffUser } from "@/lib/admin/session";
 
 type AdminShellProps = {
   children: ReactNode;
@@ -37,7 +37,7 @@ export async function AdminShell({
   backHref,
   backLabel = "Back",
 }: AdminShellProps) {
-  const portalUser = await getSignedInPortalUser();
+  const portalUser = await getStaffUser();
   const showAdminNav = portalUser?.role === "admin";
 
   return (

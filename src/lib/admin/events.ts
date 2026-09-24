@@ -106,76 +106,262 @@ export type AdminEventUpload = {
   signedUrl: string | null;
 };
 
-// Lists every portal event, with or without rooms reserved on the calendar —
-// webhook intake creates an event row for each GHL inquiry opportunity, and
-// coordinators may work an event that never books a room.
-export async function listAdminEvents(): Promise<AdminEventListItem[]> {
+const LIST_COLUMNS =
+  "id, ghl_event_record_id, status, client_portal_url, launched_at, last_synced_at, last_sync_status, ghl_snapshot, created_at, inquiry_source, expedited";
+
+type EventListRow = Pick<
+  EventRow,
+  | "id"
+  | "ghl_event_record_id"
+  | "status"
+  | "client_portal_url"
+  | "launched_at"
+  | "last_synced_at"
+  | "last_sync_status"
+  | "ghl_snapshot"
+  | "created_at"
+  | "inquiry_source"
+  | "expedited"
+>;
+
+// .in() lists ride in the request URL; same chunk size as companies.ts.
+const IN_CHUNK = 150;
+
+function chunk<T>(values: T[]): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += IN_CHUNK) {
+    chunks.push(values.slice(index, index + IN_CHUNK));
+  }
+  return chunks;
+}
+
+// List rows plus their needs-review counts, read for just these events.
+async function toListItems(rows: EventListRow[]): Promise<AdminEventListItem[]> {
+  if (rows.length === 0) return [];
+
   const supabase = createServiceRoleSupabaseClient();
+  const idChunks = chunk(rows.map((row) => row.id));
+  const [itemResults, vendorResults] = await Promise.all([
+    Promise.all(
+      idChunks.map((ids) =>
+        supabase
+          .from("event_checklist_items")
+          .select("event_id, status")
+          .eq("status", "needs_review")
+          .in("event_id", ids),
+      ),
+    ),
+    Promise.all(
+      idChunks.map((ids) =>
+        supabase.from("vendors").select("event_id, metadata").in("event_id", ids),
+      ),
+    ),
+  ]);
 
-  const [eventsResult, reviewItemsResult, reviewVendorsResult] =
-    await Promise.all([
-      supabase
-        .from("events")
-        .select(
-          "id, ghl_event_record_id, status, client_portal_url, launched_at, last_synced_at, last_sync_status, ghl_snapshot, created_at, inquiry_source, expedited",
-        )
-        .order("created_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("event_checklist_items")
-        .select("event_id, status")
-        .eq("status", "needs_review"),
-      supabase.from("vendors").select("event_id, metadata"),
-    ]);
-
-  if (eventsResult.error) {
-    throw new Error(`Unable to load admin events: ${eventsResult.error.message}`);
+  const reviewItems: Pick<EventChecklistItemRow, "event_id" | "status">[] = [];
+  for (const result of itemResults) {
+    if (result.error) {
+      throw new Error(
+        `Unable to load checklist review counts: ${result.error.message}`,
+      );
+    }
+    reviewItems.push(...((result.data ?? []) as typeof reviewItems));
   }
 
-  if (reviewItemsResult.error) {
-    throw new Error(
-      `Unable to load checklist review counts: ${reviewItemsResult.error.message}`,
-    );
+  const vendors: Pick<VendorRow, "event_id" | "metadata">[] = [];
+  for (const result of vendorResults) {
+    if (result.error) {
+      throw new Error(`Unable to load vendor review counts: ${result.error.message}`);
+    }
+    vendors.push(...((result.data ?? []) as typeof vendors));
   }
 
-  if (reviewVendorsResult.error) {
-    throw new Error(
-      `Unable to load vendor review counts: ${reviewVendorsResult.error.message}`,
-    );
-  }
+  const reviewCounts = buildChecklistReviewCountsByEvent(reviewItems);
+  const vendorReviewCounts = buildVendorReviewCountsByEvent(vendors);
 
-  const reviewCounts = buildChecklistReviewCountsByEvent(
-    (reviewItemsResult.data ?? []) as Pick<
-      EventChecklistItemRow,
-      "event_id" | "status"
-    >[],
-  );
-  const vendorReviewCounts = buildVendorReviewCountsByEvent(
-    (reviewVendorsResult.data ?? []) as Pick<VendorRow, "event_id" | "metadata">[],
-  );
-
-  const eventRows = (eventsResult.data ?? []) as Pick<
-    EventRow,
-    | "id"
-    | "ghl_event_record_id"
-    | "status"
-    | "client_portal_url"
-    | "launched_at"
-    | "last_synced_at"
-    | "last_sync_status"
-    | "ghl_snapshot"
-    | "created_at"
-    | "inquiry_source"
-    | "expedited"
-  >[];
-
-  return eventRows.map((row) =>
+  return rows.map((row) =>
     mapEventRowToListItem({
       row,
       checklistReviewCount: reviewCounts.get(row.id) ?? 0,
       vendorReviewCount: vendorReviewCounts.get(row.id) ?? 0,
     }),
   );
+}
+
+export const EVENTS_PAGE_SIZE = 50;
+
+export type AdminEventStatusFilter = "all" | "draft" | "launched" | "past";
+
+export type AdminEventListPage = {
+  events: AdminEventListItem[];
+  // Events matching the tab and the search.
+  total: number;
+  // Per tab, ignoring the search (what the tab labels show).
+  counts: Record<AdminEventStatusFilter, number>;
+};
+
+// Search terms go inside a PostgREST or() filter, where commas and
+// parentheses are syntax and * is the wildcard; drop those characters.
+function eventSearchFilter(search: string): string | null {
+  const term = search
+    .replace(/[,()*%\\"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!term) return null;
+  return [
+    `ghl_snapshot->>eventName.ilike.*${term}*`,
+    `ghl_snapshot->>eventType.ilike.*${term}*`,
+    `ghl_snapshot->planner->>name.ilike.*${term}*`,
+  ].join(",");
+}
+
+// One page of the Events list, newest first, filtered and searched in the
+// database so every event is reachable however many there are (webhook
+// intake creates an event for each GHL inquiry — well over a thousand a
+// year). "Past" is expired + archived. Search matches the event name, type
+// and coordinator.
+export async function listAdminEventsPage({
+  filter,
+  search,
+  page,
+}: {
+  filter: AdminEventStatusFilter;
+  search: string;
+  page: number;
+}): Promise<AdminEventListPage> {
+  const supabase = createServiceRoleSupabaseClient();
+  const searchFilter = eventSearchFilter(search);
+  const from = (Math.max(page, 1) - 1) * EVENTS_PAGE_SIZE;
+
+  const byStatus = <
+    Q extends {
+      eq(column: "status", value: EventRow["status"]): Q;
+      in(column: "status", values: EventRow["status"][]): Q;
+    },
+  >(
+    query: Q,
+    key: AdminEventStatusFilter,
+  ): Q =>
+    key === "draft"
+      ? query.eq("status", "draft")
+      : key === "launched"
+        ? query.eq("status", "launched")
+        : key === "past"
+          ? query.in("status", ["expired", "archived"])
+          : query;
+
+  const countFor = (key: AdminEventStatusFilter, withSearch: boolean) => {
+    let query = byStatus(
+      supabase.from("events").select("id", { count: "exact", head: true }),
+      key,
+    );
+    if (withSearch && searchFilter) query = query.or(searchFilter);
+    return query;
+  };
+
+  let list = byStatus(
+    supabase
+      .from("events")
+      .select(LIST_COLUMNS)
+      .order("created_at", { ascending: false })
+      .range(from, from + EVENTS_PAGE_SIZE - 1),
+    filter,
+  );
+  if (searchFilter) list = list.or(searchFilter);
+
+  const tabs: AdminEventStatusFilter[] = ["all", "draft", "launched", "past"];
+  const [listResult, matchingResult, ...tabResults] = await Promise.all([
+    list,
+    searchFilter ? countFor(filter, true) : Promise.resolve(null),
+    ...tabs.map((key) => countFor(key, false)),
+  ]);
+
+  if (listResult.error) {
+    throw new Error(`Unable to load admin events: ${listResult.error.message}`);
+  }
+
+  const counts = {} as Record<AdminEventStatusFilter, number>;
+  tabs.forEach((key, index) => {
+    const result = tabResults[index];
+    if (result.error) {
+      throw new Error(`Unable to count events: ${result.error.message}`);
+    }
+    counts[key] = result.count ?? 0;
+  });
+
+  if (matchingResult?.error) {
+    throw new Error(`Unable to count events: ${matchingResult.error.message}`);
+  }
+
+  return {
+    events: await toListItems((listResult.data ?? []) as EventListRow[]),
+    total: matchingResult ? (matchingResult.count ?? 0) : counts[filter],
+    counts,
+  };
+}
+
+// Every launched event dated yesterday or later — the dashboard counts days
+// out from these for Today, This week and the contract deadlines. Not
+// capped: it's the bounded set of events still ahead, and the (status,
+// eventDate) index serves it. Yesterday gives the day-out math room either
+// side of midnight; the dashboard drops anything already past. Read in
+// pages until the exact count is reached, since the API returns at most
+// max-rows (1,000 by default) per request.
+export async function listUpcomingLaunchedEvents(): Promise<AdminEventListItem[]> {
+  const supabase = createServiceRoleSupabaseClient();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const rows: EventListRow[] = [];
+  let total = Number.POSITIVE_INFINITY;
+  while (rows.length < total) {
+    const { data, error, count } = await supabase
+      .from("events")
+      .select(LIST_COLUMNS, { count: "exact" })
+      .eq("status", "launched")
+      .gte("ghl_snapshot->>eventDate", yesterday)
+      // id breaks created_at ties so pages don't overlap or skip.
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(rows.length, rows.length + 999);
+
+    if (error) {
+      throw new Error(`Unable to load upcoming events: ${error.message}`);
+    }
+    const page = (data ?? []) as EventListRow[];
+    if (count !== null) total = count;
+    if (page.length === 0) break;
+    rows.push(...page);
+  }
+
+  return toListItems(rows);
+}
+
+// Specific events as list items (the dashboard's vendor submissions, signed
+// contracts and paused follow-ups can point at events outside the upcoming
+// set).
+export async function listAdminEventsByIds(
+  eventIds: string[],
+): Promise<AdminEventListItem[]> {
+  const ids = [...new Set(eventIds.filter(Boolean))];
+  if (ids.length === 0) return [];
+
+  const supabase = createServiceRoleSupabaseClient();
+  const results = await Promise.all(
+    chunk(ids).map((idChunk) =>
+      supabase.from("events").select(LIST_COLUMNS).in("id", idChunk),
+    ),
+  );
+
+  const rows: EventListRow[] = [];
+  for (const result of results) {
+    if (result.error) {
+      throw new Error(`Unable to load events: ${result.error.message}`);
+    }
+    rows.push(...((result.data ?? []) as EventListRow[]));
+  }
+  return toListItems(rows);
 }
 
 export type EventFlags = {
@@ -698,20 +884,7 @@ function mapEventRowToListItem({
   checklistReviewCount = 0,
   vendorReviewCount = 0,
 }: {
-  row: Pick<
-    EventRow,
-    | "id"
-    | "ghl_event_record_id"
-    | "status"
-    | "client_portal_url"
-    | "launched_at"
-    | "last_synced_at"
-    | "last_sync_status"
-    | "ghl_snapshot"
-    | "created_at"
-    | "inquiry_source"
-    | "expedited"
-  >;
+  row: EventListRow;
   checklistReviewCount?: number;
   vendorReviewCount?: number;
 }): AdminEventListItem {

@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/env";
-import { getGhlApiHeaders } from "@/lib/ghl/client";
+import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { textFromMaybeHtml } from "@/lib/ghl/html-text";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 
@@ -23,7 +23,7 @@ export async function listContactNotes(
   const { accessToken, apiBaseUrl } = appConfig.ghl;
   if (!accessToken) return [];
 
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}/notes`,
     { headers: getGhlApiHeaders(accessToken) },
   );
@@ -79,7 +79,7 @@ export async function createContactNote({
     return { ok: false, error: "GHL_ACCESS_TOKEN is not configured" };
   }
 
-  const response = await fetch(
+  const response = await ghlFetch(
     `${apiBaseUrl}/contacts/${encodeURIComponent(contactId)}/notes`,
     {
       method: "POST",

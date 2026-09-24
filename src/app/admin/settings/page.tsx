@@ -1,19 +1,11 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SettingsNav } from "@/components/admin/settings-nav";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 export default async function AdminSettingsPage() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   return (
     <AdminShell

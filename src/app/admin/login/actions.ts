@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { getUserRole } from "@/lib/admin/roles";
 import { sendPasswordResetEmail } from "@/lib/admin/users";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -16,13 +17,19 @@ export async function loginAction(formData: FormData) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
     redirect("/admin/login?error=invalid-login");
+  }
+
+  // A valid password isn't enough: the account needs a portal role.
+  if (!getUserRole(data.user)) {
+    await supabase.auth.signOut();
+    redirect("/admin/login?error=no-access");
   }
 
   redirect(next.startsWith("/admin") ? next : "/admin");

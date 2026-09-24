@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminStatCard } from "@/components/admin/admin-stat-card";
@@ -25,7 +24,11 @@ import {
   type DashboardFilters as DashboardFilterState,
 } from "@/lib/admin/event-filters";
 import { resolveCurrentCoordinator } from "@/lib/admin/current-coordinator";
-import { listAdminEvents, type AdminEventListItem } from "@/lib/admin/events";
+import {
+  listAdminEventsByIds,
+  listUpcomingLaunchedEvents,
+  type AdminEventListItem,
+} from "@/lib/admin/events";
 import { getUserRole } from "@/lib/admin/users";
 import {
   listStaleFollowUpPauses,
@@ -34,7 +37,7 @@ import {
   type StaleFollowUpPause,
 } from "@/lib/ghl/follow-up-pauses";
 import { daysUntil, formatDisplayDate } from "@/lib/dates";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStaffUser } from "@/lib/admin/session";
 
 import { DashboardFilters } from "./dashboard-filters";
 
@@ -94,29 +97,33 @@ type AdminDashboardPageProps = {
 export default async function AdminDashboardPage({
   searchParams,
 }: AdminDashboardPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  const { user } = await requireStaffUser();
 
   const isAdmin = getUserRole(user) === "admin";
   const filters = parseDashboardFilters(await searchParams);
   // Pauses whose deal booked or died inside GHL get lifted before the list
   // is read, so nobody is nagged about a contact who no longer needs it.
   await reconcileFollowUpPauses();
-  const [metrics, allEvents, vendorSubmissions, allRecentlySigned, allStalePauses, me] =
+  const [metrics, upcomingEvents, vendorSubmissions, allRecentlySigned, allStalePauses, me] =
     await Promise.all([
       getAdminDashboardMetrics(),
-      listAdminEvents(),
+      listUpcomingLaunchedEvents(),
       listVendorSubmissionsNeedingReview(),
       listRecentlySignedContracts(),
       listStaleFollowUpPauses(),
       resolveCurrentCoordinator(user.email),
     ]);
+  // The lists below can point at events that aren't coming up (a vendor
+  // submission on an event that already happened, say); load just those.
+  const upcomingIds = new Set(upcomingEvents.map((event) => event.id));
+  const otherEvents = await listAdminEventsByIds(
+    [
+      ...vendorSubmissions.map((submission) => submission.eventId),
+      ...allRecentlySigned.map((contract) => contract.eventId),
+      ...allStalePauses.map((pause) => pause.portalEventId ?? ""),
+    ].filter((id) => id && !upcomingIds.has(id)),
+  );
+  const allEvents = [...upcomingEvents, ...otherEvents];
   const eventsById = new Map(allEvents.map((event) => [event.id, event]));
 
   // Every list below is scoped to the events that pass the filter row. The

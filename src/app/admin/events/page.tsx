@@ -1,15 +1,15 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CreateEventButton } from "@/components/admin/create-event-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
-import { ButtonLink } from "@/components/ui/button";
+import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { formatDisplayDate } from "@/lib/dates";
-import { listAdminEvents, type AdminEventListItem } from "@/lib/admin/events";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { EVENTS_PAGE_SIZE, listAdminEventsPage } from "@/lib/admin/events";
+import { requireStaffUser } from "@/lib/admin/session";
 
 const statusLabels = {
   draft: "Draft",
@@ -36,69 +36,56 @@ const filters = [
 
 type FilterKey = (typeof filters)[number]["key"];
 
-function matchesFilter(event: AdminEventListItem, filter: FilterKey): boolean {
-  switch (filter) {
-    case "draft":
-      return event.status === "draft";
-    case "launched":
-      return event.status === "launched";
-    case "past":
-      return event.status === "expired" || event.status === "archived";
-    default:
-      return true;
-  }
-}
-
-function matchesQuery(event: AdminEventListItem, query: string): boolean {
-  const haystack = [event.eventName, event.eventType, event.coordinatorName]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return haystack.includes(query.toLowerCase());
-}
-
 type AdminEventsPageProps = {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 };
 
 export default async function AdminEventsPage({
   searchParams,
 }: AdminEventsPageProps) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await requireStaffUser();
 
-  if (!user) {
-    redirect("/admin/login");
-  }
-
-  const { status, q } = await searchParams;
+  const { status, q, page: pageParam } = await searchParams;
   const activeFilter: FilterKey = filters.some((f) => f.key === status)
     ? (status as FilterKey)
     : "all";
   const query = q?.trim() ?? "";
+  const page = Math.max(1, Number.parseInt(pageParam ?? "", 10) || 1);
 
-  const events = await listAdminEvents();
-  const filtered = events.filter(
-    (event) =>
-      matchesFilter(event, activeFilter) &&
-      (query === "" || matchesQuery(event, query)),
-  );
+  // Filtering, search and paging happen in the database, so every event
+  // stays reachable however many inquiries come in.
+  const {
+    events: filtered,
+    total,
+    counts,
+  } = await listAdminEventsPage({ filter: activeFilter, search: query, page });
+  const lastPage = Math.max(1, Math.ceil(total / EVENTS_PAGE_SIZE));
 
-  function filterHref(key: FilterKey): string {
+  function listHref(key: FilterKey, pageNumber = 1): string {
     const params = new URLSearchParams();
     if (key !== "all") params.set("status", key);
     if (query) params.set("q", query);
+    if (pageNumber > 1) params.set("page", String(pageNumber));
     const search = params.toString();
 
     return search ? `/admin/events?${search}` : "/admin/events";
   }
 
-  function filterCount(key: FilterKey): number {
-    return events.filter((event) => matchesFilter(event, key)).length;
+  // A stale bookmark past the end lands on the last page.
+  if (page > lastPage) {
+    redirect(listHref(activeFilter, lastPage));
   }
+
+  function filterHref(key: FilterKey): string {
+    return listHref(key);
+  }
+
+  function filterCount(key: FilterKey): number {
+    return counts[key];
+  }
+
+  const firstShown = (page - 1) * EVENTS_PAGE_SIZE + 1;
+  const lastShown = firstShown + filtered.length - 1;
 
   return (
     <AdminShell
@@ -241,6 +228,51 @@ export default async function AdminEventsPage({
               </div>
             </div>
           </div>
+          {lastPage > 1 ? (
+            <nav
+              aria-label="Event pages"
+              className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 text-sm text-slate-600"
+            >
+              <span>
+                Showing {firstShown}–{lastShown} of {total}
+              </span>
+              <span className="flex items-center gap-2">
+                {page > 1 ? (
+                  <Link
+                    className={buttonClasses("secondary", "sm")}
+                    href={listHref(activeFilter, page - 1)}
+                  >
+                    Previous
+                  </Link>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className={`${buttonClasses("secondary", "sm")} opacity-50`}
+                  >
+                    Previous
+                  </span>
+                )}
+                <span className="text-slate-500">
+                  Page {page} of {lastPage}
+                </span>
+                {page < lastPage ? (
+                  <Link
+                    className={buttonClasses("secondary", "sm")}
+                    href={listHref(activeFilter, page + 1)}
+                  >
+                    Next
+                  </Link>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className={`${buttonClasses("secondary", "sm")} opacity-50`}
+                  >
+                    Next
+                  </span>
+                )}
+              </span>
+            </nav>
+          ) : null}
         </section>
       ) : (
         <EmptyState

@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import {
   createEventContract,
@@ -15,19 +14,7 @@ import {
   type CreateEventContractOutcome,
 } from "@/lib/admin/contracts";
 import type { ContractLineItem, EventContract } from "@/lib/contracts/shared";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-
-async function requireCoordinator() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
-  return user;
-}
+import { requireStaffUser } from "@/lib/admin/session";
 
 function revalidateContracts(eventId: string) {
   revalidatePath(`/admin/events/${eventId}/contracts`);
@@ -39,12 +26,12 @@ function revalidateContracts(eventId: string) {
 export async function loadContractTemplateLayoutAction(
   templateId: string,
 ): Promise<ContractTemplateLayoutOutcome> {
-  await requireCoordinator();
+  await requireStaffUser();
   return getContractTemplateLayout(templateId);
 }
 
 export async function loadContractCatalogAction(): Promise<ContractCatalogOutcome> {
-  await requireCoordinator();
+  await requireStaffUser();
   return getContractCatalog();
 }
 
@@ -63,7 +50,7 @@ export async function createContractAction(
   eventId: string,
   input: CreateContractFormInput,
 ): Promise<CreateEventContractOutcome> {
-  const user = await requireCoordinator();
+  const { user } = await requireStaffUser();
   const outcome = await createEventContract({
     eventId,
     name: input.name,
@@ -92,7 +79,7 @@ export async function updateContractAction(
   contractId: string,
   input: UpdateContractFormInput,
 ): Promise<CreateEventContractOutcome> {
-  const user = await requireCoordinator();
+  const { user } = await requireStaffUser();
   const outcome = await updateEventContract({
     eventId,
     contractId,
@@ -110,7 +97,7 @@ export async function refreshContractAction(
   eventId: string,
   contractId: string,
 ): Promise<EventContract | null> {
-  await requireCoordinator();
+  await requireStaffUser();
   const contract = await refreshEventContract(eventId, contractId);
   revalidateContracts(eventId);
   return contract;
@@ -120,7 +107,7 @@ export async function deleteFailedContractAction(
   eventId: string,
   contractId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  await requireCoordinator();
+  await requireStaffUser();
   try {
     await deleteFailedEventContract(eventId, contractId);
     revalidateContracts(eventId);
