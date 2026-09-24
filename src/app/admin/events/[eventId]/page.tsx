@@ -16,6 +16,7 @@ import { DirtySaveButton } from "@/components/admin/dirty-save-button";
 import { FlashBanner } from "@/components/admin/flash-banner";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import {
+  contractPaymentLabel,
   contractStatusLabels,
   listEventContracts,
   retryPendingSignedContracts,
@@ -392,6 +393,11 @@ export default async function AdminEventDetailPage({
                   >
                     {contractStatusLabels[contract.status]}
                   </StatusBadge>
+                  {contractPaymentLabel(contract) ? (
+                    <span className="text-xs text-slate-500">
+                      {contractPaymentLabel(contract)}
+                    </span>
+                  ) : null}
                   {/* PandaDoc needs a staff login. Customer View is the
                       customer's own public PandaDoc link (issued on send):
                       copy-only, because opening it counts as the customer
@@ -940,8 +946,10 @@ function RoomBookingsSection({
             Room bookings
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Calendar reservations linked to this event. Add rooms and confirm
-            holds as booked here, or use the{" "}
+            Calendar reservations linked to this event. Held rooms book
+            automatically at a contract&apos;s first payment, or when a signed
+            contract is marked Paying by check. Add rooms and confirm holds as
+            booked by hand here, or use the{" "}
             <a
               className="text-sky-700 underline underline-offset-2 hover:text-sky-900"
               href="/admin/calendar"

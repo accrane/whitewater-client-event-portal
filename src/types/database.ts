@@ -33,6 +33,9 @@ export type Database = {
           signed_actions_pending: string[];
           signed_actions_attempts: number;
           signed_actions_running_until: string | null;
+          pay_by_check_at: string | null;
+          pay_by_check_by: string | null;
+          rooms_booked_at: string | null;
           signed_pdf_bucket: string | null;
           signed_pdf_path: string | null;
           last_error: string | null;
@@ -66,6 +69,9 @@ export type Database = {
           signed_actions_pending?: string[];
           signed_actions_attempts?: number;
           signed_actions_running_until?: string | null;
+          pay_by_check_at?: string | null;
+          pay_by_check_by?: string | null;
+          rooms_booked_at?: string | null;
           signed_pdf_bucket?: string | null;
           signed_pdf_path?: string | null;
           last_error?: string | null;
@@ -99,6 +105,9 @@ export type Database = {
           signed_actions_pending?: string[];
           signed_actions_attempts?: number;
           signed_actions_running_until?: string | null;
+          pay_by_check_at?: string | null;
+          pay_by_check_by?: string | null;
+          rooms_booked_at?: string | null;
           signed_pdf_bucket?: string | null;
           signed_pdf_path?: string | null;
           last_error?: string | null;

@@ -154,8 +154,8 @@ Booked, or Lost? The stage is left alone.
   page; not sent when you assign yourself or re-pick the same person), and they
   become the event's **Coordinator** in the portal.
 - Reservations start as **held** (faded and dashed on the calendar). Flip
-  them to **booked** from the event page's Room bookings section, or let a
-  signed contract do it (Step 4b).
+  them to **booked** from the event page's Room bookings section, or let the
+  contract's first payment do it (Step 4b).
 
 ### Step 4 — Event prep in the portal
 
@@ -244,7 +244,8 @@ Booked, or Lost? The stage is left alone.
   day template. Text fields accept merge tags that fill in per event. Notes
   keep bold, italic, lists, links, and pictures; text pasted from elsewhere
   keeps its paragraphs and lists but takes the portal's own font and colors.
-- **Room bookings** — confirm held rooms as booked.
+- **Room bookings** — confirm held rooms as booked. They also book on
+  their own at a contract's first payment (Step 4b).
 
 **Automatically:**
 - Opening the event page refreshes it from GHL first (name, type, date of
@@ -309,10 +310,25 @@ tax; the form warns you if a catering item ends up in another table.
   sent the contract (not for drafts or ones awaiting approval). The
   Contracts tab shows the full history, totals, **Refresh status**, **Open
   in PandaDoc**, and the archived **Signed PDF** once executed.
-- **When the client signs:** every held room on the event flips to
-  **booked**, the GHL opportunity moves to **Booked**, and the signed PDF is
-  archived. This happens the moment they finish signing in the portal, or
-  on the next refresh of the event page.
+- **When the client signs:** the GHL opportunity moves to **Booked** and
+  the signed PDF is archived. This happens the moment they finish signing in
+  the portal, or on the next refresh of the event page. The rooms stay
+  **held**: signing doesn't book them.
+- **When the first payment comes in:** every held room on the event flips
+  to **booked**. A payment is the client paying on PandaDoc's payment step
+  right after signing, or anyone marking the document paid in PandaDoc. The
+  contract card then says **Paid in PandaDoc** and when the rooms were
+  booked. A later contract's payment (an addition, the final payment) books
+  any rooms held since, and leaves booked ones alone.
+- **Paying by check:** a signed contract still waiting on payment has a
+  **Paying by check** button on its card. Use it for a group that's allowed
+  to pay by check (or any way outside PandaDoc): it books the event's held
+  rooms right away and marks the contract **Paying by check**, with your
+  name and the time, so everyone can see why PandaDoc still says unpaid.
+  They can simply close PandaDoc's payment screen after signing. When the
+  check arrives, mark the document paid in PandaDoc. **Not paying by check**
+  undoes the mark, but it doesn't put the rooms back on hold; do that under
+  Room bookings if needed.
 - **If one of those steps doesn't go through** (GHL was down for a
   moment, say), the contract shows an amber **Still to do** list instead of
   the green signed note. The portal tries again on its own every few
@@ -338,9 +354,12 @@ tax; the form warns you if a catering item ends up in another table.
   written to the GHL opportunity. Until the first contract exists, the
   manually entered value stands.
 - **Payments:** the standard templates have a payment step after signing.
-  The portal treats a signed-but-unpaid contract as **Signed** (rooms
-  booked, opportunity Booked, PDF archived) because the signature is what
-  commits the event; the card notes that payment is pending in PandaDoc.
+  A signed-but-unpaid contract shows as **Signed** with "Payment pending",
+  and its card says the rooms stay held until it's paid. **Refresh status**
+  checks PandaDoc for the payment right away; the event page checks each
+  time it opens. A contract whose template has no payment step shows "No
+  PandaDoc payment", and its rooms wait for **Paying by check** or for you
+  to book them under Room bookings.
 - Failed sends stay listed as *Failed* with PandaDoc's message so the
   template or setup can be fixed and the send retried. Only failed
   contracts can be removed.
@@ -368,8 +387,10 @@ launch action at the bottom of the event page and tick the confirmation.
 - **review and sign contracts** — each contract shows its items and total
   with a *Review and sign* button that opens PandaDoc's signer right in the
   portal, no email or PandaDoc account needed. When they finish, the portal
-  confirms it immediately (rooms booked, opportunity Booked, PDF archived)
-  and shows the contract as **Signed**;
+  confirms it immediately (opportunity Booked, PDF archived) and shows the
+  contract as **Signed**. PandaDoc then asks for the payment, and the rooms
+  book once it's made; the client is told their rooms are confirmed once
+  their first payment is received;
 - open proposal, contract, invoice, and payment links ("Documents and
   payment");
 - view the event-day schedule.
@@ -407,7 +428,7 @@ contact and opportunity are otherwise untouched.
 
 | Screen | What it's for |
 | --- | --- |
-| **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones, with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
+| **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones (shown as **Signed, check pending** when every unpaid contract is marked Paying by check), with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
 | **Events** | All portal events, newest first, 50 to a page with Previous/Next at the bottom. Status filters (Draft, Launched, Past) show how many events each holds, and the search box finds an event by name, type, or coordinator across every page. Open one to work it. |
 | **New inquiry** | Phone intake form (creates the GHL contact and opportunity, then the draft event; Expedited opens the room-hold window) and the backfill list of GHL opportunities without a portal event. |
 | **Event page** | Summary (with the contracts list), coordinator, primary contact with the conversations, notes, and tasks buttons and the follow-ups pause switch, facilitator, room bookings, launch, review queues. |
@@ -474,8 +495,9 @@ Payment, the wedding ones) work as they are. If you build a new one:
   *Awaiting PandaDoc approval* until a manager approves them in PandaDoc
   (the **Contracts** page lists them first, with a direct link).
 - If the template has a **payment step**, clients are asked to pay right
-  after signing. The portal counts the signature as the commitment; turn
-  the payment step off if clients should pay some other way.
+  after signing, and that payment is what books the rooms. Leave it on for
+  groups that pay by check too: they close the payment screen and you mark
+  the contract **Paying by check**.
 
 ### Day to day
 
@@ -488,8 +510,10 @@ Payment, the wedding ones) work as they are. If you build a new one:
   is why it copies rather than opens; only send it to the customer.
 - A contract can only be signed while it is sent or viewed — not while it
   is a draft or awaiting approval.
-- **Payment status** on the event still comes from GHL; PandaDoc payments
-  are not tracked in the portal.
+- **Contract payments** are tracked on each signed contract: Payment
+  pending, Paid (in PandaDoc), Paying by check, or No PandaDoc payment. The
+  event page's Contracts line and the Contracts page show the same note.
+  The separate **Payment status** field on the event still comes from GHL.
 
 ---
 
@@ -505,4 +529,5 @@ Payment, the wedding ones) work as they are. If you build a new one:
 | Saving a contract says an item is no longer in the PandaDoc catalog | Someone removed or replaced that item in PandaDoc. Remove the row and add the current item from the catalog, or add it as a custom row. |
 | The catalog or the template's tables won't load in the contract form | The portal can't reach PandaDoc right now. Custom rows still work; try again in a minute, and tell a manager if it persists. |
 | The client says their signing link stopped working | The contract was edited after it was sent. Their portal shows the revised one. |
+| The client signed but the rooms are still held | Rooms book at the first payment, not the signature. Open the contract: "Payment pending" means PandaDoc is still waiting on the client's payment (**Refresh status** checks again). If they're paying by check, use **Paying by check**. |
 | Follow-up messages still going to someone who called | Use the pause switch on their Opportunities card or event page. |

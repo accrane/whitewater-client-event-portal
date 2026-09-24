@@ -38,6 +38,7 @@ import {
   OPEN_CONTRACT_STATUSES,
   SIGNABLE_CONTRACT_STATUSES,
   calculateContractSubtotal,
+  contractPaymentReceived,
   failedSignedContractSteps,
   isCountedLineItem,
   parseContractLineItems,
@@ -56,6 +57,7 @@ import type { Database, Json } from "@/types/database";
 
 export {
   calculateContractSubtotal,
+  contractPaymentLabel,
   contractStatusLabels,
   parseContractLineItems,
 } from "@/lib/contracts/shared";
@@ -103,6 +105,9 @@ function mapContractRow(
     completedAt: row.completed_at,
     signedActionsAppliedAt: row.signed_actions_applied_at,
     signedActionsPending: parseSignedContractSteps(row.signed_actions_pending),
+    payByCheckAt: row.pay_by_check_at,
+    payByCheckBy: row.pay_by_check_by,
+    roomsBookedAt: row.rooms_booked_at,
     signedPdfUrl,
     lastError: row.last_error,
     createdBy: row.created_by,
@@ -927,8 +932,9 @@ function mapPandaDocStatus(raw: string): ContractStatus {
     case "document.viewed":
       return "viewed";
     // waiting_pay = every recipient signed and PandaDoc is now collecting
-    // the payment the template asks for. The signature is what books the
-    // event, so it counts as signed here; payment status stays GHL's field.
+    // the payment the template asks for. It counts as signed here (the
+    // signature steps run); the rooms wait for document.paid or a
+    // coordinator's "Paying by check" (contractPaymentReceived).
     case "document.waiting_pay":
     case "document.completed":
     case "document.paid":
@@ -1045,8 +1051,9 @@ export async function syncContractFromPandaDoc(
   return updated;
 }
 
-// Page-load refresh for an event's open contracts (mirrors the GHL sync on
-// the admin event page). Final-state rows are left alone.
+// Page-load refresh for an event's open contracts and signed ones awaiting
+// payment (mirrors the GHL sync on the admin event page). Other final-state
+// rows are left alone.
 // ---- All-contracts page ----------------------------------------------------
 
 export type AdminContractListItem = {
@@ -1065,6 +1072,7 @@ export type AdminContractListItem = {
   completedAt: string | null;
   updatedAt: string;
   lastError: string | null;
+  payByCheckAt: string | null;
   event: {
     name: string;
     eventDate: string | null;
@@ -1084,7 +1092,7 @@ export async function listAllContracts(): Promise<AdminContractListItem[]> {
   const { data, error } = await supabase
     .from("event_contracts")
     .select(
-      "id, event_id, name, status, pandadoc_status, pandadoc_document_id, recipient_name, subtotal, grand_total, created_at, sent_at, viewed_at, completed_at, updated_at, last_error",
+      "id, event_id, name, status, pandadoc_status, pandadoc_document_id, recipient_name, subtotal, grand_total, created_at, sent_at, viewed_at, completed_at, updated_at, last_error, pay_by_check_at",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Unable to load contracts: ${error.message}`);
@@ -1106,6 +1114,7 @@ export async function listAllContracts(): Promise<AdminContractListItem[]> {
     | "completed_at"
     | "updated_at"
     | "last_error"
+    | "pay_by_check_at"
   >[];
   const eventIds = [...new Set(rows.map((row) => row.event_id))];
   const events = new Map<string, AdminContractListItem["event"]>();
@@ -1144,6 +1153,7 @@ export async function listAllContracts(): Promise<AdminContractListItem[]> {
     completedAt: row.completed_at,
     updatedAt: row.updated_at,
     lastError: row.last_error,
+    payByCheckAt: row.pay_by_check_at,
     event: events.get(row.event_id) ?? {
       name: "Deleted event",
       eventDate: null,
@@ -1156,17 +1166,22 @@ export async function listAllContracts(): Promise<AdminContractListItem[]> {
   }));
 }
 
-// Re-reads the stalest open contracts from PandaDoc (least recently
+// Contracts PandaDoc can still move: open ones, plus signed ones waiting on
+// their payment step. The payment is what books the rooms, so page-load
+// syncs keep checking those too rather than relying on the webhook alone.
+const SYNCABLE_CONTRACTS = `status.in.(${OPEN_CONTRACT_STATUSES.join(",")}),pandadoc_status.eq."document.waiting_pay"`;
+
+// Re-reads the stalest syncable contracts from PandaDoc (least recently
 // updated first, up to `limit`) so the all-contracts page reflects
-// approvals, views, and signatures made in PandaDoc. Events whose contract
-// status changed get their value re-summed. Never throws.
+// approvals, views, signatures, and payments made in PandaDoc. Events whose
+// contract status changed get their value re-summed. Never throws.
 export async function syncOpenContracts(limit: number): Promise<number> {
   if (!isPandaDocConfigured()) return 0;
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("event_contracts")
     .select("*")
-    .in("status", OPEN_CONTRACT_STATUSES)
+    .or(SYNCABLE_CONTRACTS)
     .not("pandadoc_document_id", "is", null)
     .order("updated_at", { ascending: true })
     .limit(limit);
@@ -1203,7 +1218,7 @@ export async function syncEventContracts(eventId: string): Promise<void> {
     .from("event_contracts")
     .select("*")
     .eq("event_id", eventId)
-    .in("status", OPEN_CONTRACT_STATUSES)
+    .or(SYNCABLE_CONTRACTS)
     .not("pandadoc_document_id", "is", null);
   if (error) {
     console.error("Unable to load contracts for sync", error.message);
@@ -1266,14 +1281,18 @@ function signedStepsToRun(row: ContractRow): SignedContractStep[] {
     signedActionsAppliedAt: row.signed_actions_applied_at,
     signedActionsPending: row.signed_actions_pending,
     signedPdfPath: row.signed_pdf_path,
+    pandadocStatus: row.pandadoc_status,
+    payByCheckAt: row.pay_by_check_at,
+    roomsBookedAt: row.rooms_booked_at,
   });
 }
 
-// What "signed" sets in motion. Each step is independent: one that fails (GHL
+// What "signed" sets in motion, and later what the contract's first payment
+// does (book the rooms). Each step is independent: one that fails (GHL
 // down, PandaDoc slow) is recorded in signed_actions_pending and run again —
 // on its own — by the next sync (the PandaDoc webhook, page views, Refresh),
 // and the Contracts tab lists it as still to do. Finished steps never re-run,
-// so rooms a coordinator changes after signing aren't touched again. A lease
+// so rooms a coordinator changes after payment aren't touched again. A lease
 // (signed_actions_running_until) keeps overlapping syncs from running the
 // same steps twice. Every attempt is in integration_logs.
 // How long one run may hold a contract before another sync can take over (a
@@ -1356,7 +1375,8 @@ async function runSignedSteps(row: ContractRow): Promise<ContractRow> {
 
   const outcomes: Partial<Record<SignedContractStep, string>> = {};
 
-  // 1. Rooms: every reservation on the event becomes booked.
+  // 1. Rooms, once the contract is paid: every reservation on the event
+  // becomes booked.
   if (steps.includes("reservations")) {
     try {
       await setEventReservationsStatus({
@@ -1400,27 +1420,50 @@ async function runSignedSteps(row: ContractRow): Promise<ContractRow> {
   }
 
   const stillPending = failedSignedContractSteps(outcomes);
+  const roomsBooked = outcomes.reservations === "booked";
   const updated = await updateContractRow(row.id, {
     signed_actions_pending: stillPending,
     signed_actions_running_until: null,
+    ...(roomsBooked ? { rooms_booked_at: new Date().toISOString() } : {}),
     ...(archived?.ok
       ? { signed_pdf_bucket: archived.bucket, signed_pdf_path: archived.path }
       : {}),
   });
 
+  // A run is the signature, the first payment (the rooms step's first try),
+  // or a retry of steps that failed earlier.
+  const paymentRun =
+    !firstRun &&
+    steps.includes("reservations") &&
+    !parseSignedContractSteps(row.signed_actions_pending).includes("reservations");
+  const paidHow =
+    row.pay_by_check_at && row.pandadoc_status !== "document.paid"
+      ? `marked as paying by check${row.pay_by_check_by ? ` by ${row.pay_by_check_by}` : ""}`
+      : "paid in PandaDoc";
+
   await logIntegrationEvent({
     direction: "PANDADOC_TO_PORTAL",
-    eventType: firstRun ? "contract_signed" : "contract_signed_retry",
+    eventType: firstRun
+      ? "contract_signed"
+      : paymentRun
+        ? "contract_paid"
+        : "contract_signed_retry",
     ghlLocationId: event?.ghl_location_id ?? null,
     portalEventId: row.event_id,
     status: stillPending.length > 0 ? "warning" : "success",
     message: firstRun
       ? stillPending.length > 0
         ? "Contract signed; some follow-up steps failed and will be retried automatically."
-        : "Contract signed: rooms booked, GHL opportunity moved to Booked, PDF archived."
-      : stillPending.length > 0
-        ? "Retried the signed-contract steps that failed earlier; some still need another try."
-        : "Signed-contract steps that failed earlier have now finished.",
+        : roomsBooked
+          ? `Contract signed and ${paidHow}: rooms booked, GHL opportunity moved to Booked, PDF archived.`
+          : "Contract signed: GHL opportunity moved to Booked, PDF archived. Rooms stay held until the first payment."
+      : paymentRun
+        ? roomsBooked
+          ? `Contract ${paidHow}: the event's held rooms are now booked.`
+          : `Contract ${paidHow}; booking the event's rooms failed and will be retried automatically.`
+        : stillPending.length > 0
+          ? "Retried the signed-contract steps that failed earlier; some still need another try."
+          : "Signed-contract steps that failed earlier have now finished.",
     details: {
       contract_id: row.id,
       pandadoc_document_id: row.pandadoc_document_id,
@@ -1433,9 +1476,10 @@ async function runSignedSteps(row: ContractRow): Promise<ContractRow> {
 }
 
 // Safety net for signed contracts whose follow-up steps haven't all run: a
-// step that failed, or a run that never started (a webhook that errored just
-// after saving the status). Completed contracts aren't in the open-status
-// sweeps, so page loads call this too. Rows written in the last two minutes
+// step that failed, a run that never started (a webhook that errored just
+// after saving the status), or a paid contract whose rooms aren't booked
+// yet. Paid contracts aren't in the sync sweeps, so page loads call this
+// too. Rows written in the last two minutes
 // are left alone so an outage isn't retried on every page view, and a step
 // that keeps failing (say, an opportunity deleted in GHL) stops retrying on
 // its own after ten runs; the webhook and Refresh status still try. Never
@@ -1453,7 +1497,7 @@ export async function retryPendingSignedContracts(options: {
     .select("*")
     .eq("status", "completed")
     .or(
-      "signed_actions_applied_at.is.null,signed_actions_pending.neq.{},signed_pdf_path.is.null",
+      'signed_actions_applied_at.is.null,signed_actions_pending.neq.{},signed_pdf_path.is.null,and(rooms_booked_at.is.null,or(pandadoc_status.eq."document.paid",pay_by_check_at.not.is.null))',
     )
     .lt("signed_actions_attempts", SIGNED_STEP_MAX_AUTO_ATTEMPTS)
     .lt(
@@ -1491,6 +1535,103 @@ export async function refreshEventContract(
   if (!row || row.event_id !== eventId) return null;
   const synced = await syncContractFromPandaDoc(row);
   return synced ? mapContractRow(synced, await signedPdfUrlFor(synced)) : null;
+}
+
+export type PayingByCheckOutcome =
+  | { ok: true; contract: EventContract }
+  | { ok: false; error: string };
+
+// "Paying by check": the client pays outside PandaDoc, so the payment that
+// books the rooms will never show there. Marking a signed contract counts as
+// that payment and books the event's held rooms now, through the same rooms
+// step a PandaDoc payment runs (if another sync holds the steps' lease, that
+// sync or the next one books them).
+export async function markContractPayingByCheck(
+  eventId: string,
+  contractId: string,
+  markedBy: string | null,
+): Promise<PayingByCheckOutcome> {
+  const row = await getContractRow(contractId);
+  if (!row || row.event_id !== eventId) {
+    return { ok: false, error: "Contract not found." };
+  }
+  if (row.status !== "completed") {
+    return {
+      ok: false,
+      error: "Only a signed contract can be marked as paying by check.",
+    };
+  }
+  if (row.pandadoc_status === "document.paid") {
+    return { ok: false, error: "PandaDoc already shows this contract as paid." };
+  }
+
+  let updated = row.pay_by_check_at
+    ? row
+    : await updateContractRow(row.id, {
+        pay_by_check_at: new Date().toISOString(),
+        pay_by_check_by: markedBy,
+      });
+  if (signedStepsToRun(updated).length > 0) {
+    try {
+      updated = await applySignedContractActions(updated);
+    } catch (error) {
+      // The rooms step stays due; the next sync or retry sweep runs it.
+      console.error("Paying-by-check room booking failed", row.id, error);
+      updated = (await getContractRow(row.id)) ?? updated;
+    }
+  }
+  return {
+    ok: true,
+    contract: mapContractRow(updated, await signedPdfUrlFor(updated)),
+  };
+}
+
+// Undoes "Paying by check" (a mistaken click, or the client pays in PandaDoc
+// after all). Rooms stay as they are — revert them under Room bookings if
+// needed — and a later PandaDoc payment books whatever is held then.
+export async function clearContractPayingByCheck(
+  eventId: string,
+  contractId: string,
+  clearedBy: string | null,
+): Promise<PayingByCheckOutcome> {
+  const row = await getContractRow(contractId);
+  if (!row || row.event_id !== eventId) {
+    return { ok: false, error: "Contract not found." };
+  }
+
+  let updated = row;
+  if (row.pay_by_check_at) {
+    const paidInPandaDoc = row.pandadoc_status === "document.paid";
+    updated = await updateContractRow(row.id, {
+      pay_by_check_at: null,
+      pay_by_check_by: null,
+      ...(paidInPandaDoc
+        ? {}
+        : {
+            rooms_booked_at: null,
+            // Not paid any more, so a failed rooms step isn't owed either.
+            signed_actions_pending: parseSignedContractSteps(
+              row.signed_actions_pending,
+            ).filter((step) => step !== "reservations"),
+          }),
+    });
+    await logIntegrationEvent({
+      direction: "PANDADOC_TO_PORTAL",
+      eventType: "contract_pay_by_check_cleared",
+      portalEventId: row.event_id,
+      status: "success",
+      message: `"Paying by check" was removed from the contract${clearedBy ? ` by ${clearedBy}` : ""}; its rooms were left as they are.`,
+      details: {
+        contract_id: row.id,
+        marked_at: row.pay_by_check_at,
+        marked_by: row.pay_by_check_by,
+      },
+    });
+  }
+  return {
+    ok: true,
+    contract: mapContractRow(updated, await signedPdfUrlFor(updated)),
+  };
 }
 
 // Only contracts that never made it to PandaDoc can be removed; anything
@@ -1551,6 +1692,10 @@ export async function listClientContracts(
     canSign:
       SIGNABLE_CONTRACT_STATUSES.includes(row.status) &&
       Boolean(row.pandadoc_document_id),
+    paymentReceived: contractPaymentReceived({
+      pandadocStatus: row.pandadoc_status,
+      payByCheckAt: row.pay_by_check_at,
+    }),
   }));
 }
 
@@ -1599,8 +1744,9 @@ export async function createContractSigningSession(
 }
 
 // Called by the portal when the embedded signer reports completion: pulls
-// the final status immediately (so rooms flip within seconds) instead of
-// waiting for a webhook or the next page load.
+// the final status immediately (so the signature, and a payment made right
+// after it, register within seconds) instead of waiting for a webhook or the
+// next page load.
 export async function completeContractSigningFromPortal(
   eventId: string,
   contractId: string,

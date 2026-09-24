@@ -5,6 +5,7 @@ import { AdminStatCard } from "@/components/admin/admin-stat-card";
 import { FollowUpPauseButton } from "@/components/admin/follow-up-pause-button";
 import { Icon } from "@/components/ui/icon";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
+import { contractPaymentLabel } from "@/lib/contracts/shared";
 import {
   contractDeadlineState,
   getAdminDashboardMetrics,
@@ -80,6 +81,7 @@ const deadlineCopy: Record<
   awaiting_approval: { label: "Awaiting PandaDoc approval", tone: "warning" },
   awaiting_signature: { label: "Awaiting signature", tone: "warning" },
   unpaid: { label: "Signed, unpaid", tone: "warning" },
+  check_pending: { label: "Signed, check pending", tone: "warning" },
 };
 
 type AdminDashboardPageProps = {
@@ -654,8 +656,8 @@ function ContractsSection({
                           {contract.completedAt
                             ? ` · Signed ${formatShortDate(contract.completedAt)}`
                             : ""}
-                          {contract.pandadocStatus === "document.waiting_pay"
-                            ? " · Payment pending"
+                          {contractPaymentLabel(contract)
+                            ? ` · ${contractPaymentLabel(contract)}`
                             : ""}
                         </p>
                       </div>

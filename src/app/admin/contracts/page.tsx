@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import {
+  contractPaymentLabel,
   contractStatusLabels,
   listAllContracts,
   syncOpenContracts,
@@ -63,8 +64,15 @@ function shortDate(iso: string | null): string | null {
 // One line under the badge saying when the last thing happened.
 function statusDetail(contract: AdminContractListItem): string | null {
   switch (contract.status) {
-    case "completed":
-      return contract.completedAt ? `Signed ${shortDate(contract.completedAt)}` : null;
+    case "completed": {
+      const payment = contractPaymentLabel(contract);
+      return [
+        contract.completedAt ? `Signed ${shortDate(contract.completedAt)}` : null,
+        payment,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null;
+    }
     case "viewed":
       return contract.viewedAt ? `Viewed ${shortDate(contract.viewedAt)}` : null;
     case "sent":

@@ -75,7 +75,8 @@ Every page, server action and API route checks through
   description, line items, subtotal, app status + raw PandaDoc status,
   document id/link, recipient, sent/viewed/signed timestamps, signed-PDF
   path, `signed_actions_applied_at` (once-only guard for the signed side
-  effects).
+  effects), `pay_by_check_at/by` (a coordinator's "Paying by check") and
+  `rooms_booked_at` (when the contract's payment booked the rooms).
 - **PandaDoc** — the documents themselves and signing; the app reads status
   and the executed PDF back.
 - **GHL** — contacts, opportunities, pipeline stages, custom fields (see
@@ -103,11 +104,12 @@ Every page, server action and API route checks through
 | Contracts tab "Save and re-send" (Edit) | app → PandaDoc | Document moved to draft, updated (name, tokens, pricing table), sent again; row gets `revision`+1, `revised_at/by`; `contract_update` log |
 | Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + one pricing table per tax treatment from the line items, option ticks included), waited to draft, sent silently (or emailed) |
 | Contract form opens / template changes | PandaDoc → app | Template details (pricing tables, headings, option and starter rows) and the product catalog, both read live and cached 5 min per server process (never stored). On save the server re-reads the catalog to set catalog rows' names and prices |
-| Admin event page / Contracts tab load | PandaDoc → app | Open contracts re-read from PandaDoc (status, total); signed side effects run if newly completed |
+| Admin event page / Contracts tab load | PandaDoc → app | Open contracts and signed ones in `document.waiting_pay` re-read from PandaDoc (status, total); signed side effects run if newly completed, the rooms step if newly `document.paid` |
 | Portal "Review and sign" | app → PandaDoc | Embedded-signing session minted for the recipient (1-hour link) |
-| Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (rooms booked, GHL Booked, PDF archived) |
+| Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (GHL Booked, PDF archived; rooms booked only if it's already paid) |
+| Contracts tab "Paying by check" | app | `setContractPayingByCheckAction` → `markContractPayingByCheck` sets `pay_by_check_at/by` on a signed, unpaid contract and runs the rooms step now; "Not paying by check" clears them (`contract_pay_by_check_cleared` log) and leaves the rooms alone |
 | PandaDoc webhook | PandaDoc → app | `POST /api/pandadoc/webhook?signature=…` (HMAC-SHA256 with `PANDADOC_WEBHOOK_KEY`); each document in the delivery is re-read and synced — needs a public URL. Answers 500 when a document failed to process so PandaDoc redelivers |
-| Signed-step retries | app → GHL / storage | Signed contracts with steps left in `signed_actions_pending`, never started, or with no PDF on file are retried on their own: event page load (after the response), the Contracts page sweep and Refresh statuses, 2+ minutes apart, at most 10 automatic runs (`signed_actions_attempts`); the webhook and Refresh status always retry |
+| Signed-step retries | app → GHL / storage | Signed contracts with steps left in `signed_actions_pending`, never started, with no PDF on file, or paid with rooms not yet booked are retried on their own: event page load (after the response), the Contracts page sweep and Refresh statuses, 2+ minutes apart, at most 10 automatic runs (`signed_actions_attempts`); the webhook and Refresh status always retry |
 | Contract signed | app → GHL | Opportunity moved to the Booked stage (`opportunity_move_to_booked`) |
 | Conversations send with a "Proposal" snippet | app → GHL | Opportunity moved to Proposal Sent, forward only (`opportunity_move_to_proposal_sent`) |
 | Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in coordinator's GHL user) or completion toggled |
@@ -287,7 +289,12 @@ field, read-only in the app — see Step 2).
   refresh, portal signer completion, and the webhook.
 - **Signed side effects** (`applySignedContractActions`): four independent
   steps — `reservations` (rooms booked), `ghl_stage` (opportunity → Booked),
-  `follow_ups` (pause lifted), `signed_pdf` (executed PDF archived). A run
+  `follow_ups` (pause lifted), `signed_pdf` (executed PDF archived). The
+  signature runs all but `reservations`: the rooms wait for the contract's
+  first payment (`contractPaymentReceived` — PandaDoc `document.paid`, or
+  `pay_by_check_at` set by a coordinator), then that step runs once per
+  contract and stamps `rooms_booked_at`; a failed try keeps it due while
+  the contract is paid (`signedContractStepsToRun`). A run
   first takes a lease (`signed_actions_running_until`, set only while empty
   or expired, 5 minutes, cleared when the run ends), so the webhook, the
   signer and a page load can't run the same steps at once; the steps are then
@@ -295,27 +302,42 @@ field, read-only in the app — see Step 2).
   runs. Steps that fail go into
   `signed_actions_pending` and only those re-run later
   (`retryPendingSignedContracts`) — a finished step never repeats, so rooms a
-  coordinator changes after signing aren't re-booked. A signed contract with
+  coordinator changes after payment aren't re-booked. A signed contract with
   no PDF on file always counts as having the PDF step left
   (`signedContractStepsToRun`), which also catches contracts signed before
   steps were tracked. A "skipped" outcome
   (no linked opportunity, stage env var unset) counts as finished. The event's
   Contracts tab lists pending steps as **Still to do**; every run logs
-  `contract_signed` (first) or `contract_signed_retry`.
+  `contract_signed` (first), `contract_paid` (the rooms step's first try
+  after payment or "Paying by check"), or `contract_signed_retry`.
 - **Webhook:** register `https://<app>/api/pandadoc/webhook` in PandaDoc for
   *document_state_changed* and *recipient_completed*, and put the shared key
-  in `PANDADOC_WEBHOOK_KEY`. Only matters once the app has a public URL —
-  on localhost the signer-completion path already flips rooms within
-  seconds of the client finishing.
+  in `PANDADOC_WEBHOOK_KEY`. *document_state_changed* is also how a
+  payment (`waiting_pay` → `paid`) arrives quickly; without the webhook the
+  page-load syncs of `waiting_pay` contracts catch it on the next event or
+  Contracts page view.
 - **PandaDoc payments:** the standard templates have a payment step, so
   after the client signs, PandaDoc's signer moves on to "pay" and the
   document sits in `document.waiting_pay` until paid (`document.paid`). The
-  app treats *waiting_pay* as **Signed** (rooms booked, GHL Booked, PDF
-  archived) because the signature is what commits the event; the card notes
-  that payment is pending in PandaDoc. Turn payments off in the template if
-  clients should pay elsewhere.
-- **Payment status** is still the GHL-synced field; PandaDoc payments are
-  not wired (a `document.paid` status simply reads as Signed).
+  app treats *waiting_pay* as **Signed** (GHL Booked, PDF archived) and
+  `document.paid` as the payment that books the rooms. PandaDoc's details API
+  exposes no payment fields, so the status is the only signal; "Mark as
+  paid" in PandaDoc produces the same `document.paid`. A template with no
+  payment step goes straight to `document.completed`, which is never a
+  payment: its rooms wait for "Paying by check" or a manual booking.
+  **Installments** would break "first payment": PandaDoc keeps the document
+  in *waiting_pay* until the last installment is paid. The templates use
+  one-time payments plus separate Final Payment documents (checked
+  2026-09-24), so this doesn't arise today.
+- **Paying by check:** a coordinator-only switch on a signed, unpaid
+  contract (`markContractPayingByCheck`) counts as the payment and books the
+  rooms at once. The contract stays *waiting_pay* in PandaDoc until someone
+  marks it paid there, so the dashboard shows it as **Signed, check pending**
+  (`contractDeadlineState` → `check_pending`) rather than plain unpaid.
+- **Payment status** on the event is still the GHL-synced field; the
+  contract-level note (`contractPaymentLabel`: Paid / Paying by check /
+  Payment pending / No PandaDoc payment) is what the event page, dashboard
+  and Contracts page show.
 
 ---
 
@@ -536,6 +558,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-24 | **Rooms book on the first payment, not the signature.** Migration `20260924130000` adds `event_contracts.pay_by_check_at`, `pay_by_check_by`, `rooms_booked_at`, backfilling `rooms_booked_at` for contracts already signed (their rooms booked at signature under the old rule). `signedContractStepsToRun` now leaves `reservations` out of the signature run and makes it due once `contractPaymentReceived` (PandaDoc `document.paid`, or `pay_by_check_at`) and until `rooms_booked_at` is stamped (`src/lib/contracts/shared.ts`, tests in `tests/admin/contract-signed-steps.test.mjs`). Page-load syncs (`syncEventContracts`, `syncOpenContracts`) now also re-read `document.waiting_pay` contracts so a payment is caught without the webhook; the retry sweep includes paid contracts whose rooms aren't booked. New coordinator-only **Paying by check** on the Contracts tab (`markContractPayingByCheck` / `clearContractPayingByCheck`, `setContractPayingByCheckAction`) books the rooms at once; undoing it leaves rooms alone. Logs: `contract_paid`, `contract_pay_by_check_cleared`; `contract_signed` messages say whether rooms booked. Payment notes (`contractPaymentLabel`) on the event page's Contracts line, the dashboard's recently signed list, and the Contracts page; dashboard state `check_pending` ("Signed, check pending"). **Refresh status** shows on signed-unpaid contracts. The portal's thank-you says rooms are confirmed once the first payment is received (`ClientContract.paymentReceived`). The GHL opportunity still moves to Booked at signature. |
 | 2026-09-24 | **Email signatures from GHL.** Drawer emails end with GHL's `{{user.email_signature}}` tag (`appendEmailSignature` in `src/lib/ghl/snippet-merge-tags.ts`, applied by `sendConversationMessage` when `includeSignature` is set; never twice if the message already has the tag). The conversations route sets it unless the POST body says `includeSignature: false`, and skips contacts with nobody assigned; the integration log records `signature` on email sends. The message-templates route returns `signer` (`{ name, isSender }`, from the contact's `assignedTo`) so the checkbox beside Send names whose signature it is. `findUnfilledMergeTags` no longer flags the signature tag. The two test sends behind it (§5 Email signatures) also showed that GHL does merge-render API sends — contact tags from the contact, `user.*` from the contact's assigned user — correcting the 2026-09-21 note below; opportunity tags still go out blank. Tests in `tests/admin/snippet-merge-tags.test.mjs`. |
 | 2026-09-24 | **Review follow-ups (Greptile on PR #1).** Signed-contract runs now hold a lease (`signed_actions_running_until`, migration `20260924120000`) instead of an `updated_at` check, which let a sync that wrote the row first claim a run already in progress. Reply "seen" is the time the conversation was read (captured before the GHL call) and only moves forward; the card's flag clears after the drawer loads, not on click. `listUpcomingLaunchedEvents` pages by exact count past the API's max-rows. `vendorFetch` re-wraps response bodies so a timeout while reading one reports "… did not finish responding within Ns" (tests in `tests/http/vendor-fetch.test.mjs`). |
 | 2026-09-24 | **Audit fixes (security, reliability, scale).** From the 2026-09-23 read-only audit's "fix first" list. (1) **Staff access is granted, not assumed:** `getUserRole` (`src/lib/admin/roles.ts`) returns null for an account without an `admin`/`coordinator` role or an anonymous session; proxy, login, and every page/action/API route check through the new `src/lib/admin/session.ts` (`getStaffUser` is `cache()`d per request; the calendar-api guard, which only checked sign-in, is now `requireStaffApiUser`). Admin → Users shows role-less accounts as **No access** with a required role picker. Supabase public sign-up was found enabled; turn it off in the dashboard. (2) **Rich text is sanitized** (`src/lib/html/sanitize.ts`, `sanitize-html`): schedule notes and checklist FAQ HTML on every save and load — formatting, lists, links (new tab, noopener) and https/data-URL images kept; styles, classes, scripts, handlers, iframes and forms removed; output matches the browser's serialization so untouched notes don't look edited. Tests: `tests/html/sanitize.test.mjs`. (3) **Timeouts and 429 retries** on every vendor call (`vendorFetch`, §2); `updateGhlOpportunity` returns a failure instead of throwing. Tests: `tests/http/vendor-fetch.test.mjs`. (4) **Signed-contract steps retry** (§3): migration `20260924100000` adds `signed_actions_pending` / `signed_actions_attempts` and queues `signed_pdf` for signed contracts whose PDF never archived; any signed contract with no PDF on file counts as having that step left (`signedContractStepsToRun`); Contracts tab shows **Still to do**; the PandaDoc webhook answers 500 on a failed document. Tests: `tests/admin/contract-signed-steps.test.mjs`. (5) **New reply flags replace the badge sweep:** the pipeline's background note/task sweep (up to 120 GHL calls a view, over GHL's burst limit) is gone; a GHL Customer Replied workflow (§5) posts to `/api/ghl/replies` (migration `20260924110000`, table `ghl_contact_replies`, `src/lib/ghl/replies.ts`, rules in `reply-flags.ts`, tests `tests/ghl/reply-flags.test.mjs`); cards show **New reply** and a dot on the conversations button, stage tabs a red dot; opening the drawer clears it. (6) **No more 50-event cap:** `listAdminEvents` is gone. The Events page pages 50 at a time with filter, search (event name, type, coordinator) and tab counts in SQL (`listAdminEventsPage`, `?page=`); the dashboard reads every upcoming launched event (`listUpcomingLaunchedEvents`, served by `events_status_event_date_idx`) plus the events its lists point at (`listAdminEventsByIds`). |
