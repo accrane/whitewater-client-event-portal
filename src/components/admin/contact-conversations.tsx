@@ -67,7 +67,9 @@ type ContactConversationsButtonProps = {
   compact?: boolean;
   // The client has written in since anyone last opened this (pipeline cards).
   newReply?: boolean;
-  onOpen?: () => void;
+  // Called once the conversation has loaded (and the server has marked the
+  // reply seen), so a failed load leaves the flag showing.
+  onConversationLoaded?: () => void;
 };
 
 const channelLabels: Record<string, string> = {
@@ -107,7 +109,7 @@ export function ContactConversationsButton({
   opportunityId,
   compact = false,
   newReply = false,
-  onOpen,
+  onConversationLoaded,
 }: ContactConversationsButtonProps) {
   const [open, setOpen] = useState(false);
 
@@ -132,10 +134,7 @@ export function ContactConversationsButton({
             compact ? "p-1.5" : "p-2"
           }`}
           disabled={!contactId}
-          onClick={() => {
-            setOpen(true);
-            onOpen?.();
-          }}
+          onClick={() => setOpen(true)}
           type="button"
         >
           <SpeechBubbleIcon size={compact ? 15 : 20} />
@@ -150,6 +149,7 @@ export function ContactConversationsButton({
           contactName={contactName}
           eventId={eventId}
           onClose={() => setOpen(false)}
+          onLoaded={onConversationLoaded}
           opportunityId={opportunityId}
         />
       ) : null}
@@ -162,14 +162,22 @@ function ConversationsDrawer({
   contactName,
   eventId,
   onClose,
+  onLoaded,
   opportunityId,
 }: {
   contactId: string;
   contactName: string | null;
   eventId?: string;
   onClose: () => void;
+  onLoaded?: () => void;
   opportunityId?: string;
 }) {
+  // Latest callback without making loadConversations (and its effect) re-run
+  // whenever the parent re-renders.
+  const onLoadedRef = useRef(onLoaded);
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  });
   const [conversations, setConversations] = useState<DrawerConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -244,6 +252,7 @@ function ConversationsDrawer({
         return preferred;
       });
       setLoadError(null);
+      onLoadedRef.current?.();
     } catch (error) {
       setLoadError(
         error instanceof Error ? error.message : "Unable to load conversations",

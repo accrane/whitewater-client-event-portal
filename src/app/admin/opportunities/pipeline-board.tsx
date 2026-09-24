@@ -164,8 +164,8 @@ export function PipelineBoard({
   newReplyContactIds: string[];
 }) {
   const router = useRouter();
-  // Opening a card's conversations clears its flag on the server; hide it
-  // here right away rather than waiting for the next render.
+  // Loading a card's conversations clears its flag on the server; hide it
+  // here as soon as they load rather than waiting for the next render.
   const [seenReplies, setSeenReplies] = useState<Set<string>>(() => new Set());
   const unseenReplies = new Set(
     newReplyContactIds.filter((contactId) => !seenReplies.has(contactId)),
@@ -516,7 +516,7 @@ function OpportunityCard({
               contactName={opportunity.contact.name}
               eventId={flags?.eventId}
               newReply={newReply}
-              onOpen={() => {
+              onConversationLoaded={() => {
                 if (opportunity.contact?.id) onRepliesSeen(opportunity.contact.id);
               }}
               opportunityId={opportunity.id}

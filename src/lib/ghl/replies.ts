@@ -29,13 +29,20 @@ export async function recordInboundReply(contactId: string): Promise<void> {
   }
 }
 
-// Never throws: a missed "seen" only leaves the flag up a little longer.
-export async function markContactRepliesSeen(contactId: string): Promise<void> {
+// `seenAt` is when the conversation was read, captured before GHL was asked:
+// a reply that lands after that stays flagged even if this write comes later.
+// Never moves seen_at backwards (an older request finishing late). Never
+// throws: a missed "seen" only leaves the flag up a little longer.
+export async function markContactRepliesSeen(
+  contactId: string,
+  seenAt: string,
+): Promise<void> {
   const supabase = createServiceRoleSupabaseClient();
   const { error } = await supabase
     .from("ghl_contact_replies")
-    .update({ seen_at: new Date().toISOString() } as never)
-    .eq("ghl_contact_id", contactId);
+    .update({ seen_at: seenAt } as never)
+    .eq("ghl_contact_id", contactId)
+    .or(`seen_at.is.null,seen_at.lt."${seenAt}"`);
 
   if (error) {
     console.error("Unable to mark replies seen", error.message);

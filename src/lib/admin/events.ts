@@ -304,24 +304,38 @@ export async function listAdminEventsPage({
 // out from these for Today, This week and the contract deadlines. Not
 // capped: it's the bounded set of events still ahead, and the (status,
 // eventDate) index serves it. Yesterday gives the day-out math room either
-// side of midnight; the dashboard drops anything already past.
+// side of midnight; the dashboard drops anything already past. Read in
+// pages until the exact count is reached, since the API returns at most
+// max-rows (1,000 by default) per request.
 export async function listUpcomingLaunchedEvents(): Promise<AdminEventListItem[]> {
   const supabase = createServiceRoleSupabaseClient();
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
 
-  const { data, error } = await supabase
-    .from("events")
-    .select(LIST_COLUMNS)
-    .eq("status", "launched")
-    .gte("ghl_snapshot->>eventDate", yesterday)
-    .order("created_at", { ascending: false });
+  const rows: EventListRow[] = [];
+  let total = Number.POSITIVE_INFINITY;
+  while (rows.length < total) {
+    const { data, error, count } = await supabase
+      .from("events")
+      .select(LIST_COLUMNS, { count: "exact" })
+      .eq("status", "launched")
+      .gte("ghl_snapshot->>eventDate", yesterday)
+      // id breaks created_at ties so pages don't overlap or skip.
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(rows.length, rows.length + 999);
 
-  if (error) {
-    throw new Error(`Unable to load upcoming events: ${error.message}`);
+    if (error) {
+      throw new Error(`Unable to load upcoming events: ${error.message}`);
+    }
+    const page = (data ?? []) as EventListRow[];
+    if (count !== null) total = count;
+    if (page.length === 0) break;
+    rows.push(...page);
   }
-  return toListItems((data ?? []) as EventListRow[]);
+
+  return toListItems(rows);
 }
 
 // Specific events as list items (the dashboard's vendor submissions, signed

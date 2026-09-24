@@ -1273,44 +1273,76 @@ function signedStepsToRun(row: ContractRow): SignedContractStep[] {
 // down, PandaDoc slow) is recorded in signed_actions_pending and run again —
 // on its own — by the next sync (the PandaDoc webhook, page views, Refresh),
 // and the Contracts tab lists it as still to do. Finished steps never re-run,
-// so rooms a coordinator changes after signing aren't touched again. Every
-// attempt is in integration_logs.
+// so rooms a coordinator changes after signing aren't touched again. A lease
+// (signed_actions_running_until) keeps overlapping syncs from running the
+// same steps twice. Every attempt is in integration_logs.
+// How long one run may hold a contract before another sync can take over (a
+// run that died midway). Runs normally take seconds; every vendor call in
+// them has its own timeout.
+const SIGNED_STEPS_LEASE_MS = 5 * 60 * 1000;
+
 async function applySignedContractActions(
   row: ContractRow,
 ): Promise<ContractRow> {
-  const firstRun = !row.signed_actions_applied_at;
-  const steps = signedStepsToRun(row);
-  if (steps.length === 0) return row;
+  if (signedStepsToRun(row).length === 0) return row;
 
-  // Claim the run so the webhook, the portal signer and a page-load sync
-  // can't apply the same steps twice at once. The first run stamps
-  // signed_actions_applied_at and marks every step pending, so a run that
-  // dies midway leaves them all to retry; a retry claims by updated_at,
-  // which every write to the row bumps.
+  // One run at a time: the webhook, the portal signer and page-load retries
+  // can all reach a contract within seconds of signing. Take the lease
+  // atomically (only while it's empty or expired), then decide the steps from
+  // the row as it is now, not as the caller last read it.
   const supabase = createServiceRoleSupabaseClient();
-  const claim = supabase
+  const now = new Date();
+  const { data: claimedRow, error: claimError } = await supabase
     .from("event_contracts")
     .update({
-      signed_actions_applied_at:
-        row.signed_actions_applied_at ?? new Date().toISOString(),
-      signed_actions_pending: steps,
-      signed_actions_attempts: (row.signed_actions_attempts ?? 0) + 1,
+      signed_actions_running_until: new Date(
+        now.getTime() + SIGNED_STEPS_LEASE_MS,
+      ).toISOString(),
     } as never)
-    .eq("id", row.id);
-  const { data: claimed, error: claimError } = await (firstRun
-    ? claim.is("signed_actions_applied_at", null)
-    : claim.eq("updated_at", row.updated_at)
-  )
+    .eq("id", row.id)
+    .or(
+      `signed_actions_running_until.is.null,signed_actions_running_until.lt."${now.toISOString()}"`,
+    )
     .select("*")
     .maybeSingle();
   if (claimError) {
     throw new Error(`Unable to start signed-contract steps: ${claimError.message}`);
   }
-  if (!claimed) {
-    // Another sync is already on it.
+  if (!claimedRow) {
+    // Another sync is running them.
     return (await getContractRow(row.id)) ?? row;
   }
 
+  const claimed = claimedRow as ContractRow;
+  try {
+    return await runSignedSteps(claimed);
+  } catch (error) {
+    // Hand the lease back so the next sync can retry; the steps were
+    // recorded as pending before any of them ran.
+    await updateContractRow(claimed.id, {
+      signed_actions_running_until: null,
+    }).catch(() => undefined);
+    throw error;
+  }
+}
+
+// The steps themselves, run while holding the lease.
+async function runSignedSteps(row: ContractRow): Promise<ContractRow> {
+  const firstRun = !row.signed_actions_applied_at;
+  const steps = signedStepsToRun(row);
+  if (steps.length === 0) {
+    return updateContractRow(row.id, { signed_actions_running_until: null });
+  }
+
+  // Record the run before doing anything, so one that dies midway leaves
+  // these steps queued for the next sync once its lease expires.
+  await updateContractRow(row.id, {
+    ...(firstRun ? { signed_actions_applied_at: new Date().toISOString() } : {}),
+    signed_actions_pending: steps,
+    signed_actions_attempts: (row.signed_actions_attempts ?? 0) + 1,
+  });
+
+  const supabase = createServiceRoleSupabaseClient();
   const { data: eventData, error: eventError } = await supabase
     .from("events")
     .select("*")
@@ -1370,6 +1402,7 @@ async function applySignedContractActions(
   const stillPending = failedSignedContractSteps(outcomes);
   const updated = await updateContractRow(row.id, {
     signed_actions_pending: stillPending,
+    signed_actions_running_until: null,
     ...(archived?.ok
       ? { signed_pdf_bucket: archived.bucket, signed_pdf_path: archived.path }
       : {}),

@@ -17,6 +17,9 @@ export type VendorFetchOptions = {
 };
 
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+// Statuses whose responses can't carry a body (the Response constructor
+// refuses one).
+const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
 const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]);
 
 // Waiting longer than this inside a request is worse than returning the
@@ -53,7 +56,7 @@ export async function vendorFetch(
     }
 
     if (attempt >= maxRetries || !RETRYABLE_STATUSES.has(response.status)) {
-      return response;
+      return labelBodyTimeout(response, timeout, options);
     }
 
     const wait = retryDelayMs(response.headers.get("retry-after"), attempt);
@@ -63,6 +66,48 @@ export async function vendorFetch(
     await response.body?.cancel().catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, wait));
   }
+}
+
+// The timeout also covers reading the body. A stall there would surface
+// from response.json()/text() as a bare "aborted" error with no vendor name,
+// so the body is re-wrapped to fail with the same kind of labelled message.
+function labelBodyTimeout(
+  response: Response,
+  timeout: AbortSignal,
+  options: VendorFetchOptions,
+): Response {
+  if (!response.body || NULL_BODY_STATUSES.has(response.status)) {
+    return response;
+  }
+
+  const reader = response.body.getReader();
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      } catch (error) {
+        controller.error(
+          timeout.aborted
+            ? new Error(
+                `${options.label} did not finish responding within ${options.timeoutMs / 1000}s`,
+                { cause: error },
+              )
+            : error,
+        );
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
 // How long to wait before retry number `attempt + 1`: the vendor's

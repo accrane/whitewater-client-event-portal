@@ -128,3 +128,47 @@ test("a hung request fails with a labelled timeout error", async () => {
     globalThis.fetch = original;
   }
 });
+
+test("a body that stalls after the headers fails with a labelled error", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (_url, init) =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"partial":'));
+          // Never finishes on its own; the request's signal ends it.
+          init.signal.addEventListener("abort", () =>
+            controller.error(init.signal.reason),
+          );
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  const keepAlive = setTimeout(() => {}, 1000);
+  try {
+    const response = await vendorFetch("https://api.test/x", {}, {
+      label: "PandaDoc",
+      timeoutMs: 30,
+    });
+    assert.equal(response.status, 200);
+    await assert.rejects(response.text(), /PandaDoc did not finish responding within 0.03s/);
+  } finally {
+    clearTimeout(keepAlive);
+    globalThis.fetch = original;
+  }
+});
+
+test("a normal body still reads through the wrapper", async () => {
+  const { restore } = stubFetch([
+    () => new Response('{"ok":true}', { status: 200 }),
+  ]);
+  try {
+    const response = await vendorFetch("https://api.test/x", {}, {
+      label: "GHL",
+      timeoutMs: 1000,
+    });
+    assert.deepEqual(await response.json(), { ok: true });
+  } finally {
+    restore();
+  }
+});

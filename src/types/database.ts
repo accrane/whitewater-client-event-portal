@@ -32,6 +32,7 @@ export type Database = {
           signed_actions_applied_at: string | null;
           signed_actions_pending: string[];
           signed_actions_attempts: number;
+          signed_actions_running_until: string | null;
           signed_pdf_bucket: string | null;
           signed_pdf_path: string | null;
           last_error: string | null;
@@ -64,6 +65,7 @@ export type Database = {
           signed_actions_applied_at?: string | null;
           signed_actions_pending?: string[];
           signed_actions_attempts?: number;
+          signed_actions_running_until?: string | null;
           signed_pdf_bucket?: string | null;
           signed_pdf_path?: string | null;
           last_error?: string | null;
@@ -96,6 +98,7 @@ export type Database = {
           signed_actions_applied_at?: string | null;
           signed_actions_pending?: string[];
           signed_actions_attempts?: number;
+          signed_actions_running_until?: string | null;
           signed_pdf_bucket?: string | null;
           signed_pdf_path?: string | null;
           last_error?: string | null;

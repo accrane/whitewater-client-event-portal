@@ -34,11 +34,14 @@ export async function GET(
   try {
     await requireStaffApiUser();
     const { contactId } = await params;
+    // Taken before asking GHL, so a reply that arrives while this loads
+    // still counts as new.
+    const readAt = new Date().toISOString();
     const [conversations, contact] = await Promise.all([
       listContactConversations(contactId),
       fetchGhlContact(contactId),
     ]);
-    after(() => markContactRepliesSeen(contactId));
+    after(() => markContactRepliesSeen(contactId, readAt));
     return Response.json({ conversations, dnd: contact?.dnd ?? NO_DND });
   } catch (error) {
     return calendarErrorResponse(error);
@@ -52,6 +55,7 @@ export async function POST(
   try {
     await requireStaffApiUser();
     const { contactId } = await params;
+    const repliedAt = new Date().toISOString();
 
     const payload = (await request.json()) as {
       channel?: string;
@@ -105,7 +109,7 @@ export async function POST(
       return Response.json({ error: outcome.error }, { status: 502 });
     }
 
-    after(() => markContactRepliesSeen(contactId));
+    after(() => markContactRepliesSeen(contactId, repliedAt));
     return Response.json({ ok: true });
   } catch (error) {
     return calendarErrorResponse(error);
