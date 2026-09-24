@@ -8,7 +8,7 @@ import { ClientSectionCard } from "@/components/client/client-section-card";
 import { getEventChecklistSections } from "@/lib/admin/checklist-sections";
 import { listClientContracts } from "@/lib/admin/contracts";
 import type { EventChecklistSection } from "@/lib/checklist";
-import { formatDisplayDate } from "@/lib/dates";
+import { formatEventDates } from "@/lib/dates/event-dates";
 import { getClientPortalEventByToken } from "@/lib/client/portal";
 import { buildMergeTagContext, resolveMergeTags } from "@/lib/merge-tags";
 
@@ -65,7 +65,7 @@ export default async function ClientPortalPlaceholderPage({
           <div className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8">
             <SummaryItem
               label="Event date"
-              value={formatNullableDate(event.eventDate)}
+              value={formatEventDates(event.eventDate, event.eventEndDate) || "Not set"}
             />
             <SummaryItem
               label="Arrival time"
@@ -124,7 +124,7 @@ export default async function ClientPortalPlaceholderPage({
               rows={[
                 ["Event type", event.eventType],
                 ["Payment status", event.paymentStatus],
-                ["Event date", formatNullableDate(event.eventDate)],
+                ["Event date", formatEventDates(event.eventDate, event.eventEndDate) || "Not set"],
                 [
                   "Activity passes",
                   formatNullableCount(event.activityPassCount),
@@ -542,10 +542,6 @@ function CountPill({ count, label }: { count: number; label: string }) {
       <p className="mt-1 text-sm text-slate-600">{label}</p>
     </div>
   );
-}
-
-function formatNullableDate(date: string | null): string {
-  return date ? formatDisplayDate(date) : "Not set";
 }
 
 function formatNullableCount(count: number | null): string | null {

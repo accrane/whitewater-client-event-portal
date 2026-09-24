@@ -53,6 +53,10 @@ type ContractsManagerProps = {
   // Event day line ("Friday, November 20th - 9:45am arrival") offered as the
   // first items group's sub-heading on a new contract.
   defaultSectionTitle: string;
+  // One line per event day, suggested in every sub-heading field (create
+  // and edit) — how a multi-day contract, or one for a moved event, gets
+  // its day lines.
+  sectionSuggestions: string[];
 };
 
 const statusTones: Record<EventContract["status"], BadgeTone> = {
@@ -89,6 +93,7 @@ export function ContractsManager({
   contacts,
   portalLaunched,
   defaultSectionTitle,
+  sectionSuggestions,
 }: ContractsManagerProps) {
   const [showForm, setShowForm] = useState(contracts.length === 0);
 
@@ -121,6 +126,7 @@ export function ContractsManager({
           eventId={eventId}
           eventName={eventName}
           onDone={() => setShowForm(false)}
+          sectionSuggestions={sectionSuggestions}
           templateOptions={templateOptions}
         />
       ) : null}
@@ -142,6 +148,7 @@ export function ContractsManager({
               contract={contract}
               eventId={eventId}
               key={contract.id}
+              sectionSuggestions={sectionSuggestions}
             />
           ))}
         </ul>
@@ -153,9 +160,11 @@ export function ContractsManager({
 function ContractCard({
   contract,
   eventId,
+  sectionSuggestions,
 }: {
   contract: EventContract;
   eventId: string;
+  sectionSuggestions: string[];
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -176,6 +185,7 @@ function ContractCard({
           contract={contract}
           eventId={eventId}
           onDone={() => setEditing(false)}
+          sectionSuggestions={sectionSuggestions}
         />
       </li>
     );
@@ -578,6 +588,7 @@ function LineItemsTable({
 type ContractFormProps = {
   eventId: string;
   onDone: () => void;
+  sectionSuggestions: string[];
 } & (
   | {
       // Create: template picker and recipient are editable.
@@ -841,6 +852,7 @@ function ContractForm(props: ContractFormProps) {
         layoutError={layoutStatus.error}
         loadingLayout={layoutStatus.loading}
         onChange={setTables}
+        sectionSuggestions={props.sectionSuggestions}
         tables={tables}
       />
 

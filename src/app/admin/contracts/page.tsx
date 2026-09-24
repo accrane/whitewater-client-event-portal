@@ -27,7 +27,7 @@ import {
   type ContractListTab,
 } from "@/lib/admin/event-filters";
 import { getUserRole } from "@/lib/admin/users";
-import { formatDisplayDate } from "@/lib/dates";
+import { formatEventDates } from "@/lib/dates/event-dates";
 import { pandaDocDocumentUrl } from "@/lib/pandadoc/documents";
 import { requireStaffUser } from "@/lib/admin/session";
 
@@ -373,7 +373,7 @@ function ContractTable({
                     </Link>
                   </td>
                   <td className="px-4 py-3 align-top whitespace-nowrap text-slate-700">
-                    {contract.event.eventDate ? formatDisplayDate(contract.event.eventDate) : "—"}
+                    {formatEventDates(contract.event.eventDate, contract.event.eventEndDate) || "—"}
                   </td>
                   <td className="px-4 py-3 align-top text-slate-700">
                     {contract.event.coordinatorName || (

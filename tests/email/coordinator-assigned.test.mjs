@@ -22,6 +22,24 @@ test("subject names the event and its date", () => {
   );
 });
 
+test("a multi-day event shows its first and last day", () => {
+  const { subject, text } = buildCoordinatorAssignedEmail({
+    ...base,
+    eventDate: "2026-12-30",
+    eventEndDate: "2027-01-01",
+  });
+  assert.match(
+    subject,
+    /\(Wednesday, December 30, 2026 – Friday, January 1, 2027\)$/,
+  );
+  assert.match(text, /Date: Wednesday, December 30, 2026 – Friday, January 1, 2027/);
+  // A last day that isn't after the first is ignored.
+  assert.match(
+    buildCoordinatorAssignedEmail({ ...base, eventEndDate: "2026-12-31" }).text,
+    /Date: Thursday, December 31, 2026\n/,
+  );
+});
+
 test("text body greets by first name and lists every detail plus the link", () => {
   const { text } = buildCoordinatorAssignedEmail(base);
   assert.match(text, /^Hi Sam,/);

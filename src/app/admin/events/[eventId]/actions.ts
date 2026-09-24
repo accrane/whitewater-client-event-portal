@@ -16,6 +16,12 @@ import {
   updateEventCoordinator,
   updateEventSummary,
 } from "@/lib/admin/events";
+import {
+  changeEventDates,
+  type ChangeEventDatesOutcome,
+  type NewRoom,
+  type RoomChange,
+} from "@/lib/admin/event-dates";
 import { prepareAdminPortalLaunch } from "@/lib/admin/portal-launch";
 import { setEventReservationsStatus } from "@/lib/admin/room-calendar";
 import { getUserRole } from "@/lib/admin/users";
@@ -262,6 +268,82 @@ export async function updateChecklistItemAction(formData: FormData) {
   revalidatePath(`/admin/events/${eventId}`);
 
   redirect(`/admin/events/${eventId}?checklist=updated`);
+}
+
+export type ChangeEventDatesFormInput = {
+  startDate: string;
+  endDate: string | null;
+  roomChanges: RoomChange[];
+  newRooms: NewRoom[];
+};
+
+// The event dates dialog: new first/last day, what happens to each room,
+// and rooms to add (see changeEventDates). Returns the outcome for the
+// dialog to show.
+export async function changeEventDatesAction(
+  eventId: string,
+  input: ChangeEventDatesFormInput,
+): Promise<ChangeEventDatesOutcome> {
+  const { user } = await requireStaffUser();
+
+  const roomChanges: RoomChange[] = [];
+  for (const raw of Array.isArray(input?.roomChanges) ? input.roomChanges : []) {
+    const change = raw as Partial<Record<string, unknown>>;
+    const reservationId =
+      typeof change.reservationId === "string" ? change.reservationId : "";
+    if (!reservationId) continue;
+    if (change.action === "release") {
+      roomChanges.push({ reservationId, action: "release" });
+    } else if (
+      change.action === "move" &&
+      typeof change.day === "string" &&
+      typeof change.roomId === "string"
+    ) {
+      roomChanges.push({
+        reservationId,
+        action: "move",
+        day: change.day,
+        roomId: change.roomId,
+      });
+    }
+  }
+
+  const newRooms: NewRoom[] = [];
+  for (const raw of Array.isArray(input?.newRooms) ? input.newRooms : []) {
+    const room = raw as Partial<Record<string, unknown>>;
+    if (
+      typeof room.day === "string" &&
+      typeof room.roomId === "string" &&
+      typeof room.startTime === "string" &&
+      typeof room.endTime === "string"
+    ) {
+      newRooms.push({
+        day: room.day,
+        roomId: room.roomId,
+        startTime: room.startTime,
+        endTime: room.endTime,
+      });
+    }
+  }
+
+  const outcome = await changeEventDates({
+    eventId,
+    startDate: typeof input?.startDate === "string" ? input.startDate : "",
+    endDate: typeof input?.endDate === "string" ? input.endDate : null,
+    roomChanges,
+    newRooms,
+    changedBy: user.email ?? null,
+  });
+
+  if (outcome.ok) {
+    revalidatePath("/admin");
+    revalidatePath("/admin/events");
+    revalidatePath("/admin/calendar");
+    revalidatePath("/admin/assignments");
+    revalidatePath(`/admin/events/${eventId}`);
+    revalidatePath(`/admin/events/${eventId}/contracts`);
+  }
+  return outcome;
 }
 
 // Flips one linked room reservation (or all of them, when no reservationId

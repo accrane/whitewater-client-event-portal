@@ -1,3 +1,4 @@
+import { normalizeEventEnd } from "@/lib/dates/event-dates";
 import { fetchGhlContact, upsertFacilitatorContact } from "@/lib/ghl/contacts";
 import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
 import {
@@ -28,7 +29,10 @@ export type AdminEventListItem = {
   status: EventRow["status"];
   eventName: string;
   eventType: string | null;
+  // First day (GHL Date of Interest).
   eventDate: string | null;
+  // Last day of a multi-day event; null for a one-day event.
+  eventEndDate: string | null;
   coordinatorName: string | null;
   coordinatorEmail: string | null;
   coordinatorGhlUserId: string | null;
@@ -300,13 +304,14 @@ export async function listAdminEventsPage({
   };
 }
 
-// Every launched event dated yesterday or later — the dashboard counts days
+// Every launched event dated yesterday or later, or still running (a
+// multi-day event whose last day hasn't passed) — the dashboard counts days
 // out from these for Today, This week and the contract deadlines. Not
-// capped: it's the bounded set of events still ahead, and the (status,
-// eventDate) index serves it. Yesterday gives the day-out math room either
-// side of midnight; the dashboard drops anything already past. Read in
-// pages until the exact count is reached, since the API returns at most
-// max-rows (1,000 by default) per request.
+// capped: it's the bounded set of events still ahead, and the status index
+// narrows it. Yesterday gives the day-out math room either side of
+// midnight; the dashboard drops anything already past. Read in pages until
+// the exact count is reached, since the API returns at most max-rows (1,000
+// by default) per request.
 export async function listUpcomingLaunchedEvents(): Promise<AdminEventListItem[]> {
   const supabase = createServiceRoleSupabaseClient();
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -320,7 +325,9 @@ export async function listUpcomingLaunchedEvents(): Promise<AdminEventListItem[]
       .from("events")
       .select(LIST_COLUMNS, { count: "exact" })
       .eq("status", "launched")
-      .gte("ghl_snapshot->>eventDate", yesterday)
+      .or(
+        `ghl_snapshot->>eventDate.gte.${yesterday},ghl_snapshot->>eventEndDate.gte.${yesterday}`,
+      )
       // id breaks created_at ties so pages don't overlap or skip.
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
@@ -897,6 +904,7 @@ function mapEventRowToListItem({
     eventName: snapshot.eventName || "Untitled event",
     eventType: snapshot.eventType ?? null,
     eventDate: snapshot.eventDate ?? null,
+    eventEndDate: normalizeEventEnd(snapshot.eventDate, snapshot.eventEndDate),
     coordinatorName: snapshot.planner?.name ?? null,
     coordinatorEmail: snapshot.planner?.email ?? null,
     coordinatorGhlUserId: snapshot.planner?.id ?? null,
@@ -1034,6 +1042,7 @@ export function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     eventName: getString(raw.eventName),
     eventType: getString(raw.eventType),
     eventDate: getString(raw.eventDate),
+    eventEndDate: getString(raw.eventEndDate),
     arrivalTime: getString(raw.arrivalTime),
     meetingLocation: getString(raw.meetingLocation),
     value: getNumber(raw.value),

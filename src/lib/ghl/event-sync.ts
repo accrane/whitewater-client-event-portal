@@ -1,9 +1,12 @@
+import { recomputeChecklistDueDates } from "@/lib/admin/checklist-templates";
+import { shiftedEventEnd, toIsoDate } from "@/lib/dates/event-dates";
 import { fetchGhlContact } from "@/lib/ghl/contacts";
 import {
   findDateOfInterest,
   findFieldNumber,
   findFieldString,
 } from "@/lib/ghl/field-values";
+import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import {
   fetchOpportunity,
   fetchOpportunityFieldIndex,
@@ -107,6 +110,20 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
       ? (existingSnapshot.links as Record<string, Json>)
       : {};
 
+  // A date changed in GHL itself: a multi-day event keeps its length, and
+  // checklist due dates follow below. The event's rooms stay put; the event
+  // page flags any that no longer sit on the event's days.
+  const previousDate = toIsoDate(
+    typeof existingSnapshot.eventDate === "string"
+      ? existingSnapshot.eventDate
+      : null,
+  );
+  const dateChanged = eventDate !== null && eventDate !== previousDate;
+  const previousEnd =
+    typeof existingSnapshot.eventEndDate === "string"
+      ? existingSnapshot.eventEndDate
+      : null;
+
   const snapshot: Record<string, Json> = {
     ...existingSnapshot,
     ...(eventName || opportunity.name
@@ -114,6 +131,9 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
       : {}),
     ...(eventType ? { eventType } : {}),
     ...(eventDate ? { eventDate } : {}),
+    ...(dateChanged && eventDate
+      ? { eventEndDate: shiftedEventEnd(previousDate, previousEnd, eventDate) }
+      : {}),
     // GHL owns these: app edits write back to GHL, so the live opportunity
     // is authoritative here. GHL reports monetaryValue as 0 when unset (and the
     // app pushes 0 to clear it), so 0 renders as blank.
@@ -162,5 +182,31 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
 
   if (updateError) {
     console.error("Failed storing synced GHL snapshot", updateError.message);
+    return;
+  }
+
+  if (dateChanged) {
+    try {
+      await recomputeChecklistDueDates(eventId, eventDate);
+    } catch (dueDateError) {
+      console.error("Failed moving checklist due dates", dueDateError);
+    }
+  }
+
+  // The first fill of an empty date isn't news; a moved date is.
+  if (dateChanged && previousDate) {
+    await logIntegrationEvent({
+      direction: "GHL_TO_PORTAL",
+      eventType: "event_date_changed_in_ghl",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: eventId,
+      status: "success",
+      message: `Date of Interest changed in GHL from ${previousDate} to ${eventDate}; the event's dates followed. Its rooms were not moved.`,
+      details: {
+        ghl_opportunity_id: event.ghl_opportunity_id,
+        from: previousDate,
+        to: eventDate,
+      },
+    }).catch(() => undefined);
   }
 }

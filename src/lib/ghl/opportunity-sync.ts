@@ -4,8 +4,12 @@ import { notifyCoordinatorAssigned } from "@/lib/email/notify-coordinator-assign
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { assignContactUser } from "@/lib/ghl/contacts";
+import { findDateOfInterest } from "@/lib/ghl/field-values";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
-import { fetchOpportunityFieldIndex } from "@/lib/ghl/location-data";
+import {
+  fetchOpportunity,
+  fetchOpportunityFieldIndex,
+} from "@/lib/ghl/location-data";
 import { fetchConfiguredPipeline } from "@/lib/ghl/opportunities";
 import {
   buildEventFieldWriteBackBody,
@@ -320,6 +324,86 @@ export async function writeOpportunityFacilitator(
   return result.ok
     ? { ok: true }
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
+// The field the page-load sync reads the event's first day from.
+const DATE_OF_INTEREST_KEY = "opportunity.date_of_interest";
+
+// Writes a new first day to the opportunity's Date of Interest, then reads
+// the opportunity back to confirm GHL kept it. GHL is the system of record
+// for the date and every event page load re-reads it, so the caller must
+// treat a failure as fatal: saving the date locally anyway would be undone
+// by the next sync. Skipped (nothing to undo it) when the event has no
+// opportunity, GHL isn't configured, or the field can't be found.
+export async function writeOpportunityEventDate(
+  event: EventRow,
+  date: string,
+): Promise<OpportunitySyncOutcome> {
+  const log = (
+    status: "success" | "warning" | "error",
+    message: string,
+    details: Record<string, Json> = {},
+  ) =>
+    logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType: "opportunity_event_date_write_back",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: event.id,
+      status,
+      message,
+      details: {
+        ghl_opportunity_id: event.ghl_opportunity_id,
+        date_of_interest: date,
+        ...details,
+      },
+    });
+
+  if (!event.ghl_opportunity_id) {
+    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+  }
+  if (!appConfig.ghl.accessToken) {
+    const error = "GHL_ACCESS_TOKEN is not configured";
+    await log("warning", `Skipped writing the event date to GHL: ${error}.`);
+    return { ok: false, skipped: true, error };
+  }
+
+  const fieldIndex = await fetchOpportunityFieldIndex();
+  const fieldId =
+    fieldIndex.get(DATE_OF_INTEREST_KEY) ?? appConfig.ghl.dateOfInterestFieldId;
+  if (!fieldId) {
+    const error = "Date of Interest field not found in GHL";
+    await log("warning", `Skipped writing the event date to GHL: ${error}.`);
+    return { ok: false, skipped: true, error };
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, {
+    customFields: [{ id: fieldId, field_value: date }],
+  });
+  if (!result.ok) {
+    const error = result.error ?? "Unknown GHL error";
+    await log("error", "Failed writing the event date to the GHL opportunity.", {
+      error,
+    });
+    return { ok: false, skipped: false, error };
+  }
+
+  const readBack = await fetchOpportunity(event.ghl_opportunity_id);
+  const stored = readBack
+    ? findDateOfInterest(readBack.customFields, fieldId)
+    : null;
+  if (readBack && stored !== date) {
+    const error = `GHL kept ${stored ?? "no date"} instead of ${date}`;
+    await log("error", "GHL did not keep the new event date.", { error });
+    return { ok: false, skipped: false, error };
+  }
+
+  await log(
+    readBack ? "success" : "warning",
+    readBack
+      ? "Event date written to the GHL opportunity's Date of Interest."
+      : "Event date written to GHL; reading it back to confirm failed.",
+  );
+  return { ok: true };
 }
 
 // Step in the launch workflow: when a coordinator publishes the portal, write the

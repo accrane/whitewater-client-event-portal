@@ -26,7 +26,7 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | Field | Field ID | Key | How the portal uses it |
 | --- | --- | --- | --- |
 | Event Planning App ID | `IDk5IeH17B5bpEqcHvkK` | `opportunity.event_planning_app_id` | App **writes** the portal event id here after the inquiry webhook creates the event (`GHL_OPPORTUNITY_EVENT_FIELD_ID`). |
-| Date of Interest | `EMDW0kB1fSuaq8Lixzpq` | `opportunity.date_of_interest` | App **reads** this live from GHL (`GHL_DATE_OF_INTEREST_FIELD_ID`) when loading the calendar's event list; the reservation modal auto-fills the booking date from it. Mapping it into the webhook as `event.date` remains a useful fallback. |
+| Date of Interest | `EMDW0kB1fSuaq8Lixzpq` | `opportunity.date_of_interest` | **Two-way.** App **reads** it (by key) on event-page auto-sync as the event's first day, and live (`GHL_DATE_OF_INTEREST_FIELD_ID`) for the calendar's event list, where the reservation modal auto-fills the booking date from it. App **writes** it (by key, falling back to the env id) when a coordinator changes the event's date on the event page, then reads the opportunity back to confirm; a failed write cancels the change. A multi-day event's last day is app-only (`ghl_snapshot.eventEndDate`). Mapping it into the webhook as `event.date` remains a useful fallback. |
 | Group/Event Name | `Yz2CcYRaCRvjHK3FlekO` | `opportunity.groupevent_name` | **Read** (by key) when the admin event page auto-syncs from GHL; becomes the portal event name. Also map into the webhook as `event.name`. |
 | Inquiry Type | `STQPdRrIfVqX3Sbqleew` | `opportunity.inquiry_type` | **Read** (by key) on event-page auto-sync as the event type; **read** (by id) with every open opportunity for the Opportunities pipeline's group-type filter and card line. Also map into the webhook as `event.type`. |
 | Portal Link | `qV1K4voPyXZt2O5UiRBT` | `opportunity.portal_link` | App **writes** the absolute client portal URL (`PORTAL_BASE_URL` + path) when the coordinator prepares the portal launch (`GHL_PORTAL_LINK_FIELD_ID`), so GHL workflows can email/SMS the link. Blanked again when the event is deleted. |
@@ -67,6 +67,7 @@ Create these in GHL when the corresponding push-back feature is built:
 | Field (suggested) | Type | Would be used for |
 | --- | --- | --- |
 | Reserved Rooms | TEXT | App writes the room name(s) after a coordinator books calendar blocks, so sales sees the venue from GHL. |
+| Event End Date | DATE | App would write the last day of a multi-day event (today kept only in `ghl_snapshot.eventEndDate`), so sales sees the span in GHL. |
 
 ## Looking up field ids
 

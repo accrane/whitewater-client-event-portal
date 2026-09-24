@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { buttonClasses } from "@/components/ui/button";
+import { buttonClasses, type ButtonVariant } from "@/components/ui/button";
+import {
+  eventDayOptions,
+  formatDayLabel,
+  toIsoDate,
+} from "@/lib/dates/event-dates";
 
 // Add/remove room bookings from the admin event detail page. Both actions go
 // through the calendar REST API so conflict checks and the GHL planning-stage
@@ -45,21 +50,31 @@ function formatTime(iso: string): string {
   );
 }
 
-function TimeSelect({
+// Also used by the event dates dialog for the rooms it adds.
+export function TimeSelect({
   value,
   onChange,
+  ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
+  ariaLabel?: string;
 }) {
+  // A time off the 15-minute steps (copied from an existing booking) stays
+  // selectable rather than silently showing the first option.
+  const options = TIME_OPTIONS.some((t) => t.value === value)
+    ? TIME_OPTIONS
+    : [{ value, label: formatTime(`1970-01-01T${value}:00`) }, ...TIME_OPTIONS];
+
   return (
     <select
+      aria-label={ariaLabel}
       className={inputClass}
       onChange={(e) => onChange(e.target.value)}
       required
       value={value}
     >
-      {TIME_OPTIONS.map((t) => (
+      {options.map((t) => (
         <option key={t.value} value={t.value}>
           {t.label}
         </option>
@@ -72,6 +87,9 @@ type AddRoomBookingButtonProps = {
   eventId: string;
   eventName: string;
   eventDate: string | null;
+  // Last day of a multi-day event: the modal then offers each day as a
+  // chip, and one save books the room on every ticked day.
+  eventEndDate: string | null;
   // The event's assigned coordinator (from GHL); becomes the reservation's
   // coordinator so bookings added here don't show as Unassigned.
   coordinatorName: string | null;
@@ -79,22 +97,29 @@ type AddRoomBookingButtonProps = {
   // Open the modal on mount — the expedited intake lands here so rooms get
   // held without another click.
   autoOpen?: boolean;
+  // Days ticked when the modal opens (a day's own Add room button under
+  // Room bookings); defaults to the event's first day.
+  initialDays?: string[];
+  variant?: ButtonVariant;
 };
 
 export function AddRoomBookingButton({
   eventId,
   eventName,
   eventDate,
+  eventEndDate,
   coordinatorName,
   rooms,
   autoOpen = false,
+  initialDays,
+  variant = "secondary",
 }: AddRoomBookingButtonProps) {
   const [open, setOpen] = useState(autoOpen);
 
   return (
     <>
       <button
-        className={buttonClasses("secondary", "sm")}
+        className={buttonClasses(variant, "sm")}
         onClick={() => setOpen(true)}
         type="button"
       >
@@ -103,8 +128,10 @@ export function AddRoomBookingButton({
       {open ? (
         <AddRoomBookingModal
           eventDate={eventDate}
+          eventEndDate={eventEndDate}
           eventId={eventId}
           eventName={eventName}
+          initialDays={initialDays}
           onClose={() => setOpen(false)}
           coordinatorName={coordinatorName}
           rooms={rooms}
@@ -118,32 +145,51 @@ function AddRoomBookingModal({
   eventId,
   eventName,
   eventDate,
+  eventEndDate,
   coordinatorName,
   rooms,
+  initialDays,
   onClose,
 }: AddRoomBookingButtonProps & { onClose: () => void }) {
   const router = useRouter();
+  const dayOptions = eventDayOptions(eventDate, eventEndDate);
+  const multiDay = dayOptions.length > 1;
+  const startingDays = (initialDays ?? []).filter((day) =>
+    dayOptions.some((option) => option.day === day),
+  );
 
   // Stored event dates are yyyy-MM-dd (or ISO-prefixed); anything else falls
   // back to today so the date input is never empty.
-  const defaultDate = /^\d{4}-\d{2}-\d{2}/.test(eventDate ?? "")
-    ? (eventDate as string).slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
+  const defaultDate =
+    toIsoDate(eventDate) ?? new Date().toISOString().slice(0, 10);
 
   const [roomId, setRoomId] = useState(rooms[0]?.id ?? "");
   const [status, setStatus] = useState<"held" | "booked">("held");
-  const [date, setDate] = useState(defaultDate);
+  // One-day events pick a date; multi-day events tick days.
+  const [date, setDate] = useState(startingDays[0] ?? defaultDate);
+  const [days, setDays] = useState<string[]>(
+    multiDay
+      ? startingDays.length > 0
+        ? startingDays
+        : [dayOptions[0].day]
+      : [],
+  );
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // All reservations (any event, any room) on the chosen date, so coordinators
-  // can see existing usage before submitting. Keyed by date: a stale key
-  // means the fetch for the current date is still in flight. The server
-  // still enforces conflicts on save either way.
-  const [dayData, setDayData] = useState<{
-    date: string;
+  const targetDays = multiDay ? [...days].sort() : [date];
+  const firstDay = multiDay ? dayOptions[0].day : date;
+  const lastDay = multiDay ? dayOptions[dayOptions.length - 1].day : date;
+  const rangeKey = `${firstDay}|${lastDay}`;
+
+  // All reservations (any event, any room) across the days on offer, so
+  // coordinators can see existing usage before submitting. Keyed by range: a
+  // stale key means the fetch for the current range is still in flight. The
+  // server still enforces conflicts on save either way.
+  const [rangeData, setRangeData] = useState<{
+    key: string;
     list: DayReservation[];
   } | null>(null);
 
@@ -153,8 +199,9 @@ function AddRoomBookingModal({
     (async () => {
       let list: DayReservation[] = [];
       try {
-        const start = new Date(`${date}T00:00:00`);
-        const end = new Date(start);
+        const [first, last] = rangeKey.split("|");
+        const start = new Date(`${first}T00:00:00`);
+        const end = new Date(`${last}T00:00:00`);
         end.setDate(end.getDate() + 1);
         const params = new URLSearchParams({
           start: start.toISOString(),
@@ -165,30 +212,58 @@ function AddRoomBookingModal({
       } catch {
         // Availability preview is best-effort; the API still blocks conflicts.
       }
-      if (!cancelled) setDayData({ date, list });
+      if (!cancelled) setRangeData({ key: rangeKey, list });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [date]);
+  }, [rangeKey]);
 
-  const dayReservations = dayData?.date === date ? dayData.list : null;
+  const rangeReservations = rangeData?.key === rangeKey ? rangeData.list : null;
 
-  const startIso = new Date(`${date}T${startTime}`).toISOString();
-  const endIso = new Date(`${date}T${endTime}`).toISOString();
+  const slotFor = (day: string) => ({
+    start: new Date(`${day}T${startTime}`).toISOString(),
+    end: new Date(`${day}T${endTime}`).toISOString(),
+  });
+  const dayWindow = (day: string) => {
+    const start = new Date(`${day}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start: start.toISOString(), end: end.toISOString() };
+  };
+  const overlaps = (
+    reservation: DayReservation,
+    slot: { start: string; end: string },
+  ) =>
+    Date.parse(reservation.start_datetime) < Date.parse(slot.end) &&
+    Date.parse(reservation.end_datetime) > Date.parse(slot.start);
 
-  const roomBookingsForDay = (dayReservations ?? []).filter(
-    (r) => r.room_id === roomId,
-  );
-  const conflict = roomBookingsForDay.find(
-    (r) => r.start_datetime < endIso && r.end_datetime > startIso,
-  );
+  // Per chosen day: the selected room's bookings that day and any overlap.
+  const perDay = targetDays.map((day) => {
+    const slot = slotFor(day);
+    const roomBookings = (rangeReservations ?? []).filter(
+      (r) => r.room_id === roomId && overlaps(r, dayWindow(day)),
+    );
+    return {
+      day,
+      slot,
+      roomBookings,
+      conflict: roomBookings.find((r) => overlaps(r, slot)),
+    };
+  });
   const busyRoomIds = new Set(
-    (dayReservations ?? [])
-      .filter((r) => r.start_datetime < endIso && r.end_datetime > startIso)
+    (rangeReservations ?? [])
+      .filter((r) => targetDays.some((day) => overlaps(r, slotFor(day))))
       .map((r) => r.room_id),
   );
+
+  const toggleDay = (day: string) =>
+    setDays((current) =>
+      current.includes(day)
+        ? current.filter((value) => value !== day)
+        : [...current, day],
+    );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,37 +273,62 @@ function AddRoomBookingModal({
       setError("End time must be after start time.");
       return;
     }
+    if (targetDays.length === 0) {
+      setError("Pick at least one day.");
+      return;
+    }
 
     setSaving(true);
+    // One reservation per day, through the same API as the room calendar.
+    // Stops at the first failure; days already added stay added.
+    const added: string[] = [];
     try {
-      const res = await fetch("/api/calendar/reservations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          room_id: roomId,
-          title: eventName,
-          status,
-          start_datetime: startIso,
-          end_datetime: endIso,
-          event_id: eventId,
-          coordinator_name: coordinatorName,
-        }),
-      });
+      for (const { day, slot } of perDay) {
+        const res = await fetch("/api/calendar/reservations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            room_id: roomId,
+            title: eventName,
+            status,
+            start_datetime: slot.start,
+            end_datetime: slot.end,
+            event_id: eventId,
+            coordinator_name: coordinatorName,
+          }),
+        });
 
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error || "Failed to add the room booking");
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          const reason = data?.error || "Failed to add the room booking";
+          throw new Error(
+            multiDay ? `${formatDayLabel(day)}: ${reason}` : reason,
+          );
+        }
+        added.push(day);
       }
 
       router.refresh();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add the room booking");
+      const message =
+        err instanceof Error ? err.message : "Failed to add the room booking";
+      if (added.length > 0) {
+        router.refresh();
+        setDays((current) => current.filter((day) => !added.includes(day)));
+        setError(
+          `Added ${added.map(formatDayLabel).join(", ")}. ${message}`,
+        );
+      } else {
+        setError(message);
+      }
       setSaving(false);
     }
   };
+
+  const selectedRoomName = rooms.find((r) => r.id === roomId)?.name ?? "Room";
 
   return (
     <div
@@ -319,19 +419,62 @@ function AddRoomBookingModal({
             </label>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">
-                Date *
-              </span>
-              <input
-                className={inputClass}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                type="date"
-                value={date}
-              />
-            </label>
+          {multiDay ? (
+            <fieldset>
+              <legend className="mb-1 block text-sm font-medium text-slate-700">
+                Days *
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {dayOptions.map((option) => {
+                  const selected = days.includes(option.day);
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className={`rounded-md border px-2.5 py-1.5 text-[13px] font-medium transition ${
+                        selected
+                          ? "border-[var(--brand-border)] bg-[var(--brand)] text-[var(--brand-foreground)]"
+                          : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                      }`}
+                      key={option.day}
+                      onClick={() => toggleDay(option.day)}
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+                {days.length < dayOptions.length ? (
+                  <button
+                    className={buttonClasses("ghost", "sm")}
+                    onClick={() => setDays(dayOptions.map((option) => option.day))}
+                    type="button"
+                  >
+                    Every day
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Same room and times on each day ticked; each day is its own
+                booking. Other dates can be booked on the room calendar.
+              </p>
+            </fieldset>
+          ) : null}
+
+          <div className={`grid gap-3 ${multiDay ? "grid-cols-2" : "grid-cols-3"}`}>
+            {multiDay ? null : (
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-slate-700">
+                  Date *
+                </span>
+                <input
+                  className={inputClass}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  type="date"
+                  value={date}
+                />
+              </label>
+            )}
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-slate-700">
                 Start *
@@ -346,38 +489,46 @@ function AddRoomBookingModal({
             </label>
           </div>
 
-          {/* Same-day usage for the selected room, across all events */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-            <p className="font-semibold text-slate-600">
-              {rooms.find((r) => r.id === roomId)?.name ?? "Room"} on{" "}
-              {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
-                new Date(`${date}T12:00:00`),
-              )}
-            </p>
-            {dayReservations === null ? (
-              <p className="mt-1 text-slate-500">Checking availability…</p>
-            ) : roomBookingsForDay.length === 0 ? (
-              <p className="mt-1 text-emerald-700">
-                No reservations — free all day.
-              </p>
+          {/* The selected room's usage on each chosen day, across all events */}
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            {perDay.length === 0 ? (
+              <p className="text-slate-500">Pick at least one day.</p>
             ) : (
-              <ul className="mt-1 space-y-1">
-                {roomBookingsForDay.map((r) => (
-                  <li className="text-slate-700" key={r.id}>
-                    {formatTime(r.start_datetime)} – {formatTime(r.end_datetime)}{" "}
-                    · {r.title} ({r.status}
-                    {r.event_id === eventId ? ", this event" : ""})
-                  </li>
-                ))}
-              </ul>
+              perDay.map(({ day, roomBookings, conflict }) => (
+                <div key={day}>
+                  <p className="font-semibold text-slate-600">
+                    {selectedRoomName} on{" "}
+                    {new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
+                      new Date(`${day}T12:00:00`),
+                    )}
+                  </p>
+                  {rangeReservations === null ? (
+                    <p className="mt-1 text-slate-500">Checking availability…</p>
+                  ) : roomBookings.length === 0 ? (
+                    <p className="mt-1 text-emerald-700">
+                      No reservations — free all day.
+                    </p>
+                  ) : (
+                    <ul className="mt-1 space-y-1">
+                      {roomBookings.map((r) => (
+                        <li className="text-slate-700" key={r.id}>
+                          {formatTime(r.start_datetime)} – {formatTime(r.end_datetime)}{" "}
+                          · {r.title} ({r.status}
+                          {r.event_id === eventId ? ", this event" : ""})
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {conflict ? (
+                    <p className="mt-2 font-semibold text-red-700">
+                      Your selected times overlap {formatTime(conflict.start_datetime)}{" "}
+                      – {formatTime(conflict.end_datetime)} ({conflict.title}). Choose
+                      a different time or room.
+                    </p>
+                  ) : null}
+                </div>
+              ))
             )}
-            {conflict ? (
-              <p className="mt-2 font-semibold text-red-700">
-                Your selected times overlap {formatTime(conflict.start_datetime)}{" "}
-                – {formatTime(conflict.end_datetime)} ({conflict.title}). Choose
-                a different time or room.
-              </p>
-            ) : null}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
@@ -390,10 +541,21 @@ function AddRoomBookingModal({
             </button>
             <button
               className={buttonClasses("primary")}
-              disabled={saving || !roomId}
+              // A known overlap on any chosen day would stop a multi-day
+              // save partway; single-day saves still let the API answer.
+              disabled={
+                saving ||
+                !roomId ||
+                targetDays.length === 0 ||
+                (multiDay && perDay.some((item) => item.conflict))
+              }
               type="submit"
             >
-              {saving ? "Adding…" : "Add booking"}
+              {saving
+                ? "Adding…"
+                : multiDay && targetDays.length > 1
+                  ? `Add to ${targetDays.length} days`
+                  : "Add booking"}
             </button>
           </div>
         </form>

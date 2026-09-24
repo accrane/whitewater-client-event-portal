@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin/contracts";
 import { getAdminEventById } from "@/lib/admin/events";
 import { formatEventDayHeading } from "@/lib/dates";
+import { eventDayList } from "@/lib/dates/event-dates";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import { defaultContractName } from "@/lib/contracts/shared";
@@ -47,6 +48,12 @@ export default async function AdminContractsPage({
     eventDay && event.arrivalTime
       ? `${eventDay} - ${event.arrivalTime} arrival`
       : eventDay;
+  // Every event day as a sub-heading suggestion; the first carries the
+  // arrival time like the default does.
+  const sectionSuggestions = eventDayList(event.eventDate, event.eventEndDate).map(
+    (day, index) =>
+      index === 0 ? defaultSectionTitle : formatEventDayHeading(day),
+  );
 
   return (
     <AdminShell
@@ -80,6 +87,7 @@ export default async function AdminContractsPage({
         })}
         defaultSectionTitle={defaultSectionTitle}
         eventId={eventId}
+        sectionSuggestions={sectionSuggestions}
         eventName={event.eventName}
         portalLaunched={event.status === "launched"}
         templateOptions={templateOptions}

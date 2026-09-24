@@ -6,6 +6,7 @@ import {
   parseGhlSnapshot,
 } from "@/lib/admin/events";
 import { formatDisplayDate } from "@/lib/dates";
+import { formatEventDates, normalizeEventEnd } from "@/lib/dates/event-dates";
 import { appConfig } from "@/lib/env";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import {
@@ -295,7 +296,11 @@ export function buildContractTokens(
   return {
     "event.name": text(event.eventName),
     "event.type": text(event.eventType),
-    "event.date": event.eventDate ? formatDisplayDate(event.eventDate) : "",
+    // The whole span for a multi-day event ("October 12–14, 2026"); the
+    // first and last day on their own for templates that lay them out.
+    "event.date": formatEventDates(event.eventDate, event.eventEndDate),
+    "event.start_date": formatEventDates(event.eventDate, null),
+    "event.end_date": formatEventDates(event.eventEndDate ?? event.eventDate, null),
     "event.arrival_time": text(event.arrivalTime),
     "event.meeting_location": text(event.meetingLocation),
     "event.num_attendees": text(event.numberOfGuests),
@@ -327,7 +332,7 @@ export function buildContractTokens(
     "Client.Phone": text(event.contactPhone),
     // The event has no company field yet; blank keeps the template tidy.
     "Account.Name": "",
-    Date__c: event.eventDate ? formatDisplayDate(event.eventDate) : "",
+    Date__c: formatEventDates(event.eventDate, event.eventEndDate),
   };
 }
 
@@ -1076,6 +1081,7 @@ export type AdminContractListItem = {
   event: {
     name: string;
     eventDate: string | null;
+    eventEndDate: string | null;
     eventType: string | null;
     coordinatorName: string | null;
     coordinatorEmail: string | null;
@@ -1129,6 +1135,7 @@ export async function listAllContracts(): Promise<AdminContractListItem[]> {
       events.set(row.id, {
         name: snapshot.eventName || "Untitled event",
         eventDate: snapshot.eventDate ?? null,
+        eventEndDate: normalizeEventEnd(snapshot.eventDate, snapshot.eventEndDate),
         eventType: snapshot.eventType ?? null,
         coordinatorName: snapshot.planner?.name ?? null,
         coordinatorEmail: snapshot.planner?.email ?? null,
@@ -1157,6 +1164,7 @@ export async function listAllContracts(): Promise<AdminContractListItem[]> {
     event: events.get(row.event_id) ?? {
       name: "Deleted event",
       eventDate: null,
+      eventEndDate: null,
       eventType: null,
       coordinatorName: null,
       coordinatorEmail: null,

@@ -58,6 +58,17 @@ import {
 } from "@/lib/admin/portal-urls";
 import { getUserRole } from "@/lib/admin/users";
 import { formatDisplayDate } from "@/lib/dates";
+import {
+  eventDayList,
+  eventDayOptions,
+  formatDayLabelWithYear,
+  formatEventDates,
+  formatVenueTimeRange,
+  isEventDay,
+  normalizeEventEnd,
+  toIsoDate,
+  venueDay,
+} from "@/lib/dates/event-dates";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import {
@@ -81,6 +92,16 @@ import {
   updateEventCoordinatorAction,
   updateRoomBookingStatusAction,
 } from "./actions";
+import { EventDatesControl } from "./event-dates-dialog";
+
+// Contracts out with the event's date on them that can still be edited.
+const UNSIGNED_CONTRACT_STATUSES = new Set([
+  "draft",
+  "creating",
+  "approval",
+  "sent",
+  "viewed",
+]);
 
 // 15-minute arrival-time choices, stored as the display label the client
 // portal shows (e.g. "9:15 AM").
@@ -260,6 +281,39 @@ export default async function AdminEventDetailPage({
     vendor,
   });
 
+  // Everything the dates dialog needs; it opens from the header date, the
+  // Event summary, and the room bookings warning.
+  const eventStart = toIsoDate(event.eventDate);
+  const eventEnd = normalizeEventEnd(eventStart, event.eventEndDate);
+  const datesProps = {
+    eventId: event.id,
+    startDate: eventStart,
+    endDate: eventEnd,
+    reservations: roomReservations.map((reservation) => ({
+      id: reservation.id,
+      roomId: reservation.room_id,
+      roomName: reservation.rooms?.name ?? "Unknown room",
+      roomColor: reservation.rooms?.color ?? "#94A3B8",
+      status: reservation.status,
+      start: reservation.start_datetime,
+      end: reservation.end_datetime,
+    })),
+    rooms: rooms.map((room) => ({
+      id: room.id,
+      name: room.name,
+      color: room.color,
+    })),
+    contracts: {
+      unsigned: contracts.filter((contract) =>
+        UNSIGNED_CONTRACT_STATUSES.has(contract.status),
+      ).length,
+      signed: contracts.filter((contract) => contract.status === "completed")
+        .length,
+    },
+    linkedToGhl: Boolean(event.ghlOpportunityId),
+  };
+  const eventDayCount = eventDayList(eventStart, eventEnd).length;
+
   return (
     <AdminShell
       actions={
@@ -286,11 +340,16 @@ export default async function AdminEventDetailPage({
       }
       backHref="/admin/events"
       backLabel="Back to events"
-      description={`${formatNullableDate(event.eventDate)} · Sync: ${
-        event.lastSyncStatus
-          ? syncStatusLabels[event.lastSyncStatus]
-          : "Not synced"
-      }`}
+      description={
+        <>
+          <EventDatesControl trigger="header" {...datesProps} />
+          {` · Sync: ${
+            event.lastSyncStatus
+              ? syncStatusLabels[event.lastSyncStatus]
+              : "Not synced"
+          }`}
+        </>
+      }
       meta={
         <>
           <StatusBadge tone={statusTones[event.status]}>
@@ -310,6 +369,16 @@ export default async function AdminEventDetailPage({
       {flashMessage ? <FlashBanner>{flashMessage}</FlashBanner> : null}
 
       <DetailSection title="Event summary">
+        <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
+          <dt className="font-semibold text-slate-500">Dates</dt>
+          <dd className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:col-span-2">
+            <span className="text-slate-800">
+              {formatEventDates(eventStart, eventEnd) || "Not set"}
+              {eventDayCount > 1 ? ` · ${eventDayCount} days` : ""}
+            </span>
+            <EventDatesControl trigger="summary" {...datesProps} />
+          </dd>
+        </div>
         <DetailRow label="Event type" value={event.eventType} />
         <DetailRow label="Payment status" value={event.paymentStatus} />
         <div className="grid gap-1 py-3 text-sm sm:grid-cols-3 sm:gap-4">
@@ -586,7 +655,9 @@ export default async function AdminEventDetailPage({
 
       <RoomBookingsSection
         autoOpenBookings={roomsParam === "open"}
-        eventDate={event.eventDate}
+        datesProps={datesProps}
+        eventStart={eventStart}
+        eventEnd={eventEnd}
         eventId={event.id}
         eventName={event.eventName}
         coordinatorName={event.coordinatorName}
@@ -920,7 +991,9 @@ function FacilitatorSection({
 
 function RoomBookingsSection({
   autoOpenBookings = false,
-  eventDate,
+  datesProps,
+  eventStart,
+  eventEnd,
   eventId,
   eventName,
   coordinatorName,
@@ -928,7 +1001,9 @@ function RoomBookingsSection({
   rooms,
 }: {
   autoOpenBookings?: boolean;
-  eventDate: string | null;
+  datesProps: Omit<React.ComponentProps<typeof EventDatesControl>, "trigger">;
+  eventStart: string | null;
+  eventEnd: string | null;
   eventId: string;
   eventName: string;
   coordinatorName: string | null;
@@ -937,6 +1012,39 @@ function RoomBookingsSection({
 }) {
   const heldCount = reservations.filter((r) => r.status === "held").length;
   const bookedCount = reservations.length - heldCount;
+  const dayOptions = eventDayOptions(eventStart, eventEnd);
+  const multiDay = dayOptions.length > 1;
+  const dayOf = (reservation: EventRoomReservation) =>
+    venueDay(reservation.start_datetime);
+  // Rooms off the event's days: its date changed (here or in GHL) and they
+  // weren't moved, or they're booked for a setup day on purpose.
+  const offEvent = eventStart
+    ? reservations.filter(
+        (reservation) => !isEventDay(dayOf(reservation), eventStart, eventEnd),
+      )
+    : [];
+  const offEventIds = new Set(offEvent.map((reservation) => reservation.id));
+
+  // Multi-day events list rooms under each day (empty days too, so gaps
+  // show), with anything off the event's days last.
+  const groups: {
+    key: string;
+    label: string | null;
+    reservations: EventRoomReservation[];
+  }[] = multiDay
+    ? [
+        ...dayOptions.map((option) => ({
+          key: option.day,
+          label: option.label,
+          reservations: reservations.filter(
+            (reservation) => dayOf(reservation) === option.day,
+          ),
+        })),
+        ...(offEvent.length > 0
+          ? [{ key: "other", label: "Other dates", reservations: offEvent }]
+          : []),
+      ]
+    : [{ key: "all", label: null, reservations }];
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
@@ -965,7 +1073,8 @@ function RoomBookingsSection({
           </span>
           <AddRoomBookingButton
             autoOpen={autoOpenBookings}
-            eventDate={eventDate}
+            eventDate={eventStart}
+            eventEndDate={eventEnd}
             eventId={eventId}
             eventName={eventName}
             coordinatorName={coordinatorName}
@@ -974,68 +1083,62 @@ function RoomBookingsSection({
         </span>
       </div>
 
+      {offEvent.length > 0 ? (
+        <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="min-w-0 flex-1">
+            {offEvent.length === 1
+              ? "One room isn't"
+              : `${offEvent.length} rooms aren't`}{" "}
+            on the event&apos;s {multiDay ? "days" : "date"}. If the date
+            changed (here or in GHL), move{" "}
+            {offEvent.length === 1 ? "it" : "them"} to match.
+          </p>
+          <EventDatesControl trigger="rooms" {...datesProps} />
+        </div>
+      ) : null}
+
       {reservations.length > 0 ? (
-        <ul className="mt-5 divide-y divide-slate-200">
-          {reservations.map((reservation) => (
-            <li
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-sm"
-              key={reservation.id}
-            >
-              <span className="flex min-w-40 items-center gap-2 font-semibold text-slate-950">
-                <span
-                  aria-hidden
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{
-                    backgroundColor: reservation.rooms?.color ?? "#94A3B8",
-                  }}
-                />
-                {reservation.rooms?.name ?? "Unknown room"}
-              </span>
-              <span className="text-slate-700">
-                {formatReservationTimes(
-                  reservation.start_datetime,
-                  reservation.end_datetime,
-                )}
-              </span>
-              {reservation.title ? (
-                <span className="text-slate-500">{reservation.title}</span>
+        <div className="mt-5 space-y-4">
+          {groups.map((group) => (
+            <div key={group.key}>
+              {group.label ? (
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+                  <h3 className="type-label text-slate-500">{group.label}</h3>
+                  {group.key !== "other" ? (
+                    <AddRoomBookingButton
+                      eventDate={eventStart}
+                      eventEndDate={eventEnd}
+                      eventId={eventId}
+                      eventName={eventName}
+                      coordinatorName={coordinatorName}
+                      initialDays={[group.key]}
+                      rooms={rooms}
+                      variant="ghost"
+                    />
+                  ) : null}
+                </div>
               ) : null}
-              <span className="ml-auto flex items-center gap-3">
-                <StatusBadge
-                  tone={reservation.status === "booked" ? "success" : "warning"}
-                >
-                  {reservation.status === "booked" ? "Booked" : "Held"}
-                </StatusBadge>
-                <form action={updateRoomBookingStatusAction}>
-                  <input name="eventId" type="hidden" value={eventId} />
-                  <input
-                    name="reservationId"
-                    type="hidden"
-                    value={reservation.id}
-                  />
-                  <input
-                    name="status"
-                    type="hidden"
-                    value={reservation.status === "booked" ? "held" : "booked"}
-                  />
-                  <button
-                    className={buttonClasses(
-                      reservation.status === "booked" ? "secondary" : "primary",
-                      "sm",
-                    )}
-                    type="submit"
-                  >
-                    {reservation.status === "booked"
-                      ? "Revert to held"
-                      : "Mark booked"}
-                  </button>
-                </form>
-                <DeleteBookingButton reservationId={reservation.id} />
-              </span>
-            </li>
+              {group.reservations.length > 0 ? (
+                <ul className="divide-y divide-slate-200">
+                  {group.reservations.map((reservation) => (
+                    <RoomBookingRow
+                      eventId={eventId}
+                      key={reservation.id}
+                      offEvent={offEventIds.has(reservation.id)}
+                      reservation={reservation}
+                      showDay={!multiDay || group.key === "other"}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="py-3 text-sm text-slate-500">
+                  No rooms this day.
+                </p>
+              )}
+            </div>
           ))}
           {reservations.length > 1 ? (
-            <li className="flex flex-wrap items-center gap-3 py-3">
+            <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3">
               <span className="text-sm font-semibold text-slate-500">
                 All bookings
               </span>
@@ -1065,9 +1168,9 @@ function RoomBookingsSection({
                   </form>
                 ) : null}
               </span>
-            </li>
+            </div>
           ) : null}
-        </ul>
+        </div>
       ) : (
         <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
           <p className="text-sm text-slate-700">
@@ -1078,6 +1181,77 @@ function RoomBookingsSection({
         </div>
       )}
     </section>
+  );
+}
+
+// One reservation in Room bookings. Times are the venue's, whatever zone the
+// server renders in.
+function RoomBookingRow({
+  eventId,
+  reservation,
+  showDay,
+  offEvent,
+}: {
+  eventId: string;
+  reservation: EventRoomReservation;
+  showDay: boolean;
+  offEvent: boolean;
+}) {
+  const times = formatVenueTimeRange(
+    reservation.start_datetime,
+    reservation.end_datetime,
+  );
+
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-sm">
+      <span className="flex min-w-40 items-center gap-2 font-semibold text-slate-950">
+        <span
+          aria-hidden
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{
+            backgroundColor: reservation.rooms?.color ?? "#94A3B8",
+          }}
+        />
+        {reservation.rooms?.name ?? "Unknown room"}
+      </span>
+      <span className="text-slate-700">
+        {showDay
+          ? `${formatDayLabelWithYear(venueDay(reservation.start_datetime))} · ${times}`
+          : times}
+      </span>
+      {reservation.title ? (
+        <span className="text-slate-500">{reservation.title}</span>
+      ) : null}
+      <span className="ml-auto flex items-center gap-3">
+        {offEvent ? (
+          <StatusBadge tone="warning">Not an event day</StatusBadge>
+        ) : null}
+        <StatusBadge
+          tone={reservation.status === "booked" ? "success" : "warning"}
+        >
+          {reservation.status === "booked" ? "Booked" : "Held"}
+        </StatusBadge>
+        <form action={updateRoomBookingStatusAction}>
+          <input name="eventId" type="hidden" value={eventId} />
+          <input name="reservationId" type="hidden" value={reservation.id} />
+          <input
+            name="status"
+            type="hidden"
+            value={reservation.status === "booked" ? "held" : "booked"}
+          />
+          <button
+            className={buttonClasses(
+              reservation.status === "booked" ? "secondary" : "primary",
+              "sm",
+            )}
+            type="submit"
+          >
+            {reservation.status === "booked" ? "Revert to held" : "Mark booked"}
+          </button>
+        </form>
+        <DeleteBookingButton reservationId={reservation.id} />
+      </span>
+    </li>
   );
 }
 
@@ -1562,21 +1736,6 @@ function formatStatusLabel(value: string): string {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-// "Aug 12, 2026 · 9:00 AM – 11:30 AM", or full datetimes on both sides when
-// a reservation crosses midnight.
-function formatReservationTimes(start: string, end: string): string {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
-  const timeFormat = new Intl.DateTimeFormat("en-US", { timeStyle: "short" });
-
-  if (dateFormat.format(startDate) === dateFormat.format(endDate)) {
-    return `${dateFormat.format(startDate)} · ${timeFormat.format(startDate)} – ${timeFormat.format(endDate)}`;
-  }
-
-  return `${dateFormat.format(startDate)}, ${timeFormat.format(startDate)} – ${dateFormat.format(endDate)}, ${timeFormat.format(endDate)}`;
 }
 
 function formatNullableDateTime(date: string | null): string {

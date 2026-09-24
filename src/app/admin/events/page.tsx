@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/icon";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { formatDisplayDate } from "@/lib/dates";
+import { formatEventDates } from "@/lib/dates/event-dates";
 import { EVENTS_PAGE_SIZE, listAdminEventsPage } from "@/lib/admin/events";
 import { requireStaffUser } from "@/lib/admin/session";
 
@@ -181,7 +182,8 @@ export default async function AdminEventsPage({
                         event.eventDate ? "text-slate-800" : "text-slate-400"
                       }
                     >
-                      {formatNullableDate(event.eventDate)}
+                      {formatEventDates(event.eventDate, event.eventEndDate) ||
+                        "Not set"}
                     </span>
                     <span
                       className={`truncate ${event.eventType ? "text-slate-800" : "text-slate-400"}`}

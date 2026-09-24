@@ -37,7 +37,8 @@ import {
   STALE_PAUSE_DAYS,
   type StaleFollowUpPause,
 } from "@/lib/ghl/follow-up-pauses";
-import { daysUntil, formatDisplayDate } from "@/lib/dates";
+import { daysUntil } from "@/lib/dates";
+import { eventDayList, formatEventDates } from "@/lib/dates/event-dates";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import { DashboardFilters } from "./dashboard-filters";
@@ -54,10 +55,22 @@ function formatShortDate(iso: string): string {
   }).format(new Date(iso));
 }
 
+// Days until the event starts; 0 while a multi-day event is under way.
 function eventDaysOut(event: AdminEventListItem): number | null {
   if (!event.eventDate) return null;
   const days = daysUntil(event.eventDate);
-  return Number.isNaN(days) ? null : days;
+  if (Number.isNaN(days)) return null;
+  if (days < 0 && event.eventEndDate && daysUntil(event.eventEndDate) >= 0) {
+    return 0;
+  }
+  return days;
+}
+
+// "Day 2 of 3" for a multi-day event under way, else "Today".
+function todayLabel(event: AdminEventListItem): string {
+  const total = eventDayList(event.eventDate, event.eventEndDate).length;
+  if (total < 2 || !event.eventDate) return "Today";
+  return `Day ${1 - daysUntil(event.eventDate)} of ${total}`;
 }
 
 // Launched events by how far out they are, soonest first.
@@ -454,7 +467,7 @@ function VendorSubmissionsSection({
                     <p className="mt-0.5 truncate text-xs text-slate-500">
                       {event?.eventName ?? "Unknown event"}
                       {event?.eventDate
-                        ? ` · ${formatDisplayDate(event.eventDate)}`
+                        ? ` · ${formatEventDates(event.eventDate, event.eventEndDate)}`
                         : ""}
                       {` · Submitted ${formatShortDate(submission.submittedAt)}`}
                     </p>
@@ -489,7 +502,9 @@ function UpcomingEventsSection({
 }) {
   const detail = (event: AdminEventListItem) =>
     [
-      event.eventDate ? formatDisplayDate(event.eventDate) : null,
+      event.eventDate
+        ? formatEventDates(event.eventDate, event.eventEndDate)
+        : null,
       event.eventType,
       event.coordinatorName,
     ]
@@ -523,7 +538,7 @@ function UpcomingEventsSection({
                   {event.expedited ? (
                     <StatusBadge tone="danger">Expedited</StatusBadge>
                   ) : null}
-                  <StatusBadge tone="success">Today</StatusBadge>
+                  <StatusBadge tone="success">{todayLabel(event)}</StatusBadge>
                 </>
               }
             />
@@ -685,7 +700,7 @@ function ContractsSection({
                 <EventRow
                   detail={`${
                     event.eventDate
-                      ? formatDisplayDate(event.eventDate)
+                      ? formatEventDates(event.eventDate, event.eventEndDate)
                       : "No date"
                   } · ${
                     daysOut === 0

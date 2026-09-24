@@ -3,7 +3,7 @@ import {
   requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import { parseGhlSnapshot } from "@/lib/admin/events";
-import { formatDisplayDate } from "@/lib/dates";
+import { formatEventDates } from "@/lib/dates/event-dates";
 import { fetchGhlContact } from "@/lib/ghl/contacts";
 import { listGhlUsers } from "@/lib/ghl/location-data";
 import { listGhlSnippets } from "@/lib/ghl/message-templates";
@@ -36,10 +36,8 @@ async function loadEventMergeContext(
   if (!data) return null;
 
   const snapshot = parseGhlSnapshot(data.ghl_snapshot);
-  const date =
-    snapshot.eventDate && /^\d{4}-\d{2}-\d{2}$/.test(snapshot.eventDate)
-      ? formatDisplayDate(snapshot.eventDate)
-      : null;
+  // The whole span for a multi-day event ("October 16–17, 2026").
+  const date = formatEventDates(snapshot.eventDate, snapshot.eventEndDate) || null;
 
   return {
     name: snapshot.eventName ?? null,

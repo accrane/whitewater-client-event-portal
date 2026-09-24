@@ -157,6 +157,14 @@ Booked, or Lost? The stage is left alone.
   them to **booked** from the event page's Room bookings section, or let the
   contract's first payment do it (Step 4b).
 
+You can also add rooms straight from the event page with **Add room** under
+Room bookings. For a multi-day event it shows each day of the event as a
+button: tick the days you need and the same room and times are held on each
+(every day becomes its own booking). Each day in Room bookings also has its
+own **Add room** button, which opens with that day already ticked. The
+window shows that room's other bookings on each day you ticked and won't
+save while any of them overlaps.
+
 ### Step 4 — Event prep in the portal
 
 **You do:** work the event from its page under **Events**:
@@ -194,7 +202,7 @@ Booked, or Lost? The stage is left alone.
     | `{{opportunity.assigned_to}}` | The coordinator assigned to the event |
     | `{{user.first_name}}`, `{{user.last_name}}`, `{{user.name}}`, `{{user.email}}` | You, the person sending. If your portal login doesn't match a GHL user, the event's coordinator is used instead |
     | `{{opportunity.groupevent_name}}` | The event name |
-    | `{{opportunity.event_date}}` | The event date, written out (November 20, 2026) |
+    | `{{opportunity.event_date}}` | The event date, written out (November 20, 2026, or November 20–22, 2026 for a multi-day event) |
     | `{{opportunity.portal_link}}` | The client's portal link (only once the portal has been launched) |
 
     If a tag can't be filled in (no coordinator assigned yet, portal not
@@ -245,15 +253,71 @@ Booked, or Lost? The stage is left alone.
   keep bold, italic, lists, links, and pictures; text pasted from elsewhere
   keeps its paragraphs and lists but takes the portal's own font and colors.
 - **Room bookings** — confirm held rooms as booked. They also book on
-  their own at a contract's first payment (Step 4b).
+  their own at a contract's first payment (Step 4b). A multi-day event lists
+  its rooms under each day. A room that isn't on one of the event's days is
+  marked **Not an event day**, with a **Move rooms** button that lines the
+  rooms back up with the event (see *Changing the date* below). A setup room
+  booked the day before on purpose can stay where it is.
 
 **Automatically:**
 - Opening the event page refreshes it from GHL first (name, type, date of
-  interest, contact, coordinator, proposal link, guest counts, value).
+  interest, contact, coordinator, proposal link, guest counts, value). If
+  someone changed the date of interest in GHL, the event's dates follow (a
+  multi-day event keeps its length) but its rooms stay where they are and
+  are marked **Not an event day** until you move them.
 - Saving the Event summary writes guest count, pass and bin counts, and
   Value back to the GHL opportunity.
 - Reassigning the coordinator updates the assigned user on both the
   opportunity and the contact in GHL.
+
+### Changing the date, and multi-day events
+
+**You do:** click the date under the event's name at the top of its page
+(or **Change dates** in the Event summary). In the window:
+
+- set the new date. For an event that runs more than one day, tick **Runs
+  more than one day** and set the **Last day**. Moving the first day moves
+  the last day with it, so the event keeps its length.
+- check where each of the event's rooms will go. Each room keeps its times
+  and moves to the same day of the event: a room on the first day goes to
+  the new first day, a room on the second day to the new second day. Next
+  to each one the window says whether that room is free then, checking the
+  room calendar as you go.
+- sort out anything in red. A room that's taken on the new date shows who
+  has it. Pick another room (rooms that are also busy then say so), leave
+  it on its old date to deal with later, or release it. The window won't
+  save while a room is still in red.
+- a room on a day the new dates no longer include (the event got shorter),
+  or one that wasn't on an event day to begin with (a setup day), stays
+  where it is unless you move or release it.
+- hold rooms for the other days, right in the same window. Under each room,
+  **Same room on …** holds that room at the same times on the event's other
+  days (the usual case when an event grows from one day to several). **Add a
+  room** adds a row where you pick the day, the room, and the times. An
+  amber note lists any day that still has no rooms. New rooms are checked
+  against the room calendar like the others and are saved as held; **Remove**
+  takes a row back out before you save.
+
+Click **Save dates** (or **Save rooms** when only rooms changed). If a room was taken by someone else in the moment
+before you saved, it stays where it was and the window tells you which one;
+it's marked under Room bookings for you to move by hand.
+
+**Automatically:**
+- The new first day is saved to the GHL opportunity's date of interest.
+  If GHL won't take it, nothing changes and the window says why. Try again
+  in a minute. (The last day of a multi-day event is kept in the portal only;
+  GHL has one date.)
+- Checklist due dates move with the event.
+- The client's portal, the dashboard, and the events list show the new
+  dates. A multi-day event shows its whole span (October 16–18, 2026), and
+  stays under **Today's events** on the dashboard every day it runs
+  (Day 2 of 3).
+
+**Contracts don't change.** A contract already sent still shows the old
+date. If it's unsigned, edit it on the Contracts tab and re-send it: the
+sub-heading boxes suggest each of the event's days. A signed contract was
+signed for the old date, so agree the change with the client and send a new
+contract if one is needed.
 
 ### Step 4b — Contract (PandaDoc, from the portal)
 
@@ -284,8 +348,9 @@ tax; the form warns you if a catering item ends up in another table.
 - The **sub-heading** box above a table's rows is for the event day, the
   way the table used to be retitled in PandaDoc ("Friday, November 20th -
   9:45am arrival"). A new contract starts with the event's date filled in;
-  clear it if you don't want it. For a multi-day event, click **Add another
-  group** and give each day its own sub-heading.
+  clear it if you don't want it. Clicking in a sub-heading box offers each of
+  the event's days to pick from. For a multi-day event, click **Add another
+  group**: it starts with the next day's sub-heading.
 - Templates with a **checklist of options** (the education programs on the
   EA Group templates: "Choose One (1) of the Options Below") show the
   options as checkboxes. Tick the one the group chose before you send, so
@@ -428,7 +493,7 @@ contact and opportunity are otherwise untouched.
 
 | Screen | What it's for |
 | --- | --- |
-| **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones (shown as **Signed, check pending** when every unpaid contract is marked Paying by check), with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
+| **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today (including multi-day events already under way, shown as Day 2 of 3) and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones (shown as **Signed, check pending** when every unpaid contract is marked Paying by check), with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
 | **Events** | All portal events, newest first, 50 to a page with Previous/Next at the bottom. Status filters (Draft, Launched, Past) show how many events each holds, and the search box finds an event by name, type, or coordinator across every page. Open one to work it. |
 | **New inquiry** | Phone intake form (creates the GHL contact and opportunity, then the draft event; Expedited opens the room-hold window) and the backfill list of GHL opportunities without a portal event. |
 | **Event page** | Summary (with the contracts list), coordinator, primary contact with the conversations, notes, and tasks buttons and the follow-ups pause switch, facilitator, room bookings, launch, review queues. |
@@ -529,5 +594,7 @@ Payment, the wedding ones) work as they are. If you build a new one:
 | Saving a contract says an item is no longer in the PandaDoc catalog | Someone removed or replaced that item in PandaDoc. Remove the row and add the current item from the catalog, or add it as a custom row. |
 | The catalog or the template's tables won't load in the contract form | The portal can't reach PandaDoc right now. Custom rows still work; try again in a minute, and tell a manager if it persists. |
 | The client says their signing link stopped working | The contract was edited after it was sent. Their portal shows the revised one. |
+| A room under Room bookings says **Not an event day** | The event's date changed (here or in GHL) and that room didn't move with it, or it was booked for a setup day. Click **Move rooms** to line the rooms up with the event, or leave a setup room where it is. |
+| Changing the date says GoHighLevel didn't take it | Nothing was changed. GHL was unreachable or refused the update; try again in a minute, and tell a manager if it keeps happening. |
 | The client signed but the rooms are still held | Rooms book at the first payment, not the signature. Open the contract: "Payment pending" means PandaDoc is still waiting on the client's payment (**Refresh status** checks again). If they're paying by check, use **Paying by check**. |
 | Follow-up messages still going to someone who called | Use the pause switch on their Opportunities card or event page. |

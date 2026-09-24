@@ -89,18 +89,25 @@ function countUpcomingLaunchedEvents(rows: { ghl_snapshot: Json }[]): number {
   today.setHours(0, 0, 0, 0);
 
   return rows.filter((row) => {
-    const eventDate = getEventDate(row.ghl_snapshot);
+    const eventDate = getLastEventDay(row.ghl_snapshot);
 
     return eventDate ? eventDate >= today : false;
   }).length;
 }
 
-function getEventDate(snapshot: Json): Date | null {
+// A multi-day event counts as upcoming until its last day has passed.
+function getLastEventDay(snapshot: Json): Date | null {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     return null;
   }
 
-  const value = (snapshot as Record<string, Json | undefined>).eventDate;
+  const raw = snapshot as Record<string, Json | undefined>;
+  const value =
+    typeof raw.eventEndDate === "string" &&
+    typeof raw.eventDate === "string" &&
+    raw.eventEndDate > raw.eventDate
+      ? raw.eventEndDate
+      : raw.eventDate;
 
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
