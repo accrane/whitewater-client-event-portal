@@ -1,6 +1,6 @@
 # GHL custom fields the portal depends on
 
-_Last updated: 2026-09-24. Living log — add a row whenever the app starts
+_Last updated: 2026-09-25. Living log — add a row whenever the app starts
 reading or writing a GHL field, and create the field in GHL before shipping
 the feature that needs it._
 
@@ -54,7 +54,9 @@ page blanks its Event Planning App ID on the opportunity.
 | Location users | **Read** to populate the Event Coordinator dropdown (replaces the app's manual coordinator list). |
 | Contacts (`POST /contacts/upsert`) | App **upserts** a contact (tagged `facilitator`) whenever an event facilitator with an email or phone is saved, so staff can message facilitators from GHL Conversations and target them in workflows by tag. |
 | Contacts (`GET /contacts/:id`) | App **reads** the opportunity's contact on event-page sync into `ghl_snapshot.contact` (shown as the Primary contact on the event page), and to resolve "same as current contact" facilitator saves. |
-| Conversations (`GET /conversations/search`, `GET /conversations/:id/messages`) | App **reads** the primary contact's conversation history live for the event page's conversations drawer. Never stored locally. |
+| Conversations (`GET /conversations/search`, `GET /conversations/:id/messages`) | App **reads** the primary contact's conversation history live for the event page's conversations drawer; message content is never stored. The Opportunities board also reads the location's conversation list (newest first, only what changed since the last view) and stores, per contact, just who wrote last and when (`ghl_conversation_activity`) for the card badges; when an automated message follows a person's, one history page settles whose it was. |
+| Opportunity `lastStageChangeAt` | App **reads** it from the pipeline search for the cards' "in stage" badge. |
+| Contact tags `Group Sales - Step N Waiting for Response` | App **reads** them from the pipeline search's embedded contact for the cards' chase badge (Step 1 Inquiry, Step 3 Coordinator, Step 4 Proposal). GHL's chase workflows add and remove them; the setup is in developer-notes §5 *Chase tags*. |
 | Conversations (`POST /conversations/messages`) | App **sends** email/SMS replies from the conversations drawer through GHL, threading into the contact's existing conversation. Requires the Private Integration's *write conversation messages* scope. Emails end with GHL's `{{user.email_signature}}` merge tag, which GHL fills with the signature of the contact's assigned user (signatures live only in GHL; the API can't read them). |
 | Contact `assignedTo` | App **writes** it alongside the opportunity's `assignedTo` whenever a coordinator is assigned in the portal, and **reads** it for the conversations drawer: GHL signs drawer emails as this user, so the drawer names them beside Send. |
 | Contact notes (`GET`/`POST /contacts/:id/notes`) | App **reads** the primary contact's notes live for the event page's notes drawer (count badges the notepad button) and **writes** new notes, attributed via `userId` to the GHL user whose email matches the signed-in coordinator. |

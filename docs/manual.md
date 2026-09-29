@@ -1,6 +1,6 @@
 # Portal Manual
 
-_Last updated: 2026-09-24._
+_Last updated: 2026-09-29._
 
 This is the working guide for the Whitewater event portal: what each screen
 is for, how an event moves from inquiry to event day, and what happens
@@ -504,10 +504,35 @@ contact and opportunity are otherwise untouched.
 | **Contracts** | Every PandaDoc contract in one list. **Open** holds anything not yet signed, with contracts waiting for a manager's approval at the top and, for managers, an **Approve in PandaDoc** button that opens the document directly (coordinators see the status but no PandaDoc buttons); **History** holds signed, declined, and voided ones. Search by contract, event, or customer name; filter by coordinator (managers only), status, and event date. Managers see every event's contracts; coordinators see only their own. **Refresh statuses** re-reads every open contract from PandaDoc. |
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
 | **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
-| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, and the pause switch; hover any of them for a label. When a client writes in (email, text, chat), their card gets a blue **New reply** badge and a red dot on the conversations button, and the stage tab gets a red dot too, so you can see at a glance which stages have clients waiting. Opening that contact's conversations (or replying) clears it. The **Won** tab is the contact list for rebooking. |
+| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, the pause switch, and a **move** button (two arrows) for changing its stage; hover any of them for a label. The move button lists every other stage; pick one and confirm, and the card moves to that tab straight away. Some moves set things off, and the menu says so before you confirm: moving to **Proposal Sent** starts GHL's proposal follow-up chase (so only move it there once the client actually has the proposal), and moving to **Booked** only changes the stage (rooms are still booked by the contract's first payment). Moving to **Lost** asks for a reason — optional, but it's saved as a note on the contact in GHL so everyone can see why the deal ended. A column of status badges down the right side of each card shows what needs attention (see **Opportunities card badges** below). When a client writes in (email, text, chat), their card gets a blue **New reply** badge and a red dot on the conversations button, and the stage tab gets a red dot too, so you can see at a glance which stages have clients waiting. Opening that contact's conversations (or replying) clears it. The **Won** tab is the contact list for rebooking. |
 | **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Past events list their PandaDoc documents (contract, additions, final payment) with each one's status; click one to open it in PandaDoc, where you need to be signed in. Dollar values are manager-only. |
 | **Settings** | Checklist and schedule templates that new events start from. Changes never touch events already set up. |
 | **Manual** | This guide. Opens in a new tab from the **?** beside the theme switch. |
+
+### Opportunities card badges
+
+Badges stack down the right side of each Opportunities card, most pressing
+first. Hover one to see why it's there. A card with nothing to flag has none.
+
+| Badge | What it means |
+| --- | --- |
+| **Client waiting** (blue under a day, red after) | The client wrote last and nobody has answered them yet, counted from their latest message. GHL's automated reminders don't count as an answer, so a client who wrote back while a chase was running still shows as waiting. |
+| **New reply** (blue) | A message nobody has opened in the portal yet. Opening their conversations clears it. Shown only when Client waiting isn't. |
+| **Not contacted** (red) | A website inquiry more than a day old, still in New Inquiry, that nobody has written to by hand. GHL's automatic emails don't count. |
+| **Quiet** (amber from 5 days, red from 10) | Someone on the team wrote to them last, by hand, that many days ago, and they haven't answered. Shown until the deal books, and not while follow-ups are paused. |
+| **Event in 12d** (amber within three weeks, red within a week) | The event is close and the deal hasn't booked. Also **Event tomorrow**, **Event today**, and **Event under way**. |
+| **Date passed** (red) | The event date is behind us and the deal is still open: change the date, or move it to Lost. On a Booked deal, mark it Won. |
+| **Expedited** / **Phone** | How the inquiry came in. Neither gets GHL's automatic follow-ups, so whoever took the call follows up. |
+| **9d in stage** (amber) | The deal has sat in its stage longer than usual: New Inquiry 2 days, Contacted and Planning 7, Proposal Sent 14. |
+| **Proposal chase** (blue) | GHL is following up with them on its own. Also **Inquiry chase** and **Coordinator chase**. Grey while follow-ups are paused; amber if a chase is still running on a Booked or Lost deal. |
+
+- Who wrote last comes from the contact's GHL conversation. Emails from
+  your own mailbox and phone calls never reach it, so reply from the
+  conversations drawer (or GHL), and pause follow-ups after a call.
+- The badges refresh from GHL each time the Opportunities page loads; a
+  conversation that just changed can take one more load to catch up.
+- One contact with several open deals shows the same conversation badge on
+  each of their cards.
 
 ### Admin section (managers only)
 
@@ -601,3 +626,5 @@ Payment, the wedding ones) work as they are. If you build a new one:
 | Changing the date says GoHighLevel didn't take it | Nothing was changed. GHL was unreachable or refused the update; try again in a minute, and tell a manager if it keeps happening. |
 | The client signed but the rooms are still held | Rooms book at the first payment, not the signature. Open the contract: "Payment pending" means PandaDoc is still waiting on the client's payment (**Refresh status** checks again). If they're paying by check, use **Paying by check**. |
 | Follow-up messages still going to someone who called | Use the pause switch on their Opportunities card or event page. |
+| A card says **Client waiting** but you answered them | Answers from your own mailbox, or given by phone, never reach GHL. Reply from the conversations drawer or from GHL; after a phone call, pause follow-ups. |
+| GHL is sending follow-ups but the card shows no chase badge | The chase workflow in GHL isn't tagging the contact. Tell a manager. |

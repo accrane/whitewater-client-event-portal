@@ -1,4 +1,4 @@
-import { normalizeEventEnd } from "@/lib/dates/event-dates";
+import { isIsoDate, normalizeEventEnd } from "@/lib/dates/event-dates";
 import { fetchGhlContact, upsertFacilitatorContact } from "@/lib/ghl/contacts";
 import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
 import {
@@ -375,10 +375,13 @@ export type EventFlags = {
   eventId: string;
   inquirySource: "form" | "phone";
   expedited: boolean;
+  // Last day of a multi-day event (app-only; GHL holds just the first day).
+  eventEndDate: string | null;
 };
 
 // Portal-side flags for a set of GHL opportunities, one query — the
-// Opportunities cards use it to badge expedited / phone-taken deals.
+// Opportunities cards use it to badge expedited / phone-taken deals and to
+// tell when a multi-day event is over.
 export async function getEventFlagsByOpportunityIds(
   opportunityIds: string[],
 ): Promise<Map<string, EventFlags>> {
@@ -387,21 +390,28 @@ export async function getEventFlagsByOpportunityIds(
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("events")
-    .select("id, ghl_opportunity_id, inquiry_source, expedited")
+    .select(
+      "id, ghl_opportunity_id, inquiry_source, expedited, event_end_date:ghl_snapshot->>eventEndDate",
+    )
     .in("ghl_opportunity_id", unique);
   if (error) {
     throw new Error(`Unable to load event flags: ${error.message}`);
   }
-  const rows = (data ?? []) as Pick<
+  const rows = (data ?? []) as unknown as (Pick<
     EventRow,
     "id" | "ghl_opportunity_id" | "inquiry_source" | "expedited"
-  >[];
+  > & { event_end_date: string | null })[];
   return new Map(
     rows
       .filter((row) => row.ghl_opportunity_id)
       .map((row) => [
         row.ghl_opportunity_id as string,
-        { eventId: row.id, inquirySource: row.inquiry_source, expedited: row.expedited },
+        {
+          eventId: row.id,
+          inquirySource: row.inquiry_source,
+          expedited: row.expedited,
+          eventEndDate: isIsoDate(row.event_end_date) ? row.event_end_date : null,
+        },
       ]),
   );
 }

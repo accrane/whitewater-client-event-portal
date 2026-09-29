@@ -586,6 +586,36 @@ export type Database = {
         >;
         Relationships: [];
       };
+      ghl_conversation_activity: {
+        Row: {
+          ghl_contact_id: string;
+          ghl_conversation_id: string | null;
+          last_message_at: string | null;
+          last_manual_at: string | null;
+          last_human_at: string | null;
+          last_human_direction: "inbound" | "outbound" | null;
+          last_automated_at: string | null;
+          needs_check: boolean;
+          checked_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          ghl_contact_id: string;
+          ghl_conversation_id?: string | null;
+          last_message_at?: string | null;
+          last_manual_at?: string | null;
+          last_human_at?: string | null;
+          last_human_direction?: "inbound" | "outbound" | null;
+          last_automated_at?: string | null;
+          needs_check?: boolean;
+          checked_at?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["ghl_conversation_activity"]["Insert"]
+        >;
+        Relationships: [];
+      };
       checklist_template_sections: {
         Row: {
           id: string;

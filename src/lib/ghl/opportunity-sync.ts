@@ -5,11 +5,13 @@ import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { assignContactUser } from "@/lib/ghl/contacts";
 import { findDateOfInterest } from "@/lib/ghl/field-values";
+import { ghlUserIdForEmail } from "@/lib/ghl/follow-up-pauses";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import {
   fetchOpportunity,
   fetchOpportunityFieldIndex,
 } from "@/lib/ghl/location-data";
+import { createContactNote } from "@/lib/ghl/notes";
 import { fetchConfiguredPipeline } from "@/lib/ghl/opportunities";
 import {
   buildEventFieldWriteBackBody,
@@ -21,6 +23,7 @@ import {
   isProposalSentStage,
   shouldMoveToProposalSent,
 } from "@/lib/ghl/proposal-sent";
+import { isLostStage, lostNoteBody } from "@/lib/ghl/stage-move";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
 
@@ -908,4 +911,84 @@ async function setEventSyncStatus(
   if (updateError) {
     console.error("Failed updating event sync status", updateError.message);
   }
+}
+
+export type StageMoveOutcome =
+  | { ok: true; noteError: string | null }
+  | { ok: false; error: string };
+
+// A coordinator moved a card to another stage from the pipeline board's
+// "Move to…" menu. Any stage in the configured pipeline is allowed — the
+// menu has already warned about what the move sets off in GHL. The
+// opportunity keeps its open status (Lost is a stage on this board, not
+// GHL's lost status, or the card would drop off the board). A move to Lost
+// also writes a note on the contact with the optional reason; a failed note
+// doesn't undo the move.
+export async function moveOpportunityStage({
+  opportunityId,
+  stageId,
+  fromStageId,
+  contactId,
+  reason,
+  byEmail,
+  portalEventId,
+}: {
+  opportunityId: string;
+  stageId: string;
+  fromStageId: string | null;
+  contactId: string | null;
+  reason: string | null;
+  byEmail: string | null;
+  portalEventId: string | null;
+}): Promise<StageMoveOutcome> {
+  const pipeline = await fetchConfiguredPipeline();
+  const target = pipeline?.stages.find((stage) => stage.id === stageId);
+  if (!pipeline || !target) {
+    return { ok: false, error: "That stage isn't in the pipeline. Reload the page and try again." };
+  }
+  const from =
+    pipeline.stages.find((stage) => stage.id === fromStageId)?.name ?? null;
+  const lost = isLostStage(target.name);
+  const ghlLocationId = appConfig.ghl.locationId || null;
+
+  const result = await updateGhlOpportunity(opportunityId, {
+    pipelineId: pipeline.id,
+    pipelineStageId: target.id,
+  });
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_stage_move",
+    ghlLocationId,
+    portalEventId,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? `GHL opportunity moved${from ? ` from ${from}` : ""} to ${target.name} from the pipeline board.`
+      : `Failed moving the GHL opportunity to ${target.name}.`,
+    details: {
+      ghl_opportunity_id: opportunityId,
+      previous_stage: from,
+      stage: target.name,
+      by: byEmail,
+      ...(lost ? { reason } : {}),
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? "Unknown GHL error" };
+  }
+
+  if (!lost || !contactId) {
+    return { ok: true, noteError: null };
+  }
+
+  const note = await createContactNote({
+    contactId,
+    body: lostNoteBody({ fromStage: from, reason, byEmail }),
+    userId: await ghlUserIdForEmail(byEmail),
+    ghlLocationId,
+    portalEventId,
+  });
+  return { ok: true, noteError: note.ok ? null : note.error };
 }
