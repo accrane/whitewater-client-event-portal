@@ -352,6 +352,9 @@ tax; the form warns you if a catering item ends up in another table.
   set the quantity on the row. The name and price come from PandaDoc and
   can't be changed here — managers set prices in PandaDoc's catalog, and a
   price changed there shows up here within a few minutes.
+  The description is shown as plain text and can be edited on the row (for
+  example to note the client's buffet choices). Left alone, it goes to
+  PandaDoc with the catalog's own formatting.
 - **Add custom row** is for anything that isn't in the catalog (a waived
   fee, an outside-food charge). You type the name and the price.
 - The **sub-heading** box above a table's rows is for the event day, the

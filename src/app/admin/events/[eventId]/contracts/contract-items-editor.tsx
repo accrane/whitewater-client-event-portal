@@ -2,6 +2,8 @@
 
 import { useId, useMemo, useState } from "react";
 
+import { textFromMaybeHtml, textToEmailHtml } from "@/lib/ghl/html-text";
+
 import { buttonClasses } from "@/components/ui/button";
 import {
   customDraftRow,
@@ -331,15 +333,10 @@ function PricedTable({
                           value={row.name}
                         />
                       )}
-                      <input
-                        aria-label="Item description"
-                        className={inputClass}
-                        onChange={(event) =>
-                          updateRow(section.key, row.key, {
-                            description: event.target.value,
-                          })
+                      <DescriptionField
+                        onChange={(description) =>
+                          updateRow(section.key, row.key, { description })
                         }
-                        placeholder="Description (optional)"
                         value={row.description}
                       />
                       <input
@@ -498,6 +495,36 @@ function PricedTable({
   );
 }
 
+// A row's description as plain text. Catalog descriptions are PandaDoc HTML
+// (<p>, <div>, <br>), which is what the contract should carry, so it's sent
+// as-is unless someone edits it here; an edit is turned back into simple
+// paragraphs and lists. Custom rows are plain text throughout. The text is
+// kept in local state so typing (a trailing space, a new line) isn't
+// re-derived from the HTML on every keystroke.
+function DescriptionField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (description: string) => void;
+}) {
+  const isHtml = /<[a-z][\s\S]*>/i.test(value);
+  const [text, setText] = useState(() => textFromMaybeHtml(value));
+  return (
+    <textarea
+      aria-label="Item description"
+      className={`${inputClass} resize-y`}
+      onChange={(event) => {
+        setText(event.target.value);
+        onChange(isHtml ? textToEmailHtml(event.target.value) : event.target.value);
+      }}
+      placeholder="Description (optional)"
+      rows={text.includes("\n") || text.length > 60 ? 3 : 1}
+      value={text}
+    />
+  );
+}
+
 const ALL = "__all__";
 const ALL_FOOD = "__food__";
 
@@ -565,19 +592,15 @@ function CatalogPicker({
 
       <ul className="mt-2 max-h-72 divide-y divide-slate-200 overflow-y-auto rounded-lg border border-slate-200 bg-white">
         {matches.map((item) => (
+          // Price and Add on the left, where the eye starts; the name and a
+          // plain-text description wrap on the right, so a long description
+          // never pushes the button off screen.
           <li
-            className="flex items-center justify-between gap-3 px-3 py-2"
+            className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-3 px-3 py-2"
             key={item.id}
           >
-            <span className="min-w-0 text-sm">
-              <span className="font-medium text-slate-800">{item.name}</span>
-              <span className="block truncate text-xs text-slate-500">
-                {item.category}
-                {item.description ? ` · ${item.description}` : ""}
-              </span>
-            </span>
-            <span className="flex shrink-0 items-center gap-3">
-              <span className="text-sm text-slate-700">
+            <span className="flex flex-col items-start gap-1">
+              <span className="text-sm font-semibold text-slate-800">
                 {currency.format(item.price)}
               </span>
               <button
@@ -590,6 +613,15 @@ function CatalogPicker({
               >
                 {added === item.id ? "Added ✓" : "Add"}
               </button>
+            </span>
+            <span className="min-w-0 text-sm">
+              <span className="block font-medium text-slate-800">{item.name}</span>
+              <span className="block text-xs text-slate-400">{item.category}</span>
+              {item.description ? (
+                <span className="mt-0.5 block whitespace-pre-line break-words text-xs text-slate-600">
+                  {textFromMaybeHtml(item.description)}
+                </span>
+              ) : null}
             </span>
           </li>
         ))}
