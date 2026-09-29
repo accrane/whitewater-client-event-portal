@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  EMAIL_SIGNATURE_TAG,
+  appendEmailSignature,
   findUnfilledMergeTags,
   renderSnippetMergeTags,
 } from "../../src/lib/ghl/snippet-merge-tags.ts";
@@ -64,4 +66,25 @@ test("tags with no value stay in the text and are reported as unfilled", () => {
 
 test("findUnfilledMergeTags is empty for fully rendered text", () => {
   assert.deepEqual(findUnfilledMergeTags("Hi John, see you on November 20."), []);
+});
+
+test("the signature tag is left for GHL and never reported as unfilled", () => {
+  const text = renderSnippetMergeTags(
+    "Thanks, {{user.first_name}}\n{{ user.email_signature }}\n{{business.name}}",
+    { contact, user: { name: "Alex Manager", email: null }, event },
+  );
+  assert.equal(text, "Thanks, Alex\n{{ user.email_signature }}\n{{business.name}}");
+  assert.deepEqual(findUnfilledMergeTags(text), ["{{business.name}}"]);
+});
+
+test("appendEmailSignature ends the email with GHL's signature tag", () => {
+  assert.equal(
+    appendEmailSignature("<p>See you soon!</p>"),
+    `<p>See you soon!</p>${EMAIL_SIGNATURE_TAG}`,
+  );
+});
+
+test("appendEmailSignature leaves a message that already places the tag", () => {
+  const html = "<p>Thanks!</p><p>{{user.email_signature}}</p><p>P.S. Parking is free.</p>";
+  assert.equal(appendEmailSignature(html), html);
 });

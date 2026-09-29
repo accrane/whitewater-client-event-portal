@@ -6,6 +6,8 @@ export type CoordinatorAssignedEmailInput = {
   eventName: string;
   // yyyy-MM-dd or null.
   eventDate: string | null;
+  // Last day of a multi-day event (yyyy-MM-dd), else null/absent.
+  eventEndDate?: string | null;
   eventType: string | null;
   contactName: string | null;
   guestCount: number | null;
@@ -36,7 +38,12 @@ function formatDate(date: string | null): string | null {
 export function buildCoordinatorAssignedEmail(
   input: CoordinatorAssignedEmailInput,
 ): CoordinatorAssignedEmail {
-  const date = formatDate(input.eventDate);
+  const firstDay = formatDate(input.eventDate);
+  const lastDay =
+    firstDay && input.eventEndDate && input.eventEndDate > (input.eventDate ?? "")
+      ? formatDate(input.eventEndDate)
+      : null;
+  const date = firstDay && lastDay ? `${firstDay} – ${lastDay}` : firstDay;
   const firstName = input.coordinatorName?.trim().split(/\s+/)[0] || null;
   const subject = `You're the coordinator for ${input.eventName}${date ? ` (${date})` : ""}`;
 

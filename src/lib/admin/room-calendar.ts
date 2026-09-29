@@ -182,6 +182,142 @@ export async function setEventReservationsStatus(params: {
   }
 }
 
+export type ReservationConflict = {
+  title: string;
+  status: ReservationRow["status"];
+  start: string;
+  end: string;
+};
+
+// The reservation holding a room at an overlapping time, if any.
+async function findSlotHolder(
+  roomId: string,
+  start: string,
+  end: string,
+  excludeId?: string,
+): Promise<ReservationConflict | null> {
+  const supabase = createServiceRoleSupabaseClient();
+  let query = supabase
+    .from("reservations")
+    .select("title, status, start_datetime, end_datetime")
+    .eq("room_id", roomId)
+    .lt("start_datetime", end)
+    .gt("end_datetime", start)
+    .limit(1);
+  if (excludeId) query = query.neq("id", excludeId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const holder = (data ?? [])[0] as
+    | Pick<ReservationRow, "title" | "status" | "start_datetime" | "end_datetime">
+    | undefined;
+  return holder
+    ? {
+        title: holder.title,
+        status: holder.status,
+        start: holder.start_datetime,
+        end: holder.end_datetime,
+      }
+    : null;
+}
+
+// Holds a room for an event (rooms added in the event dates dialog). A
+// taken slot comes back as the reservation holding it — or null when the
+// database's overlap guard caught a booking made a moment ago.
+export async function addEventReservation(params: {
+  eventId: string;
+  roomId: string;
+  title: string;
+  coordinatorName: string | null;
+  start: string;
+  end: string;
+  createdBy: string | null;
+}): Promise<{ ok: true } | { ok: false; conflict: ReservationConflict | null }> {
+  validateTimes(params.start, params.end);
+  const holder = await findSlotHolder(params.roomId, params.start, params.end);
+  if (holder) return { ok: false, conflict: holder };
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { error } = await supabase.from("reservations").insert({
+    room_id: params.roomId,
+    title: params.title,
+    status: "held",
+    start_datetime: params.start,
+    end_datetime: params.end,
+    event_id: params.eventId,
+    coordinator_name: params.coordinatorName,
+    created_by: params.createdBy,
+  } as never);
+
+  if (error) {
+    if (error.code === EXCLUSION_VIOLATION) return { ok: false, conflict: null };
+    throw error;
+  }
+  return { ok: true };
+}
+
+// Moves one of an event's reservations to another room and/or time (the
+// event dates dialog). Scoped to the event like setEventReservationsStatus.
+// A taken slot comes back as the reservation holding it — or null when the
+// database's overlap guard caught a booking made a moment ago.
+export async function moveEventReservation(params: {
+  eventId: string;
+  reservationId: string;
+  roomId: string;
+  start: string;
+  end: string;
+}): Promise<{ ok: true } | { ok: false; conflict: ReservationConflict | null }> {
+  validateTimes(params.start, params.end);
+  const holder = await findSlotHolder(
+    params.roomId,
+    params.start,
+    params.end,
+    params.reservationId,
+  );
+  if (holder) return { ok: false, conflict: holder };
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("reservations")
+    .update({
+      room_id: params.roomId,
+      start_datetime: params.start,
+      end_datetime: params.end,
+    } as never)
+    .eq("id", params.reservationId)
+    .eq("event_id", params.eventId)
+    .select("id");
+
+  if (error) {
+    if (error.code === EXCLUSION_VIOLATION) return { ok: false, conflict: null };
+    throw error;
+  }
+  if (!data.length) {
+    throw new RoomCalendarError("Reservation not found for this event", 404);
+  }
+  return { ok: true };
+}
+
+// Deletes one of an event's reservations (released from the dates dialog).
+export async function releaseEventReservation(params: {
+  eventId: string;
+  reservationId: string;
+}) {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("reservations")
+    .delete()
+    .eq("id", params.reservationId)
+    .eq("event_id", params.eventId)
+    .select("id");
+
+  if (error) throw error;
+  if (!data.length) {
+    throw new RoomCalendarError("Reservation not found for this event", 404);
+  }
+}
+
 export type ReservationFilters = {
   start?: string;
   end?: string;

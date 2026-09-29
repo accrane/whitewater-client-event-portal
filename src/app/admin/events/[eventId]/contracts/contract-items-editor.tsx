@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { buttonClasses } from "@/components/ui/button";
 import {
@@ -47,6 +47,8 @@ type ContractItemsEditorProps = {
   catalog: CatalogState;
   loadingLayout: boolean;
   layoutError: string | null;
+  // The event's day lines, offered in every sub-heading field.
+  sectionSuggestions: string[];
 };
 
 export function ContractItemsEditor({
@@ -55,7 +57,9 @@ export function ContractItemsEditor({
   catalog,
   loadingLayout,
   layoutError,
+  sectionSuggestions,
 }: ContractItemsEditorProps) {
+  const suggestionListId = useId();
   const hasFoodTable = tables.some(
     (table) => table.priced && isFoodTableHeading(table.heading),
   );
@@ -102,6 +106,8 @@ export function ContractItemsEditor({
               hasFoodTable={hasFoodTable}
               key={`${table.name}-${index}`}
               onChange={(next) => updateTable(index, next)}
+              sectionSuggestions={sectionSuggestions}
+              suggestionListId={suggestionListId}
               table={table}
             />
           ) : (
@@ -113,6 +119,12 @@ export function ContractItemsEditor({
           ),
         )}
       </div>
+
+      <datalist id={suggestionListId}>
+        {sectionSuggestions.map((suggestion) => (
+          <option key={suggestion} value={suggestion} />
+        ))}
+      </datalist>
 
       <p className="mt-3 text-right text-sm text-slate-700">
         Subtotal{" "}
@@ -189,11 +201,15 @@ function PricedTable({
   onChange,
   catalog,
   hasFoodTable,
+  sectionSuggestions,
+  suggestionListId,
 }: {
   table: DraftTable;
   onChange: (table: DraftTable) => void;
   catalog: CatalogState;
   hasFoodTable: boolean;
+  sectionSuggestions: string[];
+  suggestionListId: string;
 }) {
   // Which section's catalog picker is open, if any.
   const [pickerFor, setPickerFor] = useState<number | null>(null);
@@ -251,6 +267,7 @@ function PricedTable({
               <input
                 aria-label="Sub-heading"
                 className={inputClass}
+                list={suggestionListId}
                 onChange={(event) =>
                   updateSection(section.key, { title: event.target.value })
                 }
@@ -430,7 +447,22 @@ function PricedTable({
                       ...table,
                       sections: [
                         ...table.sections,
-                        { key: newDraftKey(), title: "", rows: [] },
+                        {
+                          key: newDraftKey(),
+                          // The next event day this table has no group
+                          // for (a day counts as used with or without its
+                          // " - … arrival" suffix).
+                          title:
+                            sectionSuggestions.find(
+                              (suggestion) =>
+                                !table.sections.some((existing) =>
+                                  existing.title
+                                    .trim()
+                                    .startsWith(suggestion.split(" - ")[0]),
+                                ),
+                            ) ?? "",
+                          rows: [],
+                        },
                       ],
                     })
                   }

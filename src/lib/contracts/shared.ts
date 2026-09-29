@@ -97,6 +97,12 @@ export type EventContract = {
   signedActionsAppliedAt: string | null;
   // Signed-contract steps that failed and are waiting to be retried.
   signedActionsPending: SignedContractStep[];
+  // A coordinator marked it "Paying by check": the client pays outside
+  // PandaDoc, which counts as the payment that books the rooms.
+  payByCheckAt: string | null;
+  payByCheckBy: string | null;
+  // When this contract's payment (or check) booked the event's rooms.
+  roomsBookedAt: string | null;
   // Short-lived download link for the archived signed PDF (admin only).
   signedPdfUrl: string | null;
   lastError: string | null;
@@ -120,9 +126,11 @@ export const OPEN_CONTRACT_STATUSES: ContractStatus[] = [
 // signable: the template's approval workflow is holding it in PandaDoc.
 export const SIGNABLE_CONTRACT_STATUSES: ContractStatus[] = ["sent", "viewed"];
 
-// What signing a contract sets in motion (applySignedContractActions). A step
-// that fails is kept on the contract row and retried on its own until it
-// succeeds; the Contracts tab lists what's left as "Still to do".
+// What a signed contract sets in motion (applySignedContractActions). The
+// signature runs every step but "reservations": rooms wait for the
+// contract's first payment (contractPaymentReceived). A step that fails is
+// kept on the contract row and retried on its own until it succeeds; the
+// Contracts tab lists what's left as "Still to do".
 export type SignedContractStep =
   | "reservations"
   | "ghl_stage"
@@ -149,22 +157,54 @@ export function parseSignedContractSteps(value: unknown): SignedContractStep[] {
   return SIGNED_CONTRACT_STEPS.filter((step) => value.includes(step));
 }
 
-// The steps a completed contract still needs. First run: all of them. After
-// that: whatever failed, plus the PDF archive whenever no PDF is on file —
-// that also catches contracts signed before the steps were tracked, whose
-// failures were never recorded.
+// A contract's first payment: PandaDoc reports it paid (the client paid on
+// the step after signing, or someone marked it paid in PandaDoc), or a
+// coordinator marked it "Paying by check". A signature alone isn't one.
+export function contractPaymentReceived(contract: {
+  pandadocStatus: string | null;
+  payByCheckAt: string | null;
+}): boolean {
+  return contract.pandadocStatus === "document.paid" || Boolean(contract.payByCheckAt);
+}
+
+// Short payment note for a signed contract in lists ("Signed · Paid").
+// Null before signing.
+export function contractPaymentLabel(contract: {
+  status: ContractStatus;
+  pandadocStatus: string | null;
+  payByCheckAt: string | null;
+}): string | null {
+  if (contract.status !== "completed") return null;
+  if (contract.pandadocStatus === "document.paid") return "Paid";
+  if (contract.payByCheckAt) return "Paying by check";
+  if (contract.pandadocStatus === "document.waiting_pay") return "Payment pending";
+  return "No PandaDoc payment";
+}
+
+// The steps a completed contract still needs. First run: every signature
+// step. After that: whatever failed, plus the PDF archive whenever no PDF is
+// on file — that also catches contracts signed before the steps were
+// tracked, whose failures were never recorded. The rooms step runs once the
+// contract is paid and until it has booked them, however it last went.
 export function signedContractStepsToRun(contract: {
   signedActionsAppliedAt: string | null;
   signedActionsPending: unknown;
   signedPdfPath: string | null;
+  pandadocStatus: string | null;
+  payByCheckAt: string | null;
+  roomsBookedAt: string | null;
 }): SignedContractStep[] {
-  if (!contract.signedActionsAppliedAt) return [...SIGNED_CONTRACT_STEPS];
   const pending = parseSignedContractSteps(contract.signedActionsPending);
-  return SIGNED_CONTRACT_STEPS.filter(
-    (step) =>
+  return SIGNED_CONTRACT_STEPS.filter((step) => {
+    if (step === "reservations") {
+      return contractPaymentReceived(contract) && !contract.roomsBookedAt;
+    }
+    if (!contract.signedActionsAppliedAt) return true;
+    return (
       pending.includes(step) ||
-      (step === "signed_pdf" && !contract.signedPdfPath),
-  );
+      (step === "signed_pdf" && !contract.signedPdfPath)
+    );
+  });
 }
 
 // A step outcome starting "error" means it has to run again; anything else
@@ -310,4 +350,6 @@ export type ClientContract = {
   revisedAt: string | null;
   // Signing is offered while PandaDoc is waiting on the client.
   canSign: boolean;
+  // Paid in PandaDoc or paying by check, so the rooms are (being) booked.
+  paymentReceived: boolean;
 };

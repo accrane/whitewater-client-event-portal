@@ -1,4 +1,4 @@
-import { formatDisplayDate } from "@/lib/dates";
+import { formatEventDates } from "@/lib/dates/event-dates";
 
 // Merge tags let coordinators write templates like "Your event has
 // {{event.num_attendees}} attendees" and have each event's GHL-synced data
@@ -13,6 +13,8 @@ export type MergeTagContext = {
   eventName?: string | null;
   eventType?: string | null;
   eventDate?: string | null;
+  // Last day of a multi-day event.
+  eventEndDate?: string | null;
   arrivalTime?: string | null;
   meetingLocation?: string | null;
   numberOfGuests?: number | null;
@@ -61,7 +63,8 @@ const TAG_GROUPS: MergeTagGroup[] = [
       {
         token: "event.date",
         label: "Event date",
-        resolve: (c) => (c.eventDate ? formatDisplayDate(c.eventDate) : null),
+        // "October 16–17, 2026" for a multi-day event.
+        resolve: (c) => formatEventDates(c.eventDate, c.eventEndDate) || null,
       },
       {
         token: "event.arrival_time",
@@ -192,6 +195,7 @@ export function buildMergeTagContext(event: MergeTagContext): MergeTagContext {
     eventName: event.eventName ?? null,
     eventType: event.eventType ?? null,
     eventDate: event.eventDate ?? null,
+    eventEndDate: event.eventEndDate ?? null,
     arrivalTime: event.arrivalTime ?? null,
     meetingLocation: event.meetingLocation ?? null,
     numberOfGuests: event.numberOfGuests ?? null,

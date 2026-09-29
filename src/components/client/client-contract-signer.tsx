@@ -8,8 +8,9 @@ import type { ClientContract } from "@/lib/contracts/shared";
 // items it covers, and — while PandaDoc is waiting on the client — a
 // "Review and sign" button that opens PandaDoc's embedded signer right
 // here in the portal. When the signer reports completion, the portal tells
-// the app immediately so rooms are booked within seconds rather than
-// waiting for a webhook.
+// the app immediately so the signature is recorded within seconds rather
+// than waiting for a webhook. Rooms are confirmed by the first payment, not
+// the signature.
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -255,8 +256,11 @@ export function ClientContractSigner({
 
             {justSigned === contract.id ? (
               <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                Thank you — your signed contract is on file. Your coordinator has
-                been notified and your rooms are confirmed.
+                Thank you — your signed contract is on file and your coordinator
+                has been notified.{" "}
+                {contract.paymentReceived
+                  ? "Your rooms are confirmed."
+                  : "Your rooms are confirmed once your first payment is received."}
               </p>
             ) : null}
 

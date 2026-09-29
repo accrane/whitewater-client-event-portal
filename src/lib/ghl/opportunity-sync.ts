@@ -4,8 +4,14 @@ import { notifyCoordinatorAssigned } from "@/lib/email/notify-coordinator-assign
 import { appConfig } from "@/lib/env";
 import { getGhlApiHeaders, ghlFetch } from "@/lib/ghl/client";
 import { assignContactUser } from "@/lib/ghl/contacts";
+import { findDateOfInterest } from "@/lib/ghl/field-values";
+import { ghlUserIdForEmail } from "@/lib/ghl/follow-up-pauses";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
-import { fetchOpportunityFieldIndex } from "@/lib/ghl/location-data";
+import {
+  fetchOpportunity,
+  fetchOpportunityFieldIndex,
+} from "@/lib/ghl/location-data";
+import { createContactNote } from "@/lib/ghl/notes";
 import { fetchConfiguredPipeline } from "@/lib/ghl/opportunities";
 import {
   buildEventFieldWriteBackBody,
@@ -17,6 +23,7 @@ import {
   isProposalSentStage,
   shouldMoveToProposalSent,
 } from "@/lib/ghl/proposal-sent";
+import { isLostStage, lostNoteBody } from "@/lib/ghl/stage-move";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
 
@@ -320,6 +327,86 @@ export async function writeOpportunityFacilitator(
   return result.ok
     ? { ok: true }
     : { ok: false, skipped: false, error: result.error ?? "Unknown GHL error" };
+}
+
+// The field the page-load sync reads the event's first day from.
+const DATE_OF_INTEREST_KEY = "opportunity.date_of_interest";
+
+// Writes a new first day to the opportunity's Date of Interest, then reads
+// the opportunity back to confirm GHL kept it. GHL is the system of record
+// for the date and every event page load re-reads it, so the caller must
+// treat a failure as fatal: saving the date locally anyway would be undone
+// by the next sync. Skipped (nothing to undo it) when the event has no
+// opportunity, GHL isn't configured, or the field can't be found.
+export async function writeOpportunityEventDate(
+  event: EventRow,
+  date: string,
+): Promise<OpportunitySyncOutcome> {
+  const log = (
+    status: "success" | "warning" | "error",
+    message: string,
+    details: Record<string, Json> = {},
+  ) =>
+    logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType: "opportunity_event_date_write_back",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: event.id,
+      status,
+      message,
+      details: {
+        ghl_opportunity_id: event.ghl_opportunity_id,
+        date_of_interest: date,
+        ...details,
+      },
+    });
+
+  if (!event.ghl_opportunity_id) {
+    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+  }
+  if (!appConfig.ghl.accessToken) {
+    const error = "GHL_ACCESS_TOKEN is not configured";
+    await log("warning", `Skipped writing the event date to GHL: ${error}.`);
+    return { ok: false, skipped: true, error };
+  }
+
+  const fieldIndex = await fetchOpportunityFieldIndex();
+  const fieldId =
+    fieldIndex.get(DATE_OF_INTEREST_KEY) ?? appConfig.ghl.dateOfInterestFieldId;
+  if (!fieldId) {
+    const error = "Date of Interest field not found in GHL";
+    await log("warning", `Skipped writing the event date to GHL: ${error}.`);
+    return { ok: false, skipped: true, error };
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, {
+    customFields: [{ id: fieldId, field_value: date }],
+  });
+  if (!result.ok) {
+    const error = result.error ?? "Unknown GHL error";
+    await log("error", "Failed writing the event date to the GHL opportunity.", {
+      error,
+    });
+    return { ok: false, skipped: false, error };
+  }
+
+  const readBack = await fetchOpportunity(event.ghl_opportunity_id);
+  const stored = readBack
+    ? findDateOfInterest(readBack.customFields, fieldId)
+    : null;
+  if (readBack && stored !== date) {
+    const error = `GHL kept ${stored ?? "no date"} instead of ${date}`;
+    await log("error", "GHL did not keep the new event date.", { error });
+    return { ok: false, skipped: false, error };
+  }
+
+  await log(
+    readBack ? "success" : "warning",
+    readBack
+      ? "Event date written to the GHL opportunity's Date of Interest."
+      : "Event date written to GHL; reading it back to confirm failed.",
+  );
+  return { ok: true };
 }
 
 // Step in the launch workflow: when a coordinator publishes the portal, write the
@@ -824,4 +911,84 @@ async function setEventSyncStatus(
   if (updateError) {
     console.error("Failed updating event sync status", updateError.message);
   }
+}
+
+export type StageMoveOutcome =
+  | { ok: true; noteError: string | null }
+  | { ok: false; error: string };
+
+// A coordinator moved a card to another stage from the pipeline board's
+// "Move to…" menu. Any stage in the configured pipeline is allowed — the
+// menu has already warned about what the move sets off in GHL. The
+// opportunity keeps its open status (Lost is a stage on this board, not
+// GHL's lost status, or the card would drop off the board). A move to Lost
+// also writes a note on the contact with the optional reason; a failed note
+// doesn't undo the move.
+export async function moveOpportunityStage({
+  opportunityId,
+  stageId,
+  fromStageId,
+  contactId,
+  reason,
+  byEmail,
+  portalEventId,
+}: {
+  opportunityId: string;
+  stageId: string;
+  fromStageId: string | null;
+  contactId: string | null;
+  reason: string | null;
+  byEmail: string | null;
+  portalEventId: string | null;
+}): Promise<StageMoveOutcome> {
+  const pipeline = await fetchConfiguredPipeline();
+  const target = pipeline?.stages.find((stage) => stage.id === stageId);
+  if (!pipeline || !target) {
+    return { ok: false, error: "That stage isn't in the pipeline. Reload the page and try again." };
+  }
+  const from =
+    pipeline.stages.find((stage) => stage.id === fromStageId)?.name ?? null;
+  const lost = isLostStage(target.name);
+  const ghlLocationId = appConfig.ghl.locationId || null;
+
+  const result = await updateGhlOpportunity(opportunityId, {
+    pipelineId: pipeline.id,
+    pipelineStageId: target.id,
+  });
+
+  await logIntegrationEvent({
+    direction: "PORTAL_TO_GHL",
+    eventType: "opportunity_stage_move",
+    ghlLocationId,
+    portalEventId,
+    status: result.ok ? "success" : "error",
+    message: result.ok
+      ? `GHL opportunity moved${from ? ` from ${from}` : ""} to ${target.name} from the pipeline board.`
+      : `Failed moving the GHL opportunity to ${target.name}.`,
+    details: {
+      ghl_opportunity_id: opportunityId,
+      previous_stage: from,
+      stage: target.name,
+      by: byEmail,
+      ...(lost ? { reason } : {}),
+      ...(result.ok ? {} : { error: result.error ?? "Unknown GHL error" }),
+    },
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? "Unknown GHL error" };
+  }
+
+  if (!lost || !contactId) {
+    return { ok: true, noteError: null };
+  }
+
+  const note = await createContactNote({
+    contactId,
+    body: lostNoteBody({ fromStage: from, reason, byEmail }),
+    userId: await ghlUserIdForEmail(byEmail),
+    ghlLocationId,
+    portalEventId,
+  });
+  return { ok: true, noteError: note.ok ? null : note.error };
 }

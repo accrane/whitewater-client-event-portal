@@ -31,24 +31,8 @@ export type CoordinatorSwatch = {
   count: number;
 };
 
-// Distinct hues with enough weight for white text, in both themes.
-const COORDINATOR_PALETTE = [
-  "#2563eb",
-  "#d97706",
-  "#7c3aed",
-  "#db2777",
-  "#0d9488",
-  "#ea580c",
-  "#4f46e5",
-  "#65a30d",
-  "#0891b2",
-  "#b91c1c",
-];
+// White text sits on it, so darker than the Opportunities board's grey.
 export const UNASSIGNED_COLOR = "#64748b";
-
-export function coordinatorColor(index: number): string {
-  return COORDINATOR_PALETTE[index % COORDINATOR_PALETTE.length];
-}
 
 // Grid bounds for a month: full weeks, Sunday first, so leading/trailing
 // days from the neighboring months fill the corners.

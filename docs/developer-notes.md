@@ -1,6 +1,6 @@
 # Developer Notes — Whitewater Event Ecosystem
 
-_Last updated: 2026-09-24. This is the engineering record for the portal app,
+_Last updated: 2026-09-29. This is the engineering record for the portal app,
 GoHighLevel (GHL), and PandaDoc: how the pieces fit, where data lives, when
 syncs fire, what configuration exists, and a changelog. The user-facing
 guide is [manual.md](manual.md) — it is rendered inside the app at
@@ -67,15 +67,18 @@ Every page, server action and API route checks through
 ### Where data lives
 
 - **Supabase (Postgres)** — events (with a `ghl_snapshot` JSON mirror of the
-  opportunity), checklist items/templates, schedule, vendors, uploads
-  metadata, reservations/rooms, integration logs, portal users.
+  opportunity, plus app-only keys such as arrival time, meeting location,
+  facilitator, and `eventEndDate` — the last day of a multi-day event,
+  which GHL has no field for), checklist items/templates, schedule, vendors,
+  uploads metadata, reservations/rooms, integration logs, portal users.
 - **Supabase Storage** — client-uploaded files and archived signed
   contracts (private; coordinators get short-lived signed URLs).
 - **Supabase `event_contracts`** — one row per PandaDoc contract: name,
   description, line items, subtotal, app status + raw PandaDoc status,
   document id/link, recipient, sent/viewed/signed timestamps, signed-PDF
   path, `signed_actions_applied_at` (once-only guard for the signed side
-  effects).
+  effects), `pay_by_check_at/by` (a coordinator's "Paying by check") and
+  `rooms_booked_at` (when the contract's payment booked the rooms).
 - **PandaDoc** — the documents themselves and signing; the app reads status
   and the executed PDF back.
 - **GHL** — contacts, opportunities, pipeline stages, custom fields (see
@@ -88,26 +91,31 @@ Every page, server action and API route checks through
 | Inquiry webhook | GHL → app | `POST /api/ghl/opportunities/inquiry` with `ghl_opportunity_id` (location defaults to config; contact/event details read via `GET /opportunities/{id}` when not in the delivery; an empty opportunity id is resolved from `ghl_contact_id` via `GET /opportunities/search?contact_id=` → newest open) → draft event; app writes event id back. Rejected deliveries (bad secret, bad payload, failure) log `inquiry_webhook_rejected` |
 | Phone inquiry | app → GHL | Contact upsert (`/contacts/upsert`, tag `inquiry-phone`), opportunity create (`POST /opportunities`, New Inquiry stage, form custom fields, `assignedTo`), contact note; then the draft event is created locally and its id written back. `events.inquiry_source` / `events.expedited` record the path |
 | Inquiry backfill | GHL → app | `GET /opportunities/{id}` → same draft-event creator as the webhook (`inquiry_event_backfill` log) |
-| Admin event page load | GHL → app | Opportunity snapshot refresh (name, date, coordinator, links, counts, value) |
+| Admin event page load | GHL → app | Opportunity snapshot refresh (name, date, coordinator, links, counts, value). A Date of Interest that differs from the stored one shifts `eventEndDate` by the same number of days (`shiftedEventEnd`), recomputes checklist due dates, and logs `event_date_changed_in_ghl` (not on the first fill of an empty date); the event's reservations are not moved — the Room bookings section flags them as off the event's days |
+| Event dates dialog ("Save dates" / "Save rooms") | app → GHL | `changeEventDatesAction` → `changeEventDates` (`src/lib/admin/event-dates.ts`). A changed first day is written to the Date of Interest (`writeOpportunityEventDate`: field by key `opportunity.date_of_interest`, else `GHL_DATE_OF_INTEREST_FIELD_ID`; `PUT /opportunities/{id}` then `GET` to confirm GHL kept it; `opportunity_event_date_write_back` log). A failed write stops the whole change. Then the snapshot takes `eventDate`/`eventEndDate`, checklist due dates are recomputed, and the room decisions run: releases first, then moves one at a time in `orderRoomMoves` order via `moveEventReservation`, then rooms the dialog adds (`newRooms`: day + venue "HH:mm" times → `venueInstant`, inserted held via `addEventReservation`). Conflicts are reported, not forced. One `event_dates_change` log row per save. Moved rooms fire no planning-stage trigger; added rooms fire it only when the event had no rooms before |
 | Event summary save | app → GHL | Guest/pass/bin counts, Value |
 | Facilitator save (admin or client portal) | app → GHL | Facilitator name/email/phone custom fields + `facilitator`-tagged contact upsert (one-way; GHL never writes back). "Same as current contact" saves instead read the primary GHL contact and skip the upsert |
 | Conversations drawer open | GHL → app | Contact's conversations + message history, read live (never stored); threaded email rows are expanded one email at a time (`/conversations/messages/email/{id}`) so client replies show |
-| Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope) |
-| Conversations drawer snippet menu | GHL → app | Location snippets (`/locations/{id}/templates`), read live and cached 5 min per server process (never stored). Merge tags are rendered by the app, not GHL (`src/lib/ghl/snippet-merge-tags.ts`, route `/api/ghl/contacts/[contactId]/message-templates?eventId=`): `contact.*` from the GHL contact, `user.*` from the signed-in user's GHL match (falling back to the event's coordinator), and `opportunity.assigned_to` / `groupevent_name` / `event_date` / `portal_link` from the event's stored snapshot + `client_portal_url` — no extra GHL call |
+| Conversations drawer reply | app → GHL | Email/SMS sent via the GHL Conversations API; threads into the same GHL conversation (needs the write-conversations scope). Emails end with GHL's `{{user.email_signature}}` tag, which GHL fills with the contact's assigned user's signature, unless the coordinator unticks it (§5 Email signatures) |
+| Conversations drawer snippet menu | GHL → app | Location snippets (`/locations/{id}/templates`), read live and cached 5 min per server process (never stored). Merge tags are rendered by the app before the snippet is inserted (`src/lib/ghl/snippet-merge-tags.ts`, route `/api/ghl/contacts/[contactId]/message-templates?eventId=`): GHL would fill `user.*` with the contact's assigned user rather than the sender and has no opportunity context on API sends. `contact.*` from the GHL contact, `user.*` from the signed-in user's GHL match (falling back to the event's coordinator), and `opportunity.assigned_to` / `groupevent_name` / `event_date` / `portal_link` from the event's stored snapshot + `client_portal_url` — no extra GHL call. The same response carries `signer` (the contact's assigned user's name, and whether that's the signed-in user) for the drawer's signature checkbox |
 | Follow-ups pause / resume | app → GHL | `follow-ups-paused` tag added to / removed from the contact (`POST`/`DELETE /contacts/{id}/tags`) plus a GHL note; the pause row lives in `follow_up_pauses` (who, when, why, how it ended). Lifted automatically on contract signature (Booked) and by the dashboard's reconcile pass when GHL shows the opportunity Booked/Lost/won/lost |
 | Notes drawer open | GHL → app | Contact's GHL notes, read live (never stored); count shown as a badge on the notepad button |
 | Notes drawer add | app → GHL | Note written to the GHL contact, attributed to the matching GHL user by email |
 | Tasks drawer open | GHL → app | Contact's GHL tasks, read live (never stored); open-task count badges the tasks button |
-| Opportunities pipeline view | local only | No GHL calls per card. Note/task badge counts come from `ghl_contact_badges`, written only when a notes/tasks drawer loads (so they can lag notes/tasks added straight in GHL — there is deliberately no background sweep). **New reply** flags come from `ghl_contact_replies` for every stage (red dot on stage tabs, badge + dot on cards) |
+| Opportunities pipeline view | local only | No GHL calls per card. Note/task badge counts come from `ghl_contact_badges`, written only when a notes/tasks drawer loads (so they can lag notes/tasks added straight in GHL — there is deliberately no background sweep). **New reply** flags come from `ghl_contact_replies` for every stage (red dot on stage tabs, badge + dot on cards). The cards' **status badges** (`buildOpportunityBadges`, `src/lib/admin/opportunity-badges.ts`) are built server-side for the stage on screen from the opportunity search (`lastStageChangeAt`, the embedded `contact.tags`), the portal event (`inquiry_source`, `expedited`, `ghl_snapshot.eventEndDate` via `getEventFlagsByOpportunityIds`), `follow_up_pauses`, and `ghl_conversation_activity` (next row) |
+| Opportunities card "Move to…" | app → GHL | `POST /api/ghl/opportunities/{id}/stage` → `moveOpportunityStage` (`opportunity-sync.ts`): checks the stage is in `fetchConfiguredPipeline`, then `PUT /opportunities/{id}` with `{pipelineId, pipelineStageId}`. Status stays open (Lost is a board stage, not GHL's lost status, or the card would leave the board). Any stage is allowed; the menu shows `stageMoveNotice` (`src/lib/ghl/stage-move.ts`) for Proposal Sent (starts the Step 4 chase), Booked (no rooms booked) and Lost. A move to Lost writes a contact note with the optional reason (`lostNoteBody`, attributed via `ghlUserIdForEmail`); a failed note doesn't undo the move. One `opportunity_stage_move` log row per move (previous stage, stage, by, reason). The board moves the card between tabs as soon as the PUT succeeds and holds it there while GHL's search still reports the old stage |
+| Coordinator colors (Opportunities, Coordinator Assignments) | local only | `getCoordinatorColors` (`src/lib/admin/coordinator-colors.ts`) reads `coordinator_colors` (GHL user id → color) and hands out colors to ids that have none, in the order passed (GHL `role: "user"` coordinators first, then other assignees): the first unused `COORDINATOR_PALETTE` color, then generated golden-angle hues (`pickCoordinatorColor`, `src/lib/admin/coordinator-color-rules.ts`). A unique index on `lower(color)` stops two page views giving out the same color at once; a 23505 re-reads and picks again. If the table can't be read or written, colors are worked out for that page only. The palette's first ten are the calendar's old index order, so existing calendar colors held on first seed. The calendar matches assignment names to GHL users by name; a name GHL doesn't know gets a spare color for that page only |
+| Conversation activity (Opportunities view) | GHL → app | `syncConversationActivity` runs beside the pipeline reads: `GET /conversations/search?sortBy=last_message_date&sort=desc&limit=100`, paged with `startAfterDate` = the last entry's `sort[0]`, until an entry at or below the table's newest `last_message_at` (≤3 pages; ≤10 when the table is empty). Per contact, `nextActivity` (`src/lib/ghl/conversation-activity-rules.ts`) settles who wrote last from `lastMessageDirection` / `lastOutboundMessageAction` / `lastManualMessageDate`, or sets `needs_check` when an automated message followed a new person's message (the list can't say whose it was). After the response (`after()`), up to 12 unsettled board contacts, on-screen stage first, get a history look-up (`checkConversationActivity`): `GET /conversations/{id}/messages?limit=100` → newest person-written row (`readMessageHistory`: email/SMS/call/chat types whose `source` isn't workflow/bulk/campaign), preceded by `GET /conversations/search?contactId=` for contacts with no row. A look-up writes only if the row's `updated_at` hasn't changed. Nothing goes to integration_logs; failures go to the server log and the badges lag a view |
 | Client replies | GHL → app | GHL workflow (Customer Replied → Webhook, §5) posts `ghl_contact_id` to `POST /api/ghl/replies` → `ghl_contact_replies.last_inbound_at`. Loading the contact's conversations drawer (or replying from it) stamps `seen_at` with the time the messages were read (never moving it backwards), so a reply that lands during the load stays flagged; the card clears its flag only once the drawer has loaded |
 | Contracts tab "Save and re-send" (Edit) | app → PandaDoc | Document moved to draft, updated (name, tokens, pricing table), sent again; row gets `revision`+1, `revised_at/by`; `contract_update` log |
 | Contracts tab "Create and send" | app → PandaDoc | Document created from the template (tokens + one pricing table per tax treatment from the line items, option ticks included), waited to draft, sent silently (or emailed) |
 | Contract form opens / template changes | PandaDoc → app | Template details (pricing tables, headings, option and starter rows) and the product catalog, both read live and cached 5 min per server process (never stored). On save the server re-reads the catalog to set catalog rows' names and prices |
-| Admin event page / Contracts tab load | PandaDoc → app | Open contracts re-read from PandaDoc (status, total); signed side effects run if newly completed |
+| Admin event page / Contracts tab load | PandaDoc → app | Open contracts and signed ones in `document.waiting_pay` re-read from PandaDoc (status, total); signed side effects run if newly completed, the rooms step if newly `document.paid` |
 | Portal "Review and sign" | app → PandaDoc | Embedded-signing session minted for the recipient (1-hour link) |
-| Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (rooms booked, GHL Booked, PDF archived) |
+| Portal signer completion | PandaDoc → app | `POST /api/portal/<token>/contracts/<id>` `{action:"complete"}` re-reads the document and runs the signed actions (GHL Booked, PDF archived; rooms booked only if it's already paid) |
+| Contracts tab "Paying by check" | app | `setContractPayingByCheckAction` → `markContractPayingByCheck` sets `pay_by_check_at/by` on a signed, unpaid contract and runs the rooms step now; "Not paying by check" clears them (`contract_pay_by_check_cleared` log) and leaves the rooms alone |
 | PandaDoc webhook | PandaDoc → app | `POST /api/pandadoc/webhook?signature=…` (HMAC-SHA256 with `PANDADOC_WEBHOOK_KEY`); each document in the delivery is re-read and synced — needs a public URL. Answers 500 when a document failed to process so PandaDoc redelivers |
-| Signed-step retries | app → GHL / storage | Signed contracts with steps left in `signed_actions_pending`, never started, or with no PDF on file are retried on their own: event page load (after the response), the Contracts page sweep and Refresh statuses, 2+ minutes apart, at most 10 automatic runs (`signed_actions_attempts`); the webhook and Refresh status always retry |
+| Signed-step retries | app → GHL / storage | Signed contracts with steps left in `signed_actions_pending`, never started, with no PDF on file, or paid with rooms not yet booked are retried on their own: event page load (after the response), the Contracts page sweep and Refresh statuses, 2+ minutes apart, at most 10 automatic runs (`signed_actions_attempts`); the webhook and Refresh status always retry |
 | Contract signed | app → GHL | Opportunity moved to the Booked stage (`opportunity_move_to_booked`) |
 | Conversations send with a "Proposal" snippet | app → GHL | Opportunity moved to Proposal Sent, forward only (`opportunity_move_to_proposal_sent`) |
 | Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in coordinator's GHL user) or completion toggled |
@@ -117,8 +125,9 @@ Every page, server action and API route checks through
 | Event delete | app → GHL | Blanks Event Planning App ID + Portal Link |
 
 **Degrade rules:** every GHL call fails quietly (logged, never blocking the
-coordinator's primary action) *except* coordinator reassignment, which surfaces the
-error because a silent failure would revert on the next sync. All exchanges
+coordinator's primary action) *except* coordinator reassignment and an event
+date change, which surface the error because a silent failure would revert on
+the next sync. All exchanges
 land in **integration_logs** (`GHL_TO_PORTAL` / `PORTAL_TO_GHL`) — that page
 is the first stop when "something didn't sync."
 
@@ -180,8 +189,10 @@ tables don't.
 
 ### Email
 
-The app sends **only password-reset emails**, via Mailgun
-(`mg.whitewater.org`). All client-facing email/SMS is GHL's job.
+The app sends **only staff emails** (password resets and
+coordinator-assignment notices), via Mailgun (`mg.whitewater.org`). All
+client-facing email/SMS is GHL's job; emails from the conversations drawer
+carry the assigned coordinator's GHL signature (§5 Email signatures).
 
 ---
 
@@ -198,7 +209,8 @@ field, read-only in the app — see Step 2).
   role for the client (any role containing "client"/"customer"/"signer" is
   picked, else the first), a **pricing table** (the first one receives the
   app's line items), and whichever tokens you want filled: `event.name`,
-  `event.type`, `event.date`, `event.arrival_time`, `event.meeting_location`,
+  `event.type`, `event.date` (the whole span for a multi-day event, like
+  `Date__c`), `event.start_date`, `event.end_date`, `event.arrival_time`, `event.meeting_location`,
   `event.num_attendees`, `event.activity_passes`, `event.parking_passes`,
   `event.storage_bins`, `contact.name/email/phone`,
   `coordinator.name/email/phone` (also sent as `planner.*` for older templates),
@@ -285,7 +297,12 @@ field, read-only in the app — see Step 2).
   refresh, portal signer completion, and the webhook.
 - **Signed side effects** (`applySignedContractActions`): four independent
   steps — `reservations` (rooms booked), `ghl_stage` (opportunity → Booked),
-  `follow_ups` (pause lifted), `signed_pdf` (executed PDF archived). A run
+  `follow_ups` (pause lifted), `signed_pdf` (executed PDF archived). The
+  signature runs all but `reservations`: the rooms wait for the contract's
+  first payment (`contractPaymentReceived` — PandaDoc `document.paid`, or
+  `pay_by_check_at` set by a coordinator), then that step runs once per
+  contract and stamps `rooms_booked_at`; a failed try keeps it due while
+  the contract is paid (`signedContractStepsToRun`). A run
   first takes a lease (`signed_actions_running_until`, set only while empty
   or expired, 5 minutes, cleared when the run ends), so the webhook, the
   signer and a page load can't run the same steps at once; the steps are then
@@ -293,27 +310,42 @@ field, read-only in the app — see Step 2).
   runs. Steps that fail go into
   `signed_actions_pending` and only those re-run later
   (`retryPendingSignedContracts`) — a finished step never repeats, so rooms a
-  coordinator changes after signing aren't re-booked. A signed contract with
+  coordinator changes after payment aren't re-booked. A signed contract with
   no PDF on file always counts as having the PDF step left
   (`signedContractStepsToRun`), which also catches contracts signed before
   steps were tracked. A "skipped" outcome
   (no linked opportunity, stage env var unset) counts as finished. The event's
   Contracts tab lists pending steps as **Still to do**; every run logs
-  `contract_signed` (first) or `contract_signed_retry`.
+  `contract_signed` (first), `contract_paid` (the rooms step's first try
+  after payment or "Paying by check"), or `contract_signed_retry`.
 - **Webhook:** register `https://<app>/api/pandadoc/webhook` in PandaDoc for
   *document_state_changed* and *recipient_completed*, and put the shared key
-  in `PANDADOC_WEBHOOK_KEY`. Only matters once the app has a public URL —
-  on localhost the signer-completion path already flips rooms within
-  seconds of the client finishing.
+  in `PANDADOC_WEBHOOK_KEY`. *document_state_changed* is also how a
+  payment (`waiting_pay` → `paid`) arrives quickly; without the webhook the
+  page-load syncs of `waiting_pay` contracts catch it on the next event or
+  Contracts page view.
 - **PandaDoc payments:** the standard templates have a payment step, so
   after the client signs, PandaDoc's signer moves on to "pay" and the
   document sits in `document.waiting_pay` until paid (`document.paid`). The
-  app treats *waiting_pay* as **Signed** (rooms booked, GHL Booked, PDF
-  archived) because the signature is what commits the event; the card notes
-  that payment is pending in PandaDoc. Turn payments off in the template if
-  clients should pay elsewhere.
-- **Payment status** is still the GHL-synced field; PandaDoc payments are
-  not wired (a `document.paid` status simply reads as Signed).
+  app treats *waiting_pay* as **Signed** (GHL Booked, PDF archived) and
+  `document.paid` as the payment that books the rooms. PandaDoc's details API
+  exposes no payment fields, so the status is the only signal; "Mark as
+  paid" in PandaDoc produces the same `document.paid`. A template with no
+  payment step goes straight to `document.completed`, which is never a
+  payment: its rooms wait for "Paying by check" or a manual booking.
+  **Installments** would break "first payment": PandaDoc keeps the document
+  in *waiting_pay* until the last installment is paid. The templates use
+  one-time payments plus separate Final Payment documents (checked
+  2026-09-24), so this doesn't arise today.
+- **Paying by check:** a coordinator-only switch on a signed, unpaid
+  contract (`markContractPayingByCheck`) counts as the payment and books the
+  rooms at once. The contract stays *waiting_pay* in PandaDoc until someone
+  marks it paid there, so the dashboard shows it as **Signed, check pending**
+  (`contractDeadlineState` → `check_pending`) rather than plain unpaid.
+- **Payment status** on the event is still the GHL-synced field; the
+  contract-level note (`contractPaymentLabel`: Paid / Paying by check /
+  Payment pending / No PandaDoc payment) is what the event page, dashboard
+  and Contracts page show.
 
 ---
 
@@ -488,6 +520,64 @@ Booked, and Lost are left alone. Logged as
 `opportunity_move_to_proposal_sent`; a failure never fails the send.
 Renaming the stage or the snippets away from "proposal" breaks it.
 
+### Chase tags (card badges)
+
+The Opportunities cards name the GHL chase a contact is on from the
+contact's tags: any tag matching *Step N … Waiting for Response* (GHL
+stores tags lower-cased), read by `chaseFromTags` in
+`src/lib/admin/opportunity-badges.ts` from the opportunity search's embedded
+contact (no extra call). Step 1 → **Inquiry chase**, Step 3 → **Coordinator
+chase**, Step 4 → **Proposal chase**, any other step → "Step N chase"; the
+highest step wins when several are present. The badge is grey while the
+contact's follow-ups are paused and amber on a Booked or Lost deal (a tag
+the Booked/Lost workflow should have removed).
+
+GHL-side setup (someone with workflow access; the portal only reads):
+
+1. **Step 1: Form Submission** and **Step 4: Proposal**: first action *Add
+   Contact Tag* `Group Sales - Step 1 Waiting for Response` /
+   `Group Sales - Step 4 Waiting for Response`; last action *Remove Contact
+   Tag* (the same tag). Step 3 already adds `Group Sales - Step 3 Waiting
+   for Response`; check that it removes it when the chase ends.
+2. **Client replies** (Step 3: Client Replied): remove all three tags, and
+   remove the contact from the Step 1, 3 and 4 workflows. *Stop on
+   response* only sees replies to the workflow's own emails: on 2026-09-24
+   a test client who answered the portal-sent proposal still got two
+   Step 4 reminders afterwards.
+3. **Booked/Lost - Remove from Chase**: also remove the three tags.
+
+Not yet verified live: how quickly a tag change reaches the opportunity
+search's embedded contact. Check it the first time a chase tag is added.
+
+### Email signatures
+
+Each coordinator's signature is set in GHL only (Settings → My Staff → edit
+the user → Email Signature). Emails sent from the conversations drawer end
+with GHL's `{{user.email_signature}}` tag (`appendEmailSignature`, added in
+`sendConversationMessage`), and GHL fills it as the email goes out. Found
+with two test sends to Austin's own contacts on 2026-09-24:
+
+- The public API can't read a signature. `GET /users/{id}`, `GET /users/`,
+  and `GET /users/search` all leave it out after one is saved, and no
+  signature endpoint exists, so the drawer names whose signature it will
+  be instead of previewing it.
+- GHL merge-renders Conversations API emails, using the contact and the
+  **contact's assigned user** as `{{user.*}}`. A `userId` in the send is
+  ignored for email (the message is recorded under the assigned user), so
+  the signature is the assigned coordinator's whoever sends. An assigned
+  user with no signature renders as nothing; the route skips the tag for
+  a contact with nobody assigned.
+- GHL added no signature of its own to the API sends. If emails ever show
+  two, check the user's "Enable signature on all outgoing messages" box.
+
+The contact owner only follows coordinator assignments made in the portal
+(see the backfill note above), so reassigning an opportunity in GHL keeps
+the old coordinator's signature on that contact's emails until the contact
+is reassigned too. The email snippets still end with a typed sign-off
+(`{{user.first_name}}` or `{{opportunity.assigned_to}}`, then "Whitewater
+Group Sales Team") that now sits right above the signature; trimming it is
+a snippet edit in GHL.
+
 ## 6. Keeping the docs current
 
 When you ship a feature, ask:
@@ -505,6 +595,13 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-29 | **Coordinator colors on the Opportunities board.** Each card has a tab above it with the coordinator's name on their color, continuing as a 4px left border (unassigned: a grey "Unassigned" tab and `UNASSIGNED_COLOR` border; a GHL user no longer listed: slate). Cards are now sorted by Date of Interest, soonest first, undated last (client-side, so moved cards sort too); before, they were in GHL's search order. A legend above the grid (`CoordinatorLegend` in `pipeline-board.tsx`) shows one chip per coordinator with the stage's count, under the search and every filter except coordinator. Chips toggle the existing coordinator filter, so the stage tabs' match counts show where that coordinator's cards are. Colors are stored per GHL user in the new `coordinator_colors` table (migration `20260929100000`, §2) and shared with the Coordinator Assignments calendar, which no longer colors by list index (`coordinatorColor` and the palette left `coordinator-calendar.tsx`; the calendar reads `listGhlUsers` once and filters coordinators itself). `BoardCoordinator` gained `color`. Tests: `tests/admin/coordinator-color-rules.test.mjs`. |
+| 2026-09-29 | **Move opportunities between stages from the board.** Each pipeline card has a **Move to…** button (`OpportunityStageMenu`, `src/components/admin/opportunity-stage-menu.tsx`) listing every other stage; confirming posts to the new `/api/ghl/opportunities/[opportunityId]/stage` route → `moveOpportunityStage` (§2). Drag-and-drop was ruled out: the board shows one stage tab at a time. Every stage is allowed, with a notice before confirming for Proposal Sent, Booked, and Lost (`stageMoveNotice`); Lost takes an optional reason that becomes a contact note (`lostNoteBody`). `PipelineBoard` keeps client-side overrides (`moves`, keyed by opportunity, holding only while the server still has the card in the stage it left) so the card changes tab immediately, then `router.refresh()`es. `ghlUserIdForEmail` is now exported from `follow-up-pauses.ts`. Stage guides and the **Date passed** badge now point to the move button instead of GHL. Rules and tests: `src/lib/ghl/stage-move.ts`, `tests/ghl/stage-move.test.mjs`. |
+| 2026-09-25 | **Opportunities card badges.** A right-hand column of status badges on each card, in a fixed order (`buildOpportunityBadges`, `src/lib/admin/opportunity-badges.ts`, tests in `tests/admin/opportunity-badges.test.mjs`): conversation (**Client waiting** — the newest person-written message is the client's, blue under 24 h then red; **Not contacted** — a New Inquiry website inquiry over 24 h old with no person-written message; **Quiet Nd** — staff wrote last by hand, amber ≥5 days, red ≥10, selling stages only, not while paused), timing (**Event in Nd/tomorrow/today/under way** before Booked, amber ≤21 days, red ≤7; **Date passed** on open deals, using the portal's `eventEndDate` for multi-day events), intake (**Expedited**/**Phone**, moved into the column), stage age (amber past `STAGE_AGE_LIMIT_DAYS`: New Inquiry 2, Contacted 7, Planning 7, Proposal Sent 14, from the search's `lastStageChangeAt`), and the chase from GHL's *Step N Waiting for Response* tags (§5 Chase tags). **New reply** stays and shows only without Client waiting. Who wrote last lives in the new `ghl_conversation_activity` table (migration `20260925100000`), synced from GHL's conversation list once per board view with history look-ups after the response (§2; `src/lib/ghl/conversation-activity.ts`, rules in `conversation-activity-rules.ts`, tests in `tests/ghl/conversation-activity-rules.test.mjs`). The card grid now fits columns to the width (`repeat(auto-fill, minmax(min(100%, 22rem), 1fr))`) so the badge column always leaves room for the name; `Tooltip` gained `align="end"` and `wrap`, and the pause button's tooltips hang left of it (they overflowed the page on the right-hand cards). `GhlPipelineOpportunity` gained `lastStageChangeAt` and `contactTags`; `EventFlags` gained `eventEndDate`. |
+| 2026-09-24 | **PandaDoc staff links are managers-only.** Contracts are approved in PandaDoc and coordinators may not approve their own, so coordinators no longer see the staff PandaDoc link: the event page's **View in PandaDoc** (rendered only when `getUserRole` is `admin`), the event Contracts tab's **Open in PandaDoc** (`pandadocUrl` nulled server-side for coordinators, so the URL isn't in the page at all), and the Contracts page's PandaDoc column with **Approve/Open/View in PandaDoc** (`showPandaDocLinks`). Coordinators keep **Customer View**. The company history's links to archived Salesforce-era PandaDoc documents are unchanged. This hides links only: approval rights are PandaDoc's own workflow setting. |
+| 2026-09-24 | **Change an event's date; multi-day events.** The event page's header date (and a new **Dates** row in Event summary) opens a dates dialog (`src/app/admin/events/[eventId]/event-dates-dialog.tsx`): first day, optional last day, and a row per reservation choosing its target day (the same day of the event by default — `defaultRoomMoves`), room, "leave on its old date", or release. It reads `GET /api/calendar/reservations` for the new window and flags conflicts against other events and the event's own rooms at their final positions; Save is blocked while any remain. Server: `changeEventDates` (§2 sync table); new `moveEventReservation` / `releaseEventReservation` in `room-calendar.ts` are scoped to the event and name the conflicting booking. `ghl_snapshot.eventEndDate` (app-only, no migration) holds a multi-day event's last day; `AdminEventListItem`, `ClientPortalEvent`, the contracts list, merge-tag context, and the assignment email carry it. Date and venue-time logic is import-free in `src/lib/dates/event-dates.ts` (`VENUE_TIME_ZONE` = America/New_York: moves keep wall-clock times across DST; `orderRoomMoves` sequences moves so an event holding the same room on consecutive days can shift without tripping the overlap constraint; swaps are reported as blocked). Tests: `tests/admin/event-dates.test.mjs`. Also: checklist due dates recompute from `due_offset_days` on any date change (`recomputeChecklistDueDates`); a GHL-side date change shifts the end date and logs `event_date_changed_in_ghl`; Room bookings groups a multi-day event's rooms by day and flags **Not an event day** with a **Move rooms** shortcut; its times are now formatted in venue time (the old `formatReservationTimes` used the server's zone, UTC on Vercel). **Add room** offers day chips for a multi-day event and posts one reservation per day, blocking a save with a known overlap; each day heading under Room bookings has its own Add room (`initialDays`). The dialog also adds rooms: an **Add a room** row (day, room, start/end; defaults to the first day without rooms, the event's first room if free then, else the first free room) and a **Same room on …** shortcut per room that copies it to the event days lacking it; rows are conflict-checked with everything else and saved held (`ChangeEventDatesInput.newRooms`, outcome `added`, failures keyed `key`). `TimeSelect` is shared from `event-room-bookings.tsx`; `venueInstant` / `venueTime` / `isVenueTime` join `event-dates.ts`. Dashboard: in-progress multi-day events count as today ("Day 2 of 3"), `listUpcomingLaunchedEvents` also matches on `eventEndDate`, and the upcoming metric counts to the last day. PandaDoc tokens: `event.date` and `Date__c` send the span for multi-day events; new `event.start_date` / `event.end_date`. Contract sub-heading boxes suggest each event day (create and edit), and **Add another group** starts with the next day. Snippet `{{opportunity.event_date}}` and `{{event.date}}` render the span. |
+| 2026-09-24 | **Rooms book on the first payment, not the signature.** Migration `20260924130000` adds `event_contracts.pay_by_check_at`, `pay_by_check_by`, `rooms_booked_at`, backfilling `rooms_booked_at` for contracts already signed (their rooms booked at signature under the old rule). `signedContractStepsToRun` now leaves `reservations` out of the signature run and makes it due once `contractPaymentReceived` (PandaDoc `document.paid`, or `pay_by_check_at`) and until `rooms_booked_at` is stamped (`src/lib/contracts/shared.ts`, tests in `tests/admin/contract-signed-steps.test.mjs`). Page-load syncs (`syncEventContracts`, `syncOpenContracts`) now also re-read `document.waiting_pay` contracts so a payment is caught without the webhook; the retry sweep includes paid contracts whose rooms aren't booked. New coordinator-only **Paying by check** on the Contracts tab (`markContractPayingByCheck` / `clearContractPayingByCheck`, `setContractPayingByCheckAction`) books the rooms at once; undoing it leaves rooms alone. Logs: `contract_paid`, `contract_pay_by_check_cleared`; `contract_signed` messages say whether rooms booked. Payment notes (`contractPaymentLabel`) on the event page's Contracts line, the dashboard's recently signed list, and the Contracts page; dashboard state `check_pending` ("Signed, check pending"). **Refresh status** shows on signed-unpaid contracts. The portal's thank-you says rooms are confirmed once the first payment is received (`ClientContract.paymentReceived`). The GHL opportunity still moves to Booked at signature. |
+| 2026-09-24 | **Email signatures from GHL.** Drawer emails end with GHL's `{{user.email_signature}}` tag (`appendEmailSignature` in `src/lib/ghl/snippet-merge-tags.ts`, applied by `sendConversationMessage` when `includeSignature` is set; never twice if the message already has the tag). The conversations route sets it unless the POST body says `includeSignature: false`, and skips contacts with nobody assigned; the integration log records `signature` on email sends. The message-templates route returns `signer` (`{ name, isSender }`, from the contact's `assignedTo`) so the checkbox beside Send names whose signature it is. `findUnfilledMergeTags` no longer flags the signature tag. The two test sends behind it (§5 Email signatures) also showed that GHL does merge-render API sends — contact tags from the contact, `user.*` from the contact's assigned user — correcting the 2026-09-21 note below; opportunity tags still go out blank. Tests in `tests/admin/snippet-merge-tags.test.mjs`. |
 | 2026-09-24 | **Review follow-ups (Greptile on PR #1).** Signed-contract runs now hold a lease (`signed_actions_running_until`, migration `20260924120000`) instead of an `updated_at` check, which let a sync that wrote the row first claim a run already in progress. Reply "seen" is the time the conversation was read (captured before the GHL call) and only moves forward; the card's flag clears after the drawer loads, not on click. `listUpcomingLaunchedEvents` pages by exact count past the API's max-rows. `vendorFetch` re-wraps response bodies so a timeout while reading one reports "… did not finish responding within Ns" (tests in `tests/http/vendor-fetch.test.mjs`). |
 | 2026-09-24 | **Audit fixes (security, reliability, scale).** From the 2026-09-23 read-only audit's "fix first" list. (1) **Staff access is granted, not assumed:** `getUserRole` (`src/lib/admin/roles.ts`) returns null for an account without an `admin`/`coordinator` role or an anonymous session; proxy, login, and every page/action/API route check through the new `src/lib/admin/session.ts` (`getStaffUser` is `cache()`d per request; the calendar-api guard, which only checked sign-in, is now `requireStaffApiUser`). Admin → Users shows role-less accounts as **No access** with a required role picker. Supabase public sign-up was found enabled; turn it off in the dashboard. (2) **Rich text is sanitized** (`src/lib/html/sanitize.ts`, `sanitize-html`): schedule notes and checklist FAQ HTML on every save and load — formatting, lists, links (new tab, noopener) and https/data-URL images kept; styles, classes, scripts, handlers, iframes and forms removed; output matches the browser's serialization so untouched notes don't look edited. Tests: `tests/html/sanitize.test.mjs`. (3) **Timeouts and 429 retries** on every vendor call (`vendorFetch`, §2); `updateGhlOpportunity` returns a failure instead of throwing. Tests: `tests/http/vendor-fetch.test.mjs`. (4) **Signed-contract steps retry** (§3): migration `20260924100000` adds `signed_actions_pending` / `signed_actions_attempts` and queues `signed_pdf` for signed contracts whose PDF never archived; any signed contract with no PDF on file counts as having that step left (`signedContractStepsToRun`); Contracts tab shows **Still to do**; the PandaDoc webhook answers 500 on a failed document. Tests: `tests/admin/contract-signed-steps.test.mjs`. (5) **New reply flags replace the badge sweep:** the pipeline's background note/task sweep (up to 120 GHL calls a view, over GHL's burst limit) is gone; a GHL Customer Replied workflow (§5) posts to `/api/ghl/replies` (migration `20260924110000`, table `ghl_contact_replies`, `src/lib/ghl/replies.ts`, rules in `reply-flags.ts`, tests `tests/ghl/reply-flags.test.mjs`); cards show **New reply** and a dot on the conversations button, stage tabs a red dot; opening the drawer clears it. (6) **No more 50-event cap:** `listAdminEvents` is gone. The Events page pages 50 at a time with filter, search (event name, type, coordinator) and tab counts in SQL (`listAdminEventsPage`, `?page=`); the dashboard reads every upcoming launched event (`listUpcomingLaunchedEvents`, served by `events_status_event_date_idx`) plus the events its lists point at (`listAdminEventsByIds`). |
 | 2026-09-23 | **Coordinator assignment also sets the GHL contact owner.** `assignOpportunityCoordinator` (`src/lib/ghl/opportunity-sync.ts`) now follows a successful opportunity `assignedTo` write with `assignContactUser(contactId, ghlUserId)` (`src/lib/ghl/contacts.ts`, `PUT /contacts/{id}`) on the event's `ghl_contact_id`, so every portal path (reservation modal, event page reassign, phone intake) keeps the contact's Assigned To in step with the coordinator. Logged as `contact_assign_coordinator` (warning when the event has no contact id; an error there doesn't undo the opportunity assignment). `GhlContactSummary` gained `assignedTo`. One-time catch-up for existing contacts: `scripts/backfill-contact-assignments.ts` (§5), run in production the same day. Planner rules in `src/lib/ghl/contact-assignment.ts`, tests in `tests/ghl/contact-assignment.test.mjs`. |

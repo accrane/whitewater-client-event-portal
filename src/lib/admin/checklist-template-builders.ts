@@ -62,7 +62,9 @@ export function buildEventChecklistItemInserts({
   }));
 }
 
-function calculateDueDate(
+// An item due `dueOffsetDays` before the event's first day; also re-run when
+// the event's date changes.
+export function calculateDueDate(
   eventDate: string | null,
   dueOffsetDays: number | null,
 ): string | null {

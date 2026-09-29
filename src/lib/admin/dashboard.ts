@@ -89,18 +89,25 @@ function countUpcomingLaunchedEvents(rows: { ghl_snapshot: Json }[]): number {
   today.setHours(0, 0, 0, 0);
 
   return rows.filter((row) => {
-    const eventDate = getEventDate(row.ghl_snapshot);
+    const eventDate = getLastEventDay(row.ghl_snapshot);
 
     return eventDate ? eventDate >= today : false;
   }).length;
 }
 
-function getEventDate(snapshot: Json): Date | null {
+// A multi-day event counts as upcoming until its last day has passed.
+function getLastEventDay(snapshot: Json): Date | null {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     return null;
   }
 
-  const value = (snapshot as Record<string, Json | undefined>).eventDate;
+  const raw = snapshot as Record<string, Json | undefined>;
+  const value =
+    typeof raw.eventEndDate === "string" &&
+    typeof raw.eventDate === "string" &&
+    raw.eventEndDate > raw.eventDate
+      ? raw.eventEndDate
+      : raw.eventDate;
 
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -169,6 +176,7 @@ export type DashboardContract = {
   name: string;
   status: Database["public"]["Enums"]["event_contract_status"];
   pandadocStatus: string | null;
+  payByCheckAt: string | null;
   amount: number;
   completedAt: string | null;
 };
@@ -179,6 +187,7 @@ type ContractListRow = {
   name: string;
   status: Database["public"]["Enums"]["event_contract_status"];
   pandadoc_status: string | null;
+  pay_by_check_at: string | null;
   subtotal: number | string | null;
   grand_total: number | string | null;
   completed_at: string | null;
@@ -192,13 +201,14 @@ function mapContractListRow(row: ContractListRow): DashboardContract {
     name: row.name,
     status: row.status,
     pandadocStatus: row.pandadoc_status,
+    payByCheckAt: row.pay_by_check_at,
     amount: Number.isFinite(amount) ? amount : 0,
     completedAt: row.completed_at,
   };
 }
 
 const CONTRACT_LIST_COLUMNS =
-  "id, event_id, name, status, pandadoc_status, subtotal, grand_total, completed_at";
+  "id, event_id, name, status, pandadoc_status, pay_by_check_at, subtotal, grand_total, completed_at";
 
 // Most recently signed contracts across every event.
 export async function listRecentlySignedContracts(
@@ -248,15 +258,21 @@ export async function listContractsForEvents(
 }
 
 export type ContractDeadlineState =
-  "no_contract" | "awaiting_approval" | "awaiting_signature" | "unpaid";
+  | "no_contract"
+  | "awaiting_approval"
+  | "awaiting_signature"
+  | "unpaid"
+  | "check_pending";
 
 // Whitewater needs contracts signed and paid two weeks before the event.
 // From three weeks out, an event whose contracts aren't signed shows on the
 // dashboard; from two weeks out, one that is signed but not yet paid in
 // PandaDoc does too. Expedited events can't meet that timeline by
 // definition, so their rule is "signed and paid before the event day":
-// unsigned inside three days, or unpaid inside one. Returns null when the
-// event is in the clear.
+// unsigned inside three days, or unpaid inside one. A contract marked
+// "Paying by check" is still unpaid until someone marks it paid in PandaDoc,
+// but reads as a check on its way. Returns null when the event is in the
+// clear.
 export function contractDeadlineState(
   contracts: DashboardContract[],
   daysOut: number,
@@ -279,13 +295,12 @@ export function contractDeadlineState(
   // Signed all round; payment matters inside two weeks.
   const unsigned = live.filter((contract) => contract.status !== "completed");
   if (unsigned.length > 0) return "awaiting_signature";
-  if (
-    daysOut <= (expedited ? 1 : 14) &&
-    signed.some(
-      (contract) => contract.pandadocStatus === "document.waiting_pay",
-    )
-  ) {
-    return "unpaid";
-  }
-  return null;
+  if (daysOut > (expedited ? 1 : 14)) return null;
+  const unpaid = signed.filter(
+    (contract) => contract.pandadocStatus === "document.waiting_pay",
+  );
+  if (unpaid.length === 0) return null;
+  return unpaid.every((contract) => contract.payByCheckAt)
+    ? "check_pending"
+    : "unpaid";
 }

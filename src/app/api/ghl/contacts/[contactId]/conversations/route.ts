@@ -17,9 +17,12 @@ import { markContactRepliesSeen } from "@/lib/ghl/replies";
 // loads the contact's full GHL conversation history plus the contact's Do
 // Not Disturb state; POST sends a typed reply through GHL, refusing a
 // channel the contact has DND on (the drawer hides it, but this is the
-// backstop). An optional eventId in the POST body links the integration log
-// row to a portal event when the drawer was opened from one. Opening the
-// drawer (or replying) clears the pipeline's "New reply" flag for the contact.
+// backstop). Emails end with the GHL signature of the contact's assigned
+// user unless the body says `includeSignature: false`; a contact with no
+// assigned user gets none. An optional eventId in the POST body links the
+// integration log row to a portal event when the drawer was opened from one.
+// Opening the drawer (or replying) clears the pipeline's "New reply" flag for
+// the contact.
 
 const NO_DND: GhlContactDnd = { all: false, sms: false, email: false };
 
@@ -65,6 +68,7 @@ export async function POST(
       eventId?: string;
       opportunityId?: string;
       snippetNames?: unknown;
+      includeSignature?: boolean;
     };
     const snippetNames = Array.isArray(payload.snippetNames)
       ? payload.snippetNames
@@ -96,6 +100,10 @@ export async function POST(
       body,
       subject: payload.subject?.trim() || null,
       replyToEmailMessageId: payload.replyToEmailMessageId || null,
+      // GHL signs with the contact's assigned user; with nobody assigned
+      // there is no signature to add.
+      includeSignature:
+        payload.includeSignature !== false && Boolean(contact?.assignedTo),
       ghlLocationId: appConfig.ghl.locationId || null,
       portalEventId: payload.eventId?.trim() || null,
       opportunityId:

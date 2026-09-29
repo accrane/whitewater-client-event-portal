@@ -137,6 +137,11 @@ export type GhlPipelineOpportunity = {
   monetaryValue: number | null;
   assignedTo: string | null;
   createdAt: string | null;
+  // When the opportunity entered its current stage.
+  lastStageChangeAt: string | null;
+  // The contact's GHL tags (lower case), as the search embeds them — the
+  // chase workflows' "waiting for response" tags among them.
+  contactTags: string[];
   // Date of Interest custom field (yyyy-MM-dd) — the event date.
   eventDate: string | null;
   // Number of Guests custom field — the group size.
@@ -214,12 +219,14 @@ export async function searchPipelineOpportunities(
           monetaryValue?: number;
           assignedTo?: string;
           createdAt?: string;
+          lastStageChangeAt?: string;
           customFields?: unknown;
           contact?: {
             id?: string;
             name?: string;
             email?: string;
             phone?: string;
+            tags?: unknown;
           };
         }[];
         meta?: { nextPageUrl?: string | null };
@@ -245,6 +252,12 @@ export async function searchPipelineOpportunities(
               : null,
           assignedTo: opportunity.assignedTo ?? null,
           createdAt: opportunity.createdAt ?? null,
+          lastStageChangeAt: opportunity.lastStageChangeAt ?? null,
+          contactTags: Array.isArray(opportunity.contact?.tags)
+            ? opportunity.contact.tags.filter(
+                (tag): tag is string => typeof tag === "string",
+              )
+            : [],
           eventDate,
           guestCount: inquiry.numberOfGuests,
           inquiryType: inquiry.inquiryType,

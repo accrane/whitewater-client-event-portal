@@ -112,11 +112,12 @@ export function FollowUpPauseButton({
     return (
       <div className="flex items-center gap-1.5" ref={rootRef}>
         <Tooltip
+          align="end"
           label={`Paused since ${since}${pause.pausedBy ? ` by ${pause.pausedBy}` : ""}${pause.reason ? `: ${pause.reason}` : ""}`}
         >
           <StatusBadge tone="warning">Paused</StatusBadge>
         </Tooltip>
-        <Tooltip label="Resume automated follow-ups">
+        <Tooltip align="end" label="Resume automated follow-ups">
           <button
             className="text-xs font-semibold text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline disabled:opacity-50"
             disabled={busy}
@@ -133,7 +134,9 @@ export function FollowUpPauseButton({
 
   return (
     <div className="relative" ref={rootRef}>
-      <Tooltip label="Pause follow-ups (e.g. after a phone call)">
+      {/* The button sits at the right edge wherever it's used (its popover
+          opens right-aligned too), so the tooltip hangs left of it. */}
+      <Tooltip align="end" label="Pause follow-ups (e.g. after a phone call)">
         <button
           aria-expanded={open}
           aria-label={compact ? "Pause automated follow-ups" : undefined}

@@ -5,15 +5,27 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { ContactBadgesProvider } from "@/components/admin/contact-badges";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { venueDay } from "@/lib/dates/event-dates";
+import { appConfig } from "@/lib/env";
 import { getEventFlagsByOpportunityIds } from "@/lib/admin/events";
 import {
   collectGroupTypes,
   parseOpportunityFilters,
   type OpportunityFilters,
 } from "@/lib/admin/event-filters";
+import {
+  buildOpportunityBadges,
+  type OpportunityPhase,
+} from "@/lib/admin/opportunity-badges";
 import { getUserRole } from "@/lib/admin/users";
 import { listGhlUsers, type GhlUser } from "@/lib/ghl/location-data";
 import { getStoredContactBadges } from "@/lib/ghl/badge-cache";
+import {
+  isConversationActivitySettled,
+  readConversationActivity,
+  scheduleConversationChecks,
+  syncConversationActivity,
+} from "@/lib/ghl/conversation-activity";
 import { getContactsWithNewReplies } from "@/lib/ghl/replies";
 import {
   fetchConfiguredPipeline,
@@ -22,6 +34,11 @@ import {
   describePipelineProblem,
 } from "@/lib/ghl/opportunities";
 import { getActiveFollowUpPauses } from "@/lib/ghl/follow-up-pauses";
+import {
+  getCoordinatorColors,
+  UNASSIGNED_COLOR,
+} from "@/lib/admin/coordinator-colors";
+import { stageMoveNotice } from "@/lib/ghl/stage-move";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import {
@@ -62,7 +79,7 @@ const STAGE_GUIDES: Record<string, { happened: string; next: string }> = {
     happened:
       "The contact submitted the inquiry form (or a coordinator took the inquiry by phone on the New inquiry page). GoHighLevel created the opportunity and the portal created a draft event for each one — you'll find it under Events and in the Linked Event list when reserving rooms.",
     next:
-      "Reach out from the chat bubble and move the opportunity to Contacted in GHL, or hold rooms right away from the Room Calendar or Events page; saving a reservation moves it to Planning automatically. Spoke to them by phone? Use the pause button on the card so GHL's automated follow-ups stop.",
+      "Reach out from the chat bubble and move the opportunity to Contacted with the card's move button, or hold rooms right away from the Room Calendar or Events page; saving a reservation moves it to Planning automatically. Spoke to them by phone? Use the pause button on the card so GHL's automated follow-ups stop.",
   },
   contacted: {
     happened:
@@ -96,7 +113,7 @@ const STAGE_GUIDES: Record<string, { happened: string; next: string }> = {
   other: {
     happened:
       "These opportunities sit in a stage that was removed from the pipeline in GHL.",
-    next: "Move each one to a current stage in GHL so it shows up under the right tab.",
+    next: "Move each one to a current stage with the card's move button so it shows up under the right tab.",
   },
 };
 
@@ -192,6 +209,17 @@ function coordinatorNameById(users: GhlUser[], userId: string | null) {
     : null;
 }
 
+// Where a stage sits in the deal's life, for the card badges: Booked and
+// Lost by id or name, every other stage (renamed or removed ones included)
+// counts as still selling.
+function stagePhase(stage: { key: string; name: string }): OpportunityPhase {
+  const name = stage.name.trim().toLowerCase();
+  if (stage.key === appConfig.ghl.bookedStageId || name === "booked") {
+    return "booked";
+  }
+  return name === "lost" ? "lost" : "sales";
+}
+
 // Open opportunities, one pipeline stage at a time: a row of stage tabs
 // (with counts) above a full-width card grid for the chosen stage. A
 // column-per-stage board forced sideways scrolling and long columns once
@@ -210,10 +238,14 @@ async function PipelineView({
   showValues: boolean;
   stageParam: string | undefined;
 }) {
+  // The conversation sync rides along: it records who wrote last in every
+  // conversation that changed since the last view (one GHL request, most
+  // views) and never throws.
   const [pipeline, opportunities, ghlUsers] = await Promise.all([
     fetchConfiguredPipeline(),
     searchPipelineOpportunities("open"),
     listGhlUsers(),
+    syncConversationActivity(),
   ]);
 
   if (!pipeline) {
@@ -264,21 +296,26 @@ async function PipelineView({
   // tables — no GHL calls per card, at any pipeline size. Note/task counts
   // are whatever the drawers last saw; "New reply" flags are pushed by a GHL
   // workflow (see src/lib/ghl/replies.ts) and read for every stage so the
-  // tabs can show where new replies are.
+  // tabs can show where new replies are. Who wrote last comes from
+  // ghl_conversation_activity, just synced above; contacts it can't settle
+  // yet are looked up after the page is sent.
   const allContactIds = opportunities
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
   const visibleContactIds = (activeStage?.items ?? [])
     .map((opportunity) => opportunity.contact?.id)
     .filter((id): id is string => Boolean(id));
-  const [badges, pauses, eventFlags, newReplyContactIds] = await Promise.all([
-    getStoredContactBadges(visibleContactIds),
-    getActiveFollowUpPauses(visibleContactIds),
-    getEventFlagsByOpportunityIds(
-      (activeStage?.items ?? []).map((opportunity) => opportunity.id),
-    ),
-    getContactsWithNewReplies(allContactIds),
-  ]);
+  const [badges, pauses, eventFlags, newReplyContactIds, conversations] =
+    await Promise.all([
+      getStoredContactBadges(visibleContactIds),
+      getActiveFollowUpPauses(visibleContactIds),
+      getEventFlagsByOpportunityIds(
+        (activeStage?.items ?? []).map((opportunity) => opportunity.id),
+      ),
+      getContactsWithNewReplies(allContactIds),
+      readConversationActivity(allContactIds),
+    ]);
+  scheduleConversationChecks(visibleContactIds, allContactIds, conversations);
 
   if (!activeStage) {
     return (
@@ -288,6 +325,43 @@ async function PipelineView({
       />
     );
   }
+
+  // Status badges for the cards on screen (the other stages' cards aren't
+  // drawn until their tab is opened).
+  const requestedAt = new Date();
+  const today = venueDay(requestedAt);
+  const firstStageId = pipeline.stages[0]?.id ?? null;
+  const badgesFor = (
+    stage: (typeof stages)[number],
+    opportunity: GhlPipelineOpportunity,
+  ) => {
+    if (stage.key !== activeStage.key) return [];
+    const flags = eventFlags.get(opportunity.id) ?? null;
+    const contactId = opportunity.contact?.id ?? null;
+    const conversation = contactId ? conversations.get(contactId) : undefined;
+    return buildOpportunityBadges({
+      now: requestedAt.getTime(),
+      today,
+      stageName: stage.name,
+      phase: stagePhase(stage),
+      isFirstStage: stage.key === firstStageId,
+      createdAt: opportunity.createdAt,
+      lastStageChangeAt: opportunity.lastStageChangeAt,
+      eventDate: opportunity.eventDate,
+      eventEndDate: flags?.eventEndDate ?? null,
+      inquirySource: flags?.inquirySource ?? null,
+      expedited: flags?.expedited ?? false,
+      paused: Boolean(contactId && pauses.has(contactId)),
+      contactTags: opportunity.contactTags,
+      conversation: isConversationActivitySettled(conversation)
+        ? {
+            lastHumanAt: conversation.lastHumanAt,
+            lastHumanDirection: conversation.lastHumanDirection,
+            lastAutomatedAt: conversation.lastAutomatedAt,
+          }
+        : null,
+    });
+  };
 
   const boardStages: BoardStage[] = stages.map((stage) => ({
     key: stage.key,
@@ -305,6 +379,7 @@ async function PipelineView({
       createdAt: opportunity.createdAt,
       inquiry: opportunity.inquiry,
       contact: opportunity.contact,
+      badges: badgesFor(stage, opportunity),
     })),
   }));
 
@@ -315,9 +390,20 @@ async function PipelineView({
       .map((opportunity) => opportunity.assignedTo)
       .filter((id): id is string => Boolean(id)),
   );
+  // Every coordinator has a color of their own, kept from view to view.
+  // GHL's coordinator list goes first so first-time colors follow it, the
+  // same order the Coordinator Assignments calendar uses.
+  const coordinatorColors = await getCoordinatorColors([
+    ...ghlUsers.filter((user) => user.role === "user").map((user) => user.id),
+    ...assignedIds,
+  ]);
   const coordinators: BoardCoordinator[] = ghlUsers
     .filter((user) => assignedIds.has(user.id))
-    .map((user) => ({ id: user.id, name: user.name }))
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      color: coordinatorColors.get(user.id) ?? UNASSIGNED_COLOR,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const groupTypes = collectGroupTypes(opportunities);
 
@@ -337,6 +423,11 @@ async function PipelineView({
             { pausedAt: pause.pausedAt, pausedBy: pause.pausedBy, reason: pause.reason },
           ]),
         )}
+        moveTargets={pipeline.stages.map((stage) => ({
+          key: stage.id,
+          name: stage.name,
+          notice: stageMoveNotice(stage, appConfig.ghl.bookedStageId ?? null),
+        }))}
         showValues={showValues}
         stages={boardStages}
       />

@@ -9,7 +9,7 @@ import {
   getScheduleItems,
 } from "@/lib/admin/event-schedule";
 import { getClientPortalEventByToken } from "@/lib/client/portal";
-import { formatDisplayDate } from "@/lib/dates";
+import { formatEventDates } from "@/lib/dates/event-dates";
 import { buildMergeTagContext, resolveMergeTags } from "@/lib/merge-tags";
 
 type ClientSchedulePageProps = {
@@ -56,7 +56,7 @@ export default async function ClientSchedulePage({
           <div className="grid gap-4 p-6 sm:grid-cols-3 sm:p-8">
             <SummaryItem
               label="Event date"
-              value={formatNullableDate(event.eventDate)}
+              value={formatEventDates(event.eventDate, event.eventEndDate) || "Not set"}
             />
             <SummaryItem
               label="Arrival time"
@@ -118,8 +118,4 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
       <p className="mt-1.5 text-base font-semibold text-slate-950">{value}</p>
     </div>
   );
-}
-
-function formatNullableDate(date: string | null): string {
-  return date ? formatDisplayDate(date) : "Not set";
 }

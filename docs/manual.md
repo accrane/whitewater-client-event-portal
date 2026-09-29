@@ -1,6 +1,6 @@
 # Portal Manual
 
-_Last updated: 2026-09-24._
+_Last updated: 2026-09-29._
 
 This is the working guide for the Whitewater event portal: what each screen
 is for, how an event moves from inquiry to event day, and what happens
@@ -47,7 +47,9 @@ A coordinator needs two things: a GHL staff user (that is what fills the
    dropdown set the role to **User** (not Admin — only staff with the User
    role show up in the coordinator dropdown). Then under **Permissions**,
    click **Copy**, find **Sarah**, and choose her so the new person gets
-   the same permissions.
+   the same permissions. Fill in their **Email Signature** in the same
+   user settings too: emails sent from the portal to their clients end
+   with it.
 2. **In the portal:** a manager creates their login under **Admin → Users**
    using the same email address as their GHL user, with the Coordinator
    role. That email match is what lets the portal treat their
@@ -152,8 +154,16 @@ Booked, or Lost? The stage is left alone.
   page; not sent when you assign yourself or re-pick the same person), and they
   become the event's **Coordinator** in the portal.
 - Reservations start as **held** (faded and dashed on the calendar). Flip
-  them to **booked** from the event page's Room bookings section, or let a
-  signed contract do it (Step 4b).
+  them to **booked** from the event page's Room bookings section, or let the
+  contract's first payment do it (Step 4b).
+
+You can also add rooms straight from the event page with **Add room** under
+Room bookings. For a multi-day event it shows each day of the event as a
+button: tick the days you need and the same room and times are held on each
+(every day becomes its own booking). Each day in Room bookings also has its
+own **Add room** button, which opens with that day already ticked. The
+window shows that room's other bookings on each day you ticked and won't
+save while any of them overlaps.
 
 ### Step 4 — Event prep in the portal
 
@@ -192,13 +202,22 @@ Booked, or Lost? The stage is left alone.
     | `{{opportunity.assigned_to}}` | The coordinator assigned to the event |
     | `{{user.first_name}}`, `{{user.last_name}}`, `{{user.name}}`, `{{user.email}}` | You, the person sending. If your portal login doesn't match a GHL user, the event's coordinator is used instead |
     | `{{opportunity.groupevent_name}}` | The event name |
-    | `{{opportunity.event_date}}` | The event date, written out (November 20, 2026) |
+    | `{{opportunity.event_date}}` | The event date, written out (November 20, 2026, or November 20–22, 2026 for a multi-day event) |
     | `{{opportunity.portal_link}}` | The client's portal link (only once the portal has been launched) |
 
     If a tag can't be filled in (no coordinator assigned yet, portal not
     launched, or a tag the portal doesn't know) it stays in the message as
     `{{…}}` and an amber warning lists it under the message box. Replace it
     with the real text before sending, or it reaches the client as a blank.
+  - **Email signature:** every email you send from here ends with the
+    signature saved in GHL for the contact's assigned coordinator — normally
+    you, because assigning an event's coordinator also assigns its contact.
+    The checkbox beside Send names whose signature it will be; untick it to
+    send without one. If you're covering for someone, it names them: GHL
+    always signs with the assigned coordinator, whoever sends. A contact
+    with no coordinator assigned gets no signature, and texts never do.
+    Signatures are written and changed in GHL, not in the portal, and the
+    portal can't show a preview of them.
   - The notepad button (red badge = note count) opens the contact's **GHL
     notes**; notes you add there save to GHL under your name.
   - The tasks button (badge = open tasks) opens the contact's **GHL
@@ -233,15 +252,72 @@ Booked, or Lost? The stage is left alone.
   day template. Text fields accept merge tags that fill in per event. Notes
   keep bold, italic, lists, links, and pictures; text pasted from elsewhere
   keeps its paragraphs and lists but takes the portal's own font and colors.
-- **Room bookings** — confirm held rooms as booked.
+- **Room bookings** — confirm held rooms as booked. They also book on
+  their own at a contract's first payment (Step 4b). A multi-day event lists
+  its rooms under each day. A room that isn't on one of the event's days is
+  marked **Not an event day**, with a **Move rooms** button that lines the
+  rooms back up with the event (see *Changing the date* below). A setup room
+  booked the day before on purpose can stay where it is.
 
 **Automatically:**
 - Opening the event page refreshes it from GHL first (name, type, date of
-  interest, contact, coordinator, proposal link, guest counts, value).
+  interest, contact, coordinator, proposal link, guest counts, value). If
+  someone changed the date of interest in GHL, the event's dates follow (a
+  multi-day event keeps its length) but its rooms stay where they are and
+  are marked **Not an event day** until you move them.
 - Saving the Event summary writes guest count, pass and bin counts, and
   Value back to the GHL opportunity.
 - Reassigning the coordinator updates the assigned user on both the
   opportunity and the contact in GHL.
+
+### Changing the date, and multi-day events
+
+**You do:** click the date under the event's name at the top of its page
+(or **Change dates** in the Event summary). In the window:
+
+- set the new date. For an event that runs more than one day, tick **Runs
+  more than one day** and set the **Last day**. Moving the first day moves
+  the last day with it, so the event keeps its length.
+- check where each of the event's rooms will go. Each room keeps its times
+  and moves to the same day of the event: a room on the first day goes to
+  the new first day, a room on the second day to the new second day. Next
+  to each one the window says whether that room is free then, checking the
+  room calendar as you go.
+- sort out anything in red. A room that's taken on the new date shows who
+  has it. Pick another room (rooms that are also busy then say so), leave
+  it on its old date to deal with later, or release it. The window won't
+  save while a room is still in red.
+- a room on a day the new dates no longer include (the event got shorter),
+  or one that wasn't on an event day to begin with (a setup day), stays
+  where it is unless you move or release it.
+- hold rooms for the other days, right in the same window. Under each room,
+  **Same room on …** holds that room at the same times on the event's other
+  days (the usual case when an event grows from one day to several). **Add a
+  room** adds a row where you pick the day, the room, and the times. An
+  amber note lists any day that still has no rooms. New rooms are checked
+  against the room calendar like the others and are saved as held; **Remove**
+  takes a row back out before you save.
+
+Click **Save dates** (or **Save rooms** when only rooms changed). If a room was taken by someone else in the moment
+before you saved, it stays where it was and the window tells you which one;
+it's marked under Room bookings for you to move by hand.
+
+**Automatically:**
+- The new first day is saved to the GHL opportunity's date of interest.
+  If GHL won't take it, nothing changes and the window says why. Try again
+  in a minute. (The last day of a multi-day event is kept in the portal only;
+  GHL has one date.)
+- Checklist due dates move with the event.
+- The client's portal, the dashboard, and the events list show the new
+  dates. A multi-day event shows its whole span (October 16–18, 2026), and
+  stays under **Today's events** on the dashboard every day it runs
+  (Day 2 of 3).
+
+**Contracts don't change.** A contract already sent still shows the old
+date. If it's unsigned, edit it on the Contracts tab and re-send it: the
+sub-heading boxes suggest each of the event's days. A signed contract was
+signed for the old date, so agree the change with the client and send a new
+contract if one is needed.
 
 ### Step 4b — Contract (PandaDoc, from the portal)
 
@@ -272,8 +348,9 @@ tax; the form warns you if a catering item ends up in another table.
 - The **sub-heading** box above a table's rows is for the event day, the
   way the table used to be retitled in PandaDoc ("Friday, November 20th -
   9:45am arrival"). A new contract starts with the event's date filled in;
-  clear it if you don't want it. For a multi-day event, click **Add another
-  group** and give each day its own sub-heading.
+  clear it if you don't want it. Clicking in a sub-heading box offers each of
+  the event's days to pick from. For a multi-day event, click **Add another
+  group**: it starts with the next day's sub-heading.
 - Templates with a **checklist of options** (the education programs on the
   EA Group templates: "Choose One (1) of the Options Below") show the
   options as checkboxes. Tick the one the group chose before you send, so
@@ -290,18 +367,34 @@ tax; the form warns you if a catering item ends up in another table.
   emails the client if you tick "also email from PandaDoc".
 - Every contract stays on the event: name, terms, items, status, PandaDoc
   link, signed date. The Event summary lists them with a status pill and two
-  links: **View in PandaDoc** (staff, needs your PandaDoc login) and
+  links: **View in PandaDoc** (managers only, needs a PandaDoc login) and
   **Customer View**, the customer's own public PandaDoc link — no login
   needed. Clicking it **copies** the link (you'll see "Copied!") instead of
   opening it, so you can paste it to the customer without your own visit
   showing up as theirs. It appears once PandaDoc has
   sent the contract (not for drafts or ones awaiting approval). The
   Contracts tab shows the full history, totals, **Refresh status**, **Open
-  in PandaDoc**, and the archived **Signed PDF** once executed.
-- **When the client signs:** every held room on the event flips to
-  **booked**, the GHL opportunity moves to **Booked**, and the signed PDF is
-  archived. This happens the moment they finish signing in the portal, or
-  on the next refresh of the event page.
+  in PandaDoc** (managers only), and the archived **Signed PDF** once
+  executed.
+- **When the client signs:** the GHL opportunity moves to **Booked** and
+  the signed PDF is archived. This happens the moment they finish signing in
+  the portal, or on the next refresh of the event page. The rooms stay
+  **held**: signing doesn't book them.
+- **When the first payment comes in:** every held room on the event flips
+  to **booked**. A payment is the client paying on PandaDoc's payment step
+  right after signing, or anyone marking the document paid in PandaDoc. The
+  contract card then says **Paid in PandaDoc** and when the rooms were
+  booked. A later contract's payment (an addition, the final payment) books
+  any rooms held since, and leaves booked ones alone.
+- **Paying by check:** a signed contract still waiting on payment has a
+  **Paying by check** button on its card. Use it for a group that's allowed
+  to pay by check (or any way outside PandaDoc): it books the event's held
+  rooms right away and marks the contract **Paying by check**, with your
+  name and the time, so everyone can see why PandaDoc still says unpaid.
+  They can simply close PandaDoc's payment screen after signing. When the
+  check arrives, mark the document paid in PandaDoc. **Not paying by check**
+  undoes the mark, but it doesn't put the rooms back on hold; do that under
+  Room bookings if needed.
 - **If one of those steps doesn't go through** (GHL was down for a
   moment, say), the contract shows an amber **Still to do** list instead of
   the green signed note. The portal tries again on its own every few
@@ -327,9 +420,12 @@ tax; the form warns you if a catering item ends up in another table.
   written to the GHL opportunity. Until the first contract exists, the
   manually entered value stands.
 - **Payments:** the standard templates have a payment step after signing.
-  The portal treats a signed-but-unpaid contract as **Signed** (rooms
-  booked, opportunity Booked, PDF archived) because the signature is what
-  commits the event; the card notes that payment is pending in PandaDoc.
+  A signed-but-unpaid contract shows as **Signed** with "Payment pending",
+  and its card says the rooms stay held until it's paid. **Refresh status**
+  checks PandaDoc for the payment right away; the event page checks each
+  time it opens. A contract whose template has no payment step shows "No
+  PandaDoc payment", and its rooms wait for **Paying by check** or for you
+  to book them under Room bookings.
 - Failed sends stay listed as *Failed* with PandaDoc's message so the
   template or setup can be fixed and the send retried. Only failed
   contracts can be removed.
@@ -357,8 +453,10 @@ launch action at the bottom of the event page and tick the confirmation.
 - **review and sign contracts** — each contract shows its items and total
   with a *Review and sign* button that opens PandaDoc's signer right in the
   portal, no email or PandaDoc account needed. When they finish, the portal
-  confirms it immediately (rooms booked, opportunity Booked, PDF archived)
-  and shows the contract as **Signed**;
+  confirms it immediately (opportunity Booked, PDF archived) and shows the
+  contract as **Signed**. PandaDoc then asks for the payment, and the rooms
+  book once it's made; the client is told their rooms are confirmed once
+  their first payment is received;
 - open proposal, contract, invoice, and payment links ("Documents and
   payment");
 - view the event-day schedule.
@@ -396,20 +494,45 @@ contact and opportunity are otherwise untouched.
 
 | Screen | What it's for |
 | --- | --- |
-| **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones, with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
+| **Dashboard** | Metric tiles, then a filter row (the same coordinator, group size, event date, and group type filters as Opportunities, plus **My events** to see only your own), then: **Vendor submissions** awaiting approval; **Upcoming events** split into today (including multi-day events already under way, shown as Day 2 of 3) and the next seven days; **Contracts** with recently signed ones and a red **Needs attention** list — launched events within three weeks with no signed contract and, inside two weeks, signed-but-unpaid ones (shown as **Signed, check pending** when every unpaid contract is marked Paying by check), with an **All upcoming** switch that lists every launched event still missing a signed contract however far out; **Paused follow-ups** older than 14 days. The filters narrow every list; the metric tiles stay portal-wide. |
 | **Events** | All portal events, newest first, 50 to a page with Previous/Next at the bottom. Status filters (Draft, Launched, Past) show how many events each holds, and the search box finds an event by name, type, or coordinator across every page. Open one to work it. |
 | **New inquiry** | Phone intake form (creates the GHL contact and opportunity, then the draft event; Expedited opens the room-hold window) and the backfill list of GHL opportunities without a portal event. |
 | **Event page** | Summary (with the contracts list), coordinator, primary contact with the conversations, notes, and tasks buttons and the follow-ups pause switch, facilitator, room bookings, launch, review queues. |
 | **— Contracts** | PandaDoc contracts for the event: create, edit unsigned ones, history with status and totals, signed PDF, refresh status. |
 | **— Checklist** | The event's checklist. |
 | **— Schedule & Notes** | Event-day schedule grid and sectioned notes. |
-| **Contracts** | Every PandaDoc contract in one list. **Open** holds anything not yet signed, with contracts waiting for a manager's approval at the top and an **Approve in PandaDoc** button that opens the document directly; **History** holds signed, declined, and voided ones. Search by contract, event, or customer name; filter by coordinator (managers only), status, and event date. Managers see every event's contracts; coordinators see only their own. **Refresh statuses** re-reads every open contract from PandaDoc. |
+| **Contracts** | Every PandaDoc contract in one list. **Open** holds anything not yet signed, with contracts waiting for a manager's approval at the top and, for managers, an **Approve in PandaDoc** button that opens the document directly (coordinators see the status but no PandaDoc buttons); **History** holds signed, declined, and voided ones. Search by contract, event, or customer name; filter by coordinator (managers only), status, and event date. Managers see every event's contracts; coordinators see only their own. **Refresh statuses** re-reads every open contract from PandaDoc. |
 | **Room Calendar** | The reservation board; where events get rooms and coordinators. |
-| **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator. Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
-| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, and the pause switch; hover any of them for a label. When a client writes in (email, text, chat), their card gets a blue **New reply** badge and a red dot on the conversations button, and the stage tab gets a red dot too, so you can see at a glance which stages have clients waiting. Opening that contact's conversations (or replying) clears it. The **Won** tab is the contact list for rebooking. |
+| **Coordinator Assignments** | Month calendar of every coordinator's events, colored by coordinator (the same colors as on Opportunities). Click a chip to see every room booked that day with times and held/booked status, and an **Open event** link. The legend chips filter by coordinator and show that month's workload. A **Columns** toggle shows the original one-column-per-coordinator view with a date range. |
+| **Opportunities** | The GHL pipeline, one stage at a time: stage tabs with counts above that stage's cards, a search box that filters by name, contact, email, phone, or coordinator, and a filter row under the tabs for **coordinator** (including Unassigned), **group size** (a guest-count minimum and/or maximum), **event date** (from/to), and **group type** (the inquiry type). Filters and search combine, the tabs switch to per-stage match counts while any are active, and the choices stay in the page address so they survive switching stages. Every coordinator has a color of their own, the same one they have on the Coordinator Assignments calendar. Each card has a small tab above it with the coordinator's name in their color, and the color carries on down the card's left edge; unassigned cards have a grey **Unassigned** tab. Cards are in event-date order, soonest first (dates already passed come first; cards with no date come last). Above the cards, a row of names shows how many cards each coordinator has in that stage. Click a name to see only their cards, and the stage tabs then count their cards in every stage (click the name again to show everyone). Colors are handed out automatically: a new coordinator gets a color nobody else has, and nobody else's changes. Each card is titled with the group or event name (or the company when no group name was given) and shows the contact, company, event date, guest count, and group type. A **stage guide** explains what has happened and what to do next. Each card has an **original inquiry** button (opens everything the contact put on the website form, or a coordinator recorded by phone), the conversations, notes, and tasks buttons, the pause switch, and a **move** button (two arrows) for changing its stage; hover any of them for a label. The move button lists every other stage; pick one and confirm, and the card moves to that tab straight away. Some moves set things off, and the menu says so before you confirm: moving to **Proposal Sent** starts GHL's proposal follow-up chase (so only move it there once the client actually has the proposal), and moving to **Booked** only changes the stage (rooms are still booked by the contract's first payment). Moving to **Lost** asks for a reason — optional, but it's saved as a note on the contact in GHL so everyone can see why the deal ended. A column of status badges down the right side of each card shows what needs attention (see **Opportunities card badges** below). When a client writes in (email, text, chat), their card gets a blue **New reply** badge and a red dot on the conversations button, and the stage tab gets a red dot too, so you can see at a glance which stages have clients waiting. Opening that contact's conversations (or replying) clears it. The **Won** tab is the contact list for rebooking. |
 | **Companies** | Company directory from the Salesforce archive: contacts, booking history, live booking stats. Past events list their PandaDoc documents (contract, additions, final payment) with each one's status; click one to open it in PandaDoc, where you need to be signed in. Dollar values are manager-only. |
 | **Settings** | Checklist and schedule templates that new events start from. Changes never touch events already set up. |
 | **Manual** | This guide. Opens in a new tab from the **?** beside the theme switch. |
+
+### Opportunities card badges
+
+Badges stack down the right side of each Opportunities card, most pressing
+first. Hover one to see why it's there. A card with nothing to flag has none.
+
+| Badge | What it means |
+| --- | --- |
+| **Client waiting** (blue under a day, red after) | The client wrote last and nobody has answered them yet, counted from their latest message. GHL's automated reminders don't count as an answer, so a client who wrote back while a chase was running still shows as waiting. |
+| **New reply** (blue) | A message nobody has opened in the portal yet. Opening their conversations clears it. Shown only when Client waiting isn't. |
+| **Not contacted** (red) | A website inquiry more than a day old, still in New Inquiry, that nobody has written to by hand. GHL's automatic emails don't count. |
+| **Quiet** (amber from 5 days, red from 10) | Someone on the team wrote to them last, by hand, that many days ago, and they haven't answered. Shown until the deal books, and not while follow-ups are paused. |
+| **Event in 12d** (amber within three weeks, red within a week) | The event is close and the deal hasn't booked. Also **Event tomorrow**, **Event today**, and **Event under way**. |
+| **Date passed** (red) | The event date is behind us and the deal is still open: change the date, or move it to Lost. On a Booked deal, mark it Won. |
+| **Expedited** / **Phone** | How the inquiry came in. Neither gets GHL's automatic follow-ups, so whoever took the call follows up. |
+| **9d in stage** (amber) | The deal has sat in its stage longer than usual: New Inquiry 2 days, Contacted and Planning 7, Proposal Sent 14. |
+| **Proposal chase** (blue) | GHL is following up with them on its own. Also **Inquiry chase** and **Coordinator chase**. Grey while follow-ups are paused; amber if a chase is still running on a Booked or Lost deal. |
+
+- Who wrote last comes from the contact's GHL conversation. Emails from
+  your own mailbox and phone calls never reach it, so reply from the
+  conversations drawer (or GHL), and pause follow-ups after a call.
+- The badges refresh from GHL each time the Opportunities page loads; a
+  conversation that just changed can take one more load to catch up.
+- One contact with several open deals shows the same conversation badge on
+  each of their cards.
 
 ### Admin section (managers only)
 
@@ -463,22 +586,27 @@ Payment, the wedding ones) work as they are. If you build a new one:
   *Awaiting PandaDoc approval* until a manager approves them in PandaDoc
   (the **Contracts** page lists them first, with a direct link).
 - If the template has a **payment step**, clients are asked to pay right
-  after signing. The portal counts the signature as the commitment; turn
-  the payment step off if clients should pay some other way.
+  after signing, and that payment is what books the rooms. Leave it on for
+  groups that pay by check too: they close the payment screen and you mark
+  the contract **Paying by check**.
 
 ### Day to day
 
 - **Refresh status** on the Contracts tab re-reads the document from
   PandaDoc; the event page does the same each time it opens.
-- **Open in PandaDoc** / **View in PandaDoc** goes to the document for
-  staff. **Customer View** on the Event summary is the customer's personal
-  PandaDoc link: whoever opens it *is* the customer as far as PandaDoc is
-  concerned — it marks the contract viewed and the page can sign it. That
-  is why it copies rather than opens; only send it to the customer.
+- **Open in PandaDoc** / **View in PandaDoc** goes to the document in
+  PandaDoc. Only managers see these links: contracts are approved in
+  PandaDoc, and coordinators don't approve their own. **Customer View** on
+  the Event summary is the customer's personal PandaDoc link: whoever
+  opens it *is* the customer as far as PandaDoc is concerned — it marks the
+  contract viewed and the page can sign it. That is why it copies rather
+  than opens; only send it to the customer.
 - A contract can only be signed while it is sent or viewed — not while it
   is a draft or awaiting approval.
-- **Payment status** on the event still comes from GHL; PandaDoc payments
-  are not tracked in the portal.
+- **Contract payments** are tracked on each signed contract: Payment
+  pending, Paid (in PandaDoc), Paying by check, or No PandaDoc payment. The
+  event page's Contracts line and the Contracts page show the same note.
+  The separate **Payment status** field on the event still comes from GHL.
 
 ---
 
@@ -494,4 +622,9 @@ Payment, the wedding ones) work as they are. If you build a new one:
 | Saving a contract says an item is no longer in the PandaDoc catalog | Someone removed or replaced that item in PandaDoc. Remove the row and add the current item from the catalog, or add it as a custom row. |
 | The catalog or the template's tables won't load in the contract form | The portal can't reach PandaDoc right now. Custom rows still work; try again in a minute, and tell a manager if it persists. |
 | The client says their signing link stopped working | The contract was edited after it was sent. Their portal shows the revised one. |
+| A room under Room bookings says **Not an event day** | The event's date changed (here or in GHL) and that room didn't move with it, or it was booked for a setup day. Click **Move rooms** to line the rooms up with the event, or leave a setup room where it is. |
+| Changing the date says GoHighLevel didn't take it | Nothing was changed. GHL was unreachable or refused the update; try again in a minute, and tell a manager if it keeps happening. |
+| The client signed but the rooms are still held | Rooms book at the first payment, not the signature. Open the contract: "Payment pending" means PandaDoc is still waiting on the client's payment (**Refresh status** checks again). If they're paying by check, use **Paying by check**. |
 | Follow-up messages still going to someone who called | Use the pause switch on their Opportunities card or event page. |
+| A card says **Client waiting** but you answered them | Answers from your own mailbox, or given by phone, never reach GHL. Reply from the conversations drawer or from GHL; after a phone call, pause follow-ups. |
+| GHL is sending follow-ups but the card shows no chase badge | The chase workflow in GHL isn't tagging the contact. Tell a manager. |

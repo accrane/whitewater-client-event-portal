@@ -1,7 +1,11 @@
 export type GhlEventSnapshot = {
   eventName?: string;
   eventType?: string;
+  // First day: GHL's Date of Interest, synced both ways.
   eventDate?: string;
+  // Last day of a multi-day event (absent for one day). App-only: GHL has
+  // no field for it; a GHL date change shifts it to keep the event's length.
+  eventEndDate?: string;
   arrivalTime?: string;
   meetingLocation?: string;
   // GHL opportunity monetaryValue; admin-only in the UI, synced both ways.

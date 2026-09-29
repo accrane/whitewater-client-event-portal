@@ -13,15 +13,23 @@ import {
 } from "@/components/admin/follow-up-pause-button";
 import { EventFilterFields } from "@/components/admin/event-filter-fields";
 import { OpportunityInquiryButton } from "@/components/admin/opportunity-inquiry-button";
+import {
+  OpportunityStageMenu,
+  type StageMoveTarget,
+} from "@/components/admin/opportunity-stage-menu";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { EventFlags } from "@/lib/admin/events";
+import type { OpportunityBadge } from "@/lib/admin/opportunity-badges";
 import type { OpportunityInquiry } from "@/lib/ghl/inquiry-fields";
 import {
   applyFiltersToParams,
   hasActiveFilters,
   matchesOpportunityFilters,
+  UNASSIGNED_COORDINATOR,
   type OpportunityFilters,
 } from "@/lib/admin/event-filters";
+import { UNASSIGNED_COLOR } from "@/lib/admin/coordinator-color-rules";
 
 // The pipeline's stage tabs + card grid, client-side so a search box and a
 // filter row can narrow the cards as you type or pick. Every open
@@ -30,7 +38,12 @@ import {
 // while a term or filter is active the stage tabs show how many matches
 // each stage holds instead of their totals — everything travels in the URL
 // (?q=, ?coordinator=, ?min_guests=, ?max_guests=, ?from=, ?to=, ?type=) so it survives
-// switching stages and reloads.
+// switching stages and reloads. Each card's "Move to…" menu moves it to
+// another stage in GHL; the board moves the card between tabs right away.
+// Cards are ordered by event date, soonest first, and carry their
+// coordinator's name on a tab in the coordinator's color. A row of names
+// above the grid counts the stage's cards per coordinator; clicking a name
+// filters to them, so the stage tabs then count that coordinator's cards.
 
 export type BoardOpportunity = {
   id: string;
@@ -49,6 +62,17 @@ export type BoardOpportunity = {
     email: string | null;
     phone: string | null;
   } | null;
+  // Status badges for the card's right-hand column, built on the server
+  // (src/lib/admin/opportunity-badges.ts); empty for cards not on screen.
+  badges: OpportunityBadge[];
+};
+
+const NEW_REPLY_BADGE: OpportunityBadge = {
+  key: "new-reply",
+  label: "New reply",
+  tone: "info",
+  detail:
+    "They wrote in and nobody has opened it in the portal yet. Opening their conversations clears this.",
 };
 
 export type BoardStage = {
@@ -58,7 +82,11 @@ export type BoardStage = {
   guide: { happened: string; next: string };
 };
 
-export type BoardCoordinator = { id: string; name: string };
+// color: the coordinator's stored color (src/lib/admin/coordinator-colors.ts).
+export type BoardCoordinator = { id: string; name: string; color: string };
+
+// An assignee GHL no longer lists (a removed user) still gets a stripe.
+const UNKNOWN_COORDINATOR_COLOR = "#475569";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -138,7 +166,7 @@ function buildQueryString(
 }
 
 export function PipelineBoard({
-  stages,
+  stages: serverStages,
   activeKey,
   initialQuery,
   initialFilters,
@@ -148,6 +176,7 @@ export function PipelineBoard({
   pauses,
   eventFlags,
   newReplyContactIds,
+  moveTargets,
 }: {
   stages: BoardStage[];
   activeKey: string;
@@ -162,8 +191,42 @@ export function PipelineBoard({
   eventFlags: Record<string, EventFlags>;
   // Contacts whose latest client reply nobody has opened yet.
   newReplyContactIds: string[];
+  // Every pipeline stage a card can be moved to, with the menu's notice.
+  moveTargets: StageMoveTarget[];
 }) {
   const router = useRouter();
+  // Cards moved from this board, by opportunity id. A move holds only while
+  // the server still has the card in the stage it left (GHL's search can
+  // trail a move by a moment); once the server reports any other stage, the
+  // server wins.
+  const [moves, setMoves] = useState<Record<string, { from: string; to: string }>>({});
+  const [moveMessage, setMoveMessage] = useState<{ text: string; warning: boolean } | null>(null);
+  const placed = serverStages.flatMap((source) =>
+    source.items.map((item) => {
+      const move = moves[item.id];
+      return { item, source: source.key, key: move?.from === source.key ? move.to : source.key };
+    }),
+  );
+  const stages = serverStages.map((stage) => ({
+    ...stage,
+    items: placed.filter((entry) => entry.key === stage.key).map((entry) => entry.item),
+  }));
+  const handleMoved = (
+    opportunity: BoardOpportunity,
+    to: string,
+    warning: string | null,
+  ) => {
+    const from = placed.find((entry) => entry.item.id === opportunity.id)?.source;
+    if (from) {
+      setMoves((current) => ({ ...current, [opportunity.id]: { from, to } }));
+    }
+    const stageName = serverStages.find((stage) => stage.key === to)?.name ?? "the new stage";
+    setMoveMessage({
+      text: warning ?? `Moved ${cardTitle(opportunity)} to ${stageName}.`,
+      warning: Boolean(warning),
+    });
+    router.refresh();
+  };
   // Loading a card's conversations clears its flag on the server; hide it
   // here as soon as they load rather than waiting for the next render.
   const [seenReplies, setSeenReplies] = useState<Set<string>>(() => new Set());
@@ -212,7 +275,49 @@ export function PipelineBoard({
       narrowing ? stage.items.filter(isVisible).length : stage.items.length,
     ]),
   );
-  const visible = active.items.filter(isVisible);
+  // Soonest event first (passed dates lead, so they get dealt with);
+  // undated cards go last, otherwise in GHL's order.
+  const visible = active.items
+    .filter(isVisible)
+    .sort((a, b) =>
+      a.eventDate && b.eventDate
+        ? a.eventDate.localeCompare(b.eventDate)
+        : Number(!a.eventDate) - Number(!b.eventDate),
+    );
+  const colorById = new Map(coordinators.map((coordinator) => [coordinator.id, coordinator.color]));
+  const coordinatorColorOf = (item: BoardOpportunity) =>
+    item.coordinatorId
+      ? (colorById.get(item.coordinatorId) ?? UNKNOWN_COORDINATOR_COLOR)
+      : UNASSIGNED_COLOR;
+  // The legend counts the stage's cards per coordinator under the search and
+  // every filter except the coordinator one, so picking a name leaves the
+  // other names and their counts in place to switch to.
+  const legendFilters = { ...filters, coordinator: null };
+  const legend = [
+    ...active.items
+      .filter((item) => matches(item, term) && matchesOpportunityFilters(item, legendFilters))
+      .reduce((groups, item) => {
+        const key = item.coordinatorId ?? UNASSIGNED_COORDINATOR;
+        const group = groups.get(key);
+        if (group) {
+          group.count += 1;
+        } else {
+          groups.set(key, {
+            key,
+            name: item.coordinatorId ? (item.coordinatorName ?? "Unknown user") : "Unassigned",
+            color: coordinatorColorOf(item),
+            count: 1,
+          });
+        }
+        return groups;
+      }, new Map<string, { key: string; name: string; color: string; count: number }>())
+      .values(),
+  ].sort(
+    (a, b) =>
+      Number(a.key === UNASSIGNED_COORDINATOR) - Number(b.key === UNASSIGNED_COORDINATOR) ||
+      b.count - a.count ||
+      a.name.localeCompare(b.name),
+  );
   const total = visible.reduce((sum, item) => sum + (item.monetaryValue ?? 0), 0);
   const otherStagesWithMatches = narrowing
     ? stages.filter((stage) => stage.key !== active.key && (matchCounts.get(stage.key) ?? 0) > 0)
@@ -342,6 +447,41 @@ export function PipelineBoard({
             <span className="mt-0.5 block">{active.guide.next}</span>
           </p>
         </div>
+        {legend.length > 0 ? (
+          <CoordinatorLegend
+            groups={legend}
+            onSelect={(key) =>
+              setFilters((current) => ({
+                ...current,
+                coordinator: current.coordinator === key ? null : key,
+              }))
+            }
+            selected={filters.coordinator}
+            stageName={active.name}
+          />
+        ) : null}
+        {moveMessage ? (
+          <div
+            className={`mt-3 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${
+              moveMessage.warning
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-emerald-200 bg-emerald-50 text-emerald-900"
+            }`}
+            role="status"
+          >
+            <span>{moveMessage.text}</span>
+            <button
+              aria-label="Dismiss"
+              className="rounded-sm p-0.5 opacity-60 hover:opacity-100"
+              onClick={() => setMoveMessage(null)}
+              type="button"
+            >
+              <svg fill="none" height="14" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="14">
+                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        ) : null}
         {visible.length === 0 ? (
           <div className="py-6 text-center text-sm text-slate-400">
             {narrowing ? (
@@ -376,12 +516,19 @@ export function PipelineBoard({
             )}
           </div>
         ) : (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          // Columns fit the space: a card never gets narrower than 22rem, so
+          // the badge column always leaves room for the name and contact.
+          <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-3">
             {visible.map((opportunity) => (
               <OpportunityCard
+                coordinatorColor={coordinatorColorOf(opportunity)}
                 flags={eventFlags[opportunity.id] ?? null}
                 key={opportunity.id}
+                moveTargets={moveTargets}
                 newReply={hasNewReply(opportunity)}
+                onMoved={(to, warning) =>
+                  handleMoved(opportunity, to, warning)
+                }
                 onRepliesSeen={markRepliesSeen}
                 opportunity={opportunity}
                 pause={
@@ -391,6 +538,7 @@ export function PipelineBoard({
                 }
                 query={term}
                 showValue={showValues}
+                stageKey={active.key}
               />
             ))}
           </div>
@@ -400,31 +548,45 @@ export function PipelineBoard({
   );
 }
 
+// GHL names a form inquiry's opportunity after the contact, so the
+// Group/Event Name field is the real title, then the company, then the
+// opportunity name.
+function cardTitle(opportunity: BoardOpportunity): string {
+  return (
+    opportunity.inquiry.groupEventName ||
+    opportunity.inquiry.companyName ||
+    opportunity.name ||
+    "Untitled opportunity"
+  );
+}
+
 function OpportunityCard({
+  coordinatorColor,
   flags,
+  moveTargets,
   newReply,
+  onMoved,
   onRepliesSeen,
   opportunity,
   pause,
   query,
   showValue,
+  stageKey,
 }: {
+  coordinatorColor: string;
   flags: EventFlags | null;
+  moveTargets: StageMoveTarget[];
   newReply: boolean;
+  onMoved: (stageKey: string, warning: string | null) => void;
   onRepliesSeen: (contactId: string) => void;
   opportunity: BoardOpportunity;
   pause: FollowUpPauseSummary | null;
   query: string;
   showValue: boolean;
+  stageKey: string;
 }) {
-  // GHL names a form inquiry's opportunity after the contact, so the
-  // Group/Event Name field is the real title, then the company, then the
-  // opportunity name. Lines that would only repeat the title are dropped.
-  const name =
-    opportunity.inquiry.groupEventName ||
-    opportunity.inquiry.companyName ||
-    opportunity.name ||
-    "Untitled opportunity";
+  // Lines that would only repeat the title are dropped.
+  const name = cardTitle(opportunity);
   const sameAsTitle = (value: string | null) =>
     Boolean(value) && value!.trim().toLowerCase() === name.trim().toLowerCase();
   const contactName = opportunity.contact?.name || "Unnamed contact";
@@ -432,72 +594,98 @@ function OpportunityCard({
   const company = sameAsTitle(opportunity.inquiry.companyName)
     ? null
     : opportunity.inquiry.companyName;
+  // "Client waiting" already says they wrote; "New reply" (not opened in the
+  // portal yet) only shows on its own.
+  const badges =
+    newReply && !opportunity.badges.some((badge) => badge.key === "client-waiting")
+      ? [NEW_REPLY_BADGE, ...opportunity.badges]
+      : opportunity.badges;
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 truncate text-sm font-semibold text-slate-950">
-          {flags ? (
-            <Link
-              className="underline-offset-2 hover:underline"
-              href={`/admin/events/${flags.eventId}`}
-              title="Open the portal event"
-            >
+    // The coordinator's name sits on a tab above the card in their color,
+    // which carries on down the card's left edge, so a stage scans by owner.
+    <div className="flex flex-col">
+      <span
+        className={`max-w-[75%] self-start truncate rounded-t-md px-2 pb-0.5 pt-1 text-[11px] font-semibold leading-tight ${
+          opportunity.coordinatorId ? "text-white" : "bg-slate-200 text-slate-600"
+        }`}
+        style={opportunity.coordinatorId ? { backgroundColor: coordinatorColor } : undefined}
+      >
+        {opportunity.coordinatorId ? (
+          <Highlight query={query} text={opportunity.coordinatorName ?? "Unknown user"} />
+        ) : (
+          "Unassigned"
+        )}
+      </span>
+      <div
+        className="flex-1 rounded-xl rounded-tl-none border border-l-4 border-slate-200 bg-slate-50 px-3 py-2.5"
+        style={{ borderLeftColor: coordinatorColor }}
+      >
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-950">
+            {flags ? (
+              <Link
+                className="underline-offset-2 hover:underline"
+                href={`/admin/events/${flags.eventId}`}
+                title="Open the portal event"
+              >
+                <Highlight query={query} text={name} />
+              </Link>
+            ) : (
               <Highlight query={query} text={name} />
-            </Link>
-          ) : (
-            <Highlight query={query} text={name} />
-          )}
-        </p>
-        <div className="flex shrink-0 items-center gap-1">
-          {newReply ? <StatusBadge tone="info">New reply</StatusBadge> : null}
-          {flags?.expedited ? (
-            <StatusBadge tone="danger">Expedited</StatusBadge>
-          ) : flags?.inquirySource === "phone" ? (
-            <StatusBadge tone="neutral">Phone</StatusBadge>
+            )}
+          </p>
+          {opportunity.contact ? (
+            <div className="mt-0.5 space-y-0.5">
+              {repeatsTitle ? null : (
+                <p className="truncate text-xs font-medium text-slate-700">
+                  <Highlight query={query} text={contactName} />
+                </p>
+              )}
+              {company ? (
+                <p className="truncate text-xs text-slate-600">
+                  <Highlight query={query} text={company} />
+                </p>
+              ) : null}
+              {opportunity.contact.email ? (
+                <p className="truncate text-xs text-slate-500">
+                  <Highlight query={query} text={opportunity.contact.email} />
+                </p>
+              ) : null}
+              {opportunity.contact.phone ? (
+                <p className="truncate text-xs text-slate-500">
+                  <Highlight query={query} text={opportunity.contact.phone} />
+                </p>
+              ) : null}
+            </div>
           ) : null}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
+            {opportunity.eventDate ? <span>{formatEventDate(opportunity.eventDate)}</span> : null}
+            {opportunity.guestCount !== null ? (
+              <span>
+                {opportunity.guestCount} {opportunity.guestCount === 1 ? "guest" : "guests"}
+              </span>
+            ) : null}
+            {opportunity.inquiryType ? <span>{opportunity.inquiryType}</span> : null}
+            {showValue && opportunity.monetaryValue ? (
+              <span className="font-semibold text-slate-700">
+                {currency.format(opportunity.monetaryValue)}
+              </span>
+            ) : null}
+          </div>
         </div>
-      </div>
-      {opportunity.contact ? (
-        <div className="mt-0.5 space-y-0.5">
-          {repeatsTitle ? null : (
-            <p className="truncate text-xs font-medium text-slate-700">
-              <Highlight query={query} text={contactName} />
-            </p>
-          )}
-          {company ? (
-            <p className="truncate text-xs text-slate-600">
-              <Highlight query={query} text={company} />
-            </p>
-          ) : null}
-          {opportunity.contact.email ? (
-            <p className="truncate text-xs text-slate-500">
-              <Highlight query={query} text={opportunity.contact.email} />
-            </p>
-          ) : null}
-          {opportunity.contact.phone ? (
-            <p className="truncate text-xs text-slate-500">
-              <Highlight query={query} text={opportunity.contact.phone} />
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
-        {opportunity.eventDate ? <span>{formatEventDate(opportunity.eventDate)}</span> : null}
-        {opportunity.guestCount !== null ? (
-          <span>
-            {opportunity.guestCount} {opportunity.guestCount === 1 ? "guest" : "guests"}
-          </span>
-        ) : null}
-        {opportunity.inquiryType ? <span>{opportunity.inquiryType}</span> : null}
-        {showValue && opportunity.monetaryValue ? (
-          <span className="font-semibold text-slate-700">
-            {currency.format(opportunity.monetaryValue)}
-          </span>
-        ) : null}
-        {opportunity.coordinatorName ? (
-          <span>
-            <Highlight query={query} text={opportunity.coordinatorName} />
-          </span>
+        {/* Status column: conversation, timing, intake, stage age, chase —
+            each explains itself on hover. */}
+        {badges.length > 0 ? (
+          <ul aria-label="Status" className="flex shrink-0 flex-col items-end gap-1">
+            {badges.map((badge) => (
+              <li key={badge.key}>
+                <Tooltip align="end" label={badge.detail} wrap>
+                  <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
+                </Tooltip>
+              </li>
+            ))}
+          </ul>
         ) : null}
       </div>
       <div className="mt-2 flex items-center gap-1.5 border-t border-slate-200 pt-2">
@@ -531,17 +719,87 @@ function OpportunityCard({
               contactId={opportunity.contact.id}
               contactName={opportunity.contact.name}
             />
-            <div className="ml-auto">
-              <FollowUpPauseButton
-                compact
-                contactId={opportunity.contact.id}
-                contactName={opportunity.contact.name}
-                initialPause={pause}
-                opportunityId={opportunity.id}
-              />
-            </div>
           </>
         ) : null}
+        <div className="ml-auto flex items-center gap-1.5">
+          {opportunity.contact?.id ? (
+            <FollowUpPauseButton
+              compact
+              contactId={opportunity.contact.id}
+              contactName={opportunity.contact.name}
+              initialPause={pause}
+              opportunityId={opportunity.id}
+            />
+          ) : null}
+          <OpportunityStageMenu
+            contactId={opportunity.contact?.id ?? null}
+            currentStageKey={stageKey}
+            eventId={flags?.eventId ?? null}
+            onMoved={onMoved}
+            opportunityId={opportunity.id}
+            stages={moveTargets}
+          />
+        </div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+// Who holds the stage's cards: one chip per coordinator (most cards first,
+// Unassigned last) with their count. A chip toggles the coordinator filter.
+function CoordinatorLegend({
+  groups,
+  onSelect,
+  selected,
+  stageName,
+}: {
+  groups: { key: string; name: string; color: string; count: number }[];
+  onSelect: (key: string) => void;
+  selected: string | null;
+  stageName: string;
+}) {
+  return (
+    <div className="mt-3">
+      <div
+        aria-label={`Coordinators in ${stageName}`}
+        className="flex flex-wrap gap-1.5"
+        role="group"
+      >
+        {groups.map((group) => {
+          const isSelected = selected === group.key;
+          return (
+            <Tooltip
+              key={group.key}
+              label={
+                isSelected
+                  ? "Show every coordinator again"
+                  : `Show only ${group.name === "Unassigned" ? "unassigned cards" : `${group.name}'s cards`}; the stage tabs then count them in each stage`
+              }
+            >
+              <button
+                aria-pressed={isSelected}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                  isSelected
+                    ? "border-slate-400 bg-white text-slate-950 shadow-sm"
+                    : selected
+                      ? "border-slate-200 bg-white text-slate-400 hover:text-slate-700"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                }`}
+                onClick={() => onSelect(group.key)}
+                type="button"
+              >
+                <span
+                  aria-hidden
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: group.color }}
+                />
+                {group.name}
+                <span className="font-semibold text-slate-950">{group.count}</span>
+              </button>
+            </Tooltip>
+          );
+        })}
       </div>
     </div>
   );

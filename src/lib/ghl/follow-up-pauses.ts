@@ -54,8 +54,9 @@ function toPause(row: PauseRow): FollowUpPause {
   };
 }
 
-
-async function ghlUserIdForEmail(email: string | null): Promise<string | null> {
+// The GHL user behind a portal login, matched by email, so notes the portal
+// writes are attributed to that person rather than to the API.
+export async function ghlUserIdForEmail(email: string | null): Promise<string | null> {
   if (!email) return null;
   const users = await listGhlUsers();
   return (

@@ -19,6 +19,7 @@ type SnapshotBits = {
   previousCoordinatorId: string | null;
   eventName: string | null;
   eventDate: string | null;
+  eventEndDate: string | null;
   eventType: string | null;
   contactName: string | null;
   guestCount: number | null;
@@ -42,6 +43,7 @@ function readSnapshot(snapshot: Json): SnapshotBits {
     previousCoordinatorId: text(record(raw.planner)?.id),
     eventName: text(raw.eventName),
     eventDate: text(raw.eventDate),
+    eventEndDate: text(raw.eventEndDate),
     eventType: text(raw.eventType),
     contactName: text(record(raw.contact)?.name),
     guestCount: typeof guests === "number" && Number.isFinite(guests) ? guests : null,
@@ -107,6 +109,7 @@ export async function notifyCoordinatorAssigned({
       coordinatorName: coordinator.name,
       eventName: snapshot.eventName ?? "Untitled event",
       eventDate: snapshot.eventDate,
+      eventEndDate: snapshot.eventEndDate,
       eventType: snapshot.eventType,
       contactName: snapshot.contactName,
       guestCount: snapshot.guestCount,

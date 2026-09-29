@@ -1,8 +1,10 @@
-// GHL fills merge tags when it sends from its own UI, but messages posted
-// through the Conversations API go out verbatim — GHL blanks whatever tag is
-// left. Snippets are therefore rendered here for the contact, the event, and
-// the coordinator before they land in the compose box; anything unknown stays
-// as-is so the drawer can flag it before the coordinator hits Send.
+// GHL does fill merge tags on messages posted through the Conversations API,
+// but only from what the send tells it: the contact, and the contact's
+// assigned user standing in for {{user.*}} (the send's userId is ignored for
+// email — verified 2026-09-24). Opportunity tags have no context there and go
+// out blank. Snippets are therefore rendered here for the contact, the event,
+// and the coordinator before they land in the compose box; anything unknown
+// stays as-is so the drawer can flag it before the coordinator hits Send.
 //
 // Kept free of app imports so the node test runner can load it directly.
 export type SnippetMergeContext = {
@@ -79,12 +81,26 @@ export function renderSnippetMergeTags(
   });
 }
 
+// GHL's own tag for a user's email signature. The API has no way to read a
+// signature, so the app never renders this one: it's appended to outgoing
+// emails and GHL fills it with the contact's assigned user's signature.
+export const EMAIL_SIGNATURE_TAG = "{{user.email_signature}}";
+
+const EMAIL_SIGNATURE_PATTERN = /\{\{\s*user\.email_signature\s*\}\}/i;
+
+// The email's HTML ending with the signature tag, unless the message already
+// places the tag itself.
+export function appendEmailSignature(html: string): string {
+  return EMAIL_SIGNATURE_PATTERN.test(html) ? html : `${html}${EMAIL_SIGNATURE_TAG}`;
+}
+
 // Merge tags still sitting in a message ("{{opportunity.portal_link}}"),
-// deduped in order of appearance. GHL would send each one as a blank.
+// deduped in order of appearance. GHL would send each one as a blank — all
+// but the signature tag, which GHL fills itself.
 export function findUnfilledMergeTags(text: string): string[] {
   const tags = new Set<string>();
   for (const match of text.matchAll(/\{\{\s*[^{}]*?\s*\}\}/g)) {
-    tags.add(match[0]);
+    if (!EMAIL_SIGNATURE_PATTERN.test(match[0])) tags.add(match[0]);
   }
   return [...tags];
 }

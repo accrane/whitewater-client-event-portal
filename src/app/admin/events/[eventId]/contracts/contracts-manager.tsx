@@ -28,6 +28,7 @@ import {
   loadContractCatalogAction,
   loadContractTemplateLayoutAction,
   refreshContractAction,
+  setContractPayingByCheckAction,
   updateContractAction,
 } from "./actions";
 import { ContractItemsEditor, type CatalogState } from "./contract-items-editor";
@@ -52,6 +53,10 @@ type ContractsManagerProps = {
   // Event day line ("Friday, November 20th - 9:45am arrival") offered as the
   // first items group's sub-heading on a new contract.
   defaultSectionTitle: string;
+  // One line per event day, suggested in every sub-heading field (create
+  // and edit) — how a multi-day contract, or one for a moved event, gets
+  // its day lines.
+  sectionSuggestions: string[];
 };
 
 const statusTones: Record<EventContract["status"], BadgeTone> = {
@@ -88,6 +93,7 @@ export function ContractsManager({
   contacts,
   portalLaunched,
   defaultSectionTitle,
+  sectionSuggestions,
 }: ContractsManagerProps) {
   const [showForm, setShowForm] = useState(contracts.length === 0);
 
@@ -120,6 +126,7 @@ export function ContractsManager({
           eventId={eventId}
           eventName={eventName}
           onDone={() => setShowForm(false)}
+          sectionSuggestions={sectionSuggestions}
           templateOptions={templateOptions}
         />
       ) : null}
@@ -141,6 +148,7 @@ export function ContractsManager({
               contract={contract}
               eventId={eventId}
               key={contract.id}
+              sectionSuggestions={sectionSuggestions}
             />
           ))}
         </ul>
@@ -152,9 +160,11 @@ export function ContractsManager({
 function ContractCard({
   contract,
   eventId,
+  sectionSuggestions,
 }: {
   contract: EventContract;
   eventId: string;
+  sectionSuggestions: string[];
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +185,7 @@ function ContractCard({
           contract={contract}
           eventId={eventId}
           onDone={() => setEditing(false)}
+          sectionSuggestions={sectionSuggestions}
         />
       </li>
     );
@@ -267,13 +278,13 @@ function ContractCard({
         </div>
       ) : contract.status === "completed" && contract.signedActionsAppliedAt ? (
         <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-          Signed {formatDateTime(contract.completedAt)}. Room reservations were
-          marked booked and the GHL opportunity moved to Booked. Details are in
-          the integration logs.
-          {contract.pandadocStatus === "document.waiting_pay"
-            ? " PandaDoc is still waiting on the payment step this template collects; the signature itself is on file."
-            : ""}
+          Signed {formatDateTime(contract.completedAt)}. The GHL opportunity
+          moved to Booked. Details are in the integration logs.
         </p>
+      ) : null}
+
+      {contract.status === "completed" ? (
+        <ContractPayment contract={contract} eventId={eventId} />
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -320,7 +331,8 @@ function ContractCard({
           </a>
         ) : null}
         {contract.pandadocDocumentId &&
-        !["completed", "declined", "voided"].includes(contract.status) ? (
+        (!["completed", "declined", "voided"].includes(contract.status) ||
+          contract.pandadocStatus === "document.waiting_pay") ? (
           <button
             className={buttonClasses("secondary", "sm")}
             disabled={pending}
@@ -384,6 +396,96 @@ function ContractCard({
         </div>
       ) : null}
     </li>
+  );
+}
+
+// Where a signed contract stands on payment, which is what books the rooms:
+// paid in PandaDoc, marked "Paying by check", or still waiting — with the
+// switch for clients who pay outside PandaDoc.
+function ContractPayment({
+  contract,
+  eventId,
+}: {
+  contract: EventContract;
+  eventId: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const setPayingByCheck = (payingByCheck: boolean) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await setContractPayingByCheckAction(
+        eventId,
+        contract.id,
+        payingByCheck,
+      );
+      if (!result.ok) setError(result.error);
+    });
+  };
+
+  const roomsText = contract.roomsBookedAt
+    ? `The event's rooms were booked ${formatDateTime(contract.roomsBookedAt)}.`
+    : "The event's rooms haven't been booked yet; the portal keeps trying.";
+  const errorLine = error ? <p className="mt-1 text-red-700">{error}</p> : null;
+
+  if (contract.pandadocStatus === "document.paid") {
+    return (
+      <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+        Paid in PandaDoc. {roomsText}
+      </p>
+    );
+  }
+
+  if (contract.payByCheckAt) {
+    return (
+      <div className="mt-3 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-xs text-sky-900">
+        <p>
+          Paying by check — marked {formatDateTime(contract.payByCheckAt)}
+          {contract.payByCheckBy ? ` by ${contract.payByCheckBy}` : ""}.{" "}
+          {roomsText} When the check arrives, mark the document paid in
+          PandaDoc.
+        </p>
+        <button
+          className="mt-1 font-semibold underline-offset-2 hover:underline disabled:opacity-50"
+          disabled={pending}
+          onClick={() => setPayingByCheck(false)}
+          type="button"
+        >
+          {pending ? "Saving…" : "Not paying by check"}
+        </button>
+        {errorLine}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      <p>
+        {contract.pandadocStatus === "document.waiting_pay"
+          ? "Waiting on the first payment, which PandaDoc collects on the step after signing."
+          : "PandaDoc isn't collecting a payment on this contract."}{" "}
+        {contract.roomsBookedAt
+          ? "Its rooms were booked when it was signed."
+          : "The event's rooms stay held until it's paid."}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          className={buttonClasses("secondary", "sm")}
+          disabled={pending}
+          onClick={() => setPayingByCheck(true)}
+          type="button"
+        >
+          {pending ? "Saving…" : "Paying by check"}
+        </button>
+        <span>
+          {contract.roomsBookedAt
+            ? "Records that the client pays outside PandaDoc."
+            : "The client pays outside PandaDoc: books the event's held rooms now."}
+        </span>
+      </div>
+      {errorLine}
+    </div>
   );
 }
 
@@ -486,6 +588,7 @@ function LineItemsTable({
 type ContractFormProps = {
   eventId: string;
   onDone: () => void;
+  sectionSuggestions: string[];
 } & (
   | {
       // Create: template picker and recipient are editable.
@@ -749,6 +852,7 @@ function ContractForm(props: ContractFormProps) {
         layoutError={layoutStatus.error}
         loadingLayout={layoutStatus.loading}
         onChange={setTables}
+        sectionSuggestions={props.sectionSuggestions}
         tables={tables}
       />
 

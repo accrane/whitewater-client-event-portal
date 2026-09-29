@@ -3,15 +3,18 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  clearContractPayingByCheck,
   createEventContract,
   deleteFailedEventContract,
   getContractCatalog,
   getContractTemplateLayout,
+  markContractPayingByCheck,
   refreshEventContract,
   updateEventContract,
   type ContractCatalogOutcome,
   type ContractTemplateLayoutOutcome,
   type CreateEventContractOutcome,
+  type PayingByCheckOutcome,
 } from "@/lib/admin/contracts";
 import type { ContractLineItem, EventContract } from "@/lib/contracts/shared";
 import { requireStaffUser } from "@/lib/admin/session";
@@ -101,6 +104,33 @@ export async function refreshContractAction(
   const contract = await refreshEventContract(eventId, contractId);
   revalidateContracts(eventId);
   return contract;
+}
+
+// "Paying by check" on a signed contract: books the event's held rooms now
+// instead of waiting for a PandaDoc payment. Clearing it leaves the rooms be.
+export async function setContractPayingByCheckAction(
+  eventId: string,
+  contractId: string,
+  payingByCheck: boolean,
+): Promise<PayingByCheckOutcome> {
+  const { user } = await requireStaffUser();
+  try {
+    const outcome = payingByCheck
+      ? await markContractPayingByCheck(eventId, contractId, user.email ?? null)
+      : await clearContractPayingByCheck(eventId, contractId, user.email ?? null);
+    revalidateContracts(eventId);
+    revalidatePath("/admin/calendar");
+    revalidatePath("/admin/assignments");
+    return outcome;
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to update the contract.",
+    };
+  }
 }
 
 export async function deleteFailedContractAction(

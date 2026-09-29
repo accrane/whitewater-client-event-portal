@@ -17,7 +17,8 @@ import { findUnfilledMergeTags } from "@/lib/ghl/snippet-merge-tags";
 // Speech-bubble button + slide-in drawer showing the primary contact's GHL
 // conversation history for this event, with a reply box that sends through
 // GHL (so replies land in the same Conversations thread staff see there).
-// The reply box can pull in GHL snippets (inserted as editable text).
+// The reply box can pull in GHL snippets (inserted as editable text), and
+// emails end with a GHL email signature unless the coordinator unticks it.
 
 type DrawerMessage = {
   id: string;
@@ -49,8 +50,13 @@ type TemplateList<T> =
   | { ok: true; items: T[] }
   | { ok: false; error: string };
 
+// Whose signature GHL adds to an email sent from here: the contact's
+// assigned user. Null when the contact has nobody assigned.
+type Signer = { name: string | null; isSender: boolean } | null;
+
 type MessageTemplates = {
   snippets: TemplateList<Snippet>;
+  signer: Signer;
 };
 
 type ContactConversationsButtonProps = {
@@ -192,6 +198,7 @@ function ConversationsDrawer({
   const [channel, setChannel] = useState<"Email" | "SMS">("Email");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sentNotice, setSentNotice] = useState<string | null>(null);
@@ -280,7 +287,7 @@ function ConversationsDrawer({
         if (!res.ok || !data.snippets) {
           throw new Error(data.error || "Unable to load snippets");
         }
-        setTemplates({ snippets: data.snippets });
+        setTemplates({ snippets: data.snippets, signer: data.signer ?? null });
         setTemplatesError(null);
       } catch (error) {
         setTemplatesError(
@@ -364,6 +371,7 @@ function ConversationsDrawer({
             channel === "Email"
               ? (lastEmail?.emailMessageId ?? undefined)
               : undefined,
+          includeSignature: channel === "Email" ? includeSignature : undefined,
           opportunityId,
           snippetNames: insertedSnippets,
         }),
@@ -573,9 +581,16 @@ function ConversationsDrawer({
               text before sending.
             </p>
           ) : null}
-          <div className="flex justify-end">
+          <div className="flex items-start gap-3">
+            {channel === "Email" ? (
+              <SignatureOption
+                checked={includeSignature}
+                onChange={setIncludeSignature}
+                signer={templates ? templates.signer : undefined}
+              />
+            ) : null}
             <button
-              className={buttonClasses("primary", "sm")}
+              className={`${buttonClasses("primary", "sm")} ml-auto shrink-0`}
               disabled={sending || !canSend}
               onClick={() => void handleSend()}
               type="button"
@@ -587,6 +602,54 @@ function ConversationsDrawer({
         </>
       )}
     </SlideOver>
+  );
+}
+
+// The signature checkbox beside Send. The signature itself can't be read from
+// GHL, so the label names whose it will be instead of previewing it. An
+// undefined signer means the compose info hasn't loaded (or failed to).
+function SignatureOption({
+  checked,
+  onChange,
+  signer,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  signer: Signer | undefined;
+}) {
+  if (signer === null) {
+    return (
+      <p className="text-xs text-slate-500">
+        No email signature: this contact has no coordinator assigned in GHL.
+      </p>
+    );
+  }
+
+  const whose = !signer
+    ? "the GHL email signature"
+    : signer.isSender
+      ? "my GHL email signature"
+      : signer.name
+        ? `${signer.name}'s GHL email signature`
+        : "the assigned coordinator's GHL email signature";
+
+  return (
+    <label className="flex min-w-0 items-start gap-2 text-xs text-slate-600">
+      <input
+        checked={checked}
+        className="mt-px h-4 w-4 shrink-0 rounded border-slate-300"
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
+      <span>
+        Add {whose}
+        {signer && !signer.isSender ? (
+          <span className="block text-slate-500">
+            GHL signs with the contact&apos;s assigned coordinator.
+          </span>
+        ) : null}
+      </span>
+    </label>
   );
 }
 

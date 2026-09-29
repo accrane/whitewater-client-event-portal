@@ -1,4 +1,7 @@
-import { buildEventChecklistItemInserts } from "@/lib/admin/checklist-template-builders";
+import {
+  buildEventChecklistItemInserts,
+  calculateDueDate,
+} from "@/lib/admin/checklist-template-builders";
 import { buildEventChecklistItemUpdate } from "@/lib/admin/checklist-item-editors";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
@@ -168,6 +171,44 @@ export async function applyChecklistTemplateToEvent({
     eventId,
     templateId,
   };
+}
+
+// Due dates are stored as dates when a template is applied (the event's
+// first day minus the item's offset), so they're recomputed when the date
+// changes. Items without an offset keep theirs. Returns how many changed.
+export async function recomputeChecklistDueDates(
+  eventId: string,
+  eventDate: string | null,
+): Promise<number> {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("event_checklist_items")
+    .select("id, due_offset_days, due_date_override")
+    .eq("event_id", eventId)
+    .not("due_offset_days", "is", null);
+
+  if (error) {
+    throw new Error(`Unable to load checklist due dates: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as Pick<
+    EventChecklistItemRow,
+    "id" | "due_offset_days" | "due_date_override"
+  >[];
+  let changed = 0;
+  for (const row of rows) {
+    const dueDate = calculateDueDate(eventDate, row.due_offset_days);
+    if (dueDate === row.due_date_override) continue;
+    const { error: updateError } = await supabase
+      .from("event_checklist_items")
+      .update({ due_date_override: dueDate } as never)
+      .eq("id", row.id);
+    if (updateError) {
+      throw new Error(`Unable to update checklist due dates: ${updateError.message}`);
+    }
+    changed += 1;
+  }
+  return changed;
 }
 
 export async function updateEventChecklistItem({

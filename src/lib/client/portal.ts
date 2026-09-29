@@ -11,6 +11,7 @@ import {
 } from "@/lib/client/uploads";
 import { buildClientVendorInsert, type ClientVendorSubmissionInput } from "@/lib/client/vendor-submissions";
 import { parseFacilitator, saveEventFacilitator } from "@/lib/admin/events";
+import { normalizeEventEnd } from "@/lib/dates/event-dates";
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import { sha256Hex } from "@/lib/tokens";
 import type { Database, Json } from "@/types/database";
@@ -27,6 +28,8 @@ export type ClientPortalEvent = {
   eventName: string;
   eventType: string | null;
   eventDate: string | null;
+  // Last day of a multi-day event; null for one day.
+  eventEndDate: string | null;
   arrivalTime: string | null;
   meetingLocation: string | null;
   numberOfGuests: number | null;
@@ -373,6 +376,7 @@ function mapEventToClientPortalEvent(
     eventName: snapshot.eventName || "Your event",
     eventType: snapshot.eventType ?? null,
     eventDate: snapshot.eventDate ?? null,
+    eventEndDate: normalizeEventEnd(snapshot.eventDate, snapshot.eventEndDate),
     arrivalTime: snapshot.arrivalTime ?? null,
     meetingLocation: snapshot.meetingLocation ?? null,
     numberOfGuests: snapshot.numberOfGuests ?? null,
@@ -421,6 +425,7 @@ function parseGhlSnapshot(snapshot: Json): GhlEventSnapshot {
     eventName: getString(raw.eventName),
     eventType: getString(raw.eventType),
     eventDate: getString(raw.eventDate),
+    eventEndDate: getString(raw.eventEndDate),
     arrivalTime: getString(raw.arrivalTime),
     meetingLocation: getString(raw.meetingLocation),
     numberOfGuests: getNumber(raw.numberOfGuests),
