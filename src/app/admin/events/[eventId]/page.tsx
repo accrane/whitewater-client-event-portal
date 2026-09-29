@@ -21,6 +21,7 @@ import {
   listEventContracts,
   retryPendingSignedContracts,
   syncEventContracts,
+  syncProposalLinksFromContracts,
 } from "@/lib/admin/contracts";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import {
@@ -232,6 +233,12 @@ export default async function AdminEventDetailPage({
   // Pull current opportunity data (Date of Interest, assigned coordinator,
   // contact, event type) from GHL before rendering; degrades quietly.
   await Promise.all([syncEventFromGhl(eventId), syncEventContracts(eventId)]);
+  // After both: the GHL refresh can put an older proposal link back in the
+  // snapshot, and signed proposals aren't re-synced above, so a failed
+  // write for one would otherwise never retry. Cheap when nothing changed.
+  await syncProposalLinksFromContracts(eventId).catch((error) =>
+    console.error("Proposal link sync failed", eventId, error),
+  );
   // Signed-contract steps that failed earlier (e.g. GHL was down) get another
   // try once the page is on its way.
   after(() => retryPendingSignedContracts({ eventId, limit: 5 }));

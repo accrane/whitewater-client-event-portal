@@ -42,6 +42,13 @@ test("voided and declined contracts don't count, so a re-issue takes their place
   );
 });
 
+test("a proposal moved back to draft for an edit doesn't count while it's there", () => {
+  assert.deepEqual(
+    proposalLinksFor([contract("2026-09-01", "A", "draft"), contract("2026-09-10", "B")]),
+    { proposal: "B", revisedProposal: null },
+  );
+});
+
 test("a revised proposal not sent yet leaves its field empty", () => {
   assert.deepEqual(
     proposalLinksFor([contract("2026-09-01", "A"), contract("2026-09-10", null, "approval")]),

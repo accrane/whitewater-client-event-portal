@@ -437,8 +437,10 @@ export async function writeProposalLinksToOpportunity(
       message,
       details: {
         ghl_opportunity_id: event.ghl_opportunity_id,
-        proposal_link: links.proposal,
-        revised_proposal_link: links.revisedProposal,
+        // Customer View links open the document without a sign-in, so the
+        // log records only whether each field was set or cleared.
+        proposal_link: links.proposal ? "set" : "cleared",
+        revised_proposal_link: links.revisedProposal ? "set" : "cleared",
         ...details,
       },
     });
