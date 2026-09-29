@@ -204,6 +204,7 @@ save while any of them overlaps.
     | `{{opportunity.groupevent_name}}` | The event name |
     | `{{opportunity.event_date}}` | The event date, written out (November 20, 2026, or November 20–22, 2026 for a multi-day event) |
     | `{{opportunity.portal_link}}` | The client's portal link (only once the portal has been launched) |
+    | `{{opportunity.proposal_link}}` | The client's proposal link from PandaDoc (the same link shown as **Proposal link** on the event page; only once the proposal has been created) |
 
     If a tag can't be filled in (no coordinator assigned yet, portal not
     launched, or a tag the portal doesn't know) it stays in the message as
