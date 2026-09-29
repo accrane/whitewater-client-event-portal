@@ -89,11 +89,11 @@ test("a contract signed and paid before its first run runs every step", () => {
   );
 });
 
-test("the first payment books the rooms once", () => {
+test("the first payment books the rooms, and moves the opportunity to Booked again, once", () => {
   assert.deepEqual(signedContractStepsToRun(afterFirstRun), []);
   assert.deepEqual(
     signedContractStepsToRun({ ...afterFirstRun, pandadocStatus: "document.paid" }),
-    ["reservations"],
+    ["reservations", "ghl_stage"],
   );
   assert.deepEqual(
     signedContractStepsToRun({
@@ -108,7 +108,7 @@ test("the first payment books the rooms once", () => {
 test("paying by check counts as the payment", () => {
   assert.deepEqual(
     signedContractStepsToRun({ ...afterFirstRun, payByCheckAt: "2026-09-25T09:00:00Z" }),
-    ["reservations"],
+    ["reservations", "ghl_stage"],
   );
 });
 
@@ -119,7 +119,7 @@ test("a failed rooms step retries only while the contract is paid", () => {
       pandadocStatus: "document.paid",
       signedActionsPending: ["reservations"],
     }),
-    ["reservations"],
+    ["reservations", "ghl_stage"],
   );
   // Queued before rooms waited for payment, or the check was undone.
   assert.deepEqual(

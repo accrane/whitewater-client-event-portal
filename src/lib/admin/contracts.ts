@@ -1535,7 +1535,13 @@ async function runSignedSteps(row: ContractRow): Promise<ContractRow> {
           : "Contract signed: GHL opportunity moved to Booked, PDF archived. Rooms stay held until the first payment."
       : paymentRun
         ? roomsBooked
-          ? `Contract ${paidHow}: the event's held rooms are now booked.`
+          ? `Contract ${paidHow}: the event's held rooms are now booked${
+              outcomes.ghl_stage && !outcomes.ghl_stage.startsWith("error")
+                ? " and the GHL opportunity is in Booked"
+                : stillPending.includes("ghl_stage")
+                  ? "; moving the GHL opportunity to Booked failed and will be retried"
+                  : ""
+            }.`
           : `Contract ${paidHow}; booking the event's rooms failed and will be retried automatically.`
         : stillPending.length > 0
           ? "Retried the signed-contract steps that failed earlier; some still need another try."
@@ -1641,11 +1647,18 @@ export async function markContractPayingByCheck(
     return { ok: false, error: "PandaDoc already shows this contract as paid." };
   }
 
+  // A fresh click books whatever rooms are held now and puts the
+  // opportunity back in Booked, even if both happened before: rooms saved
+  // after signing come back held, and a saved room or a sent proposal can
+  // have moved the opportunity off Booked since. (Contracts signed before
+  // rooms waited for payment were all stamped rooms_booked_at, so without
+  // this the click did nothing for them.)
   let updated = row.pay_by_check_at
     ? row
     : await updateContractRow(row.id, {
         pay_by_check_at: new Date().toISOString(),
         pay_by_check_by: markedBy,
+        rooms_booked_at: null,
       });
   if (signedStepsToRun(updated).length > 0) {
     try {

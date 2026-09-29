@@ -397,8 +397,9 @@ tax; the form warns you if a catering item ends up in another table.
   any rooms held since, and leaves booked ones alone.
 - **Paying by check:** a signed contract still waiting on payment has a
   **Paying by check** button on its card. Use it for a group that's allowed
-  to pay by check (or any way outside PandaDoc): it books the event's held
-  rooms right away and marks the contract **Paying by check**, with your
+  to pay by check (or any way outside PandaDoc): it books every room still
+  held on the event right away, moves the opportunity back to **Booked** in
+  GHL if it had moved on, and marks the contract **Paying by check**, with your
   name and the time, so everyone can see why PandaDoc still says unpaid.
   They can simply close PandaDoc's payment screen after signing. When the
   check arrives, mark the document paid in PandaDoc. **Not paying by check**
@@ -633,7 +634,7 @@ Payment, the wedding ones) work as they are. If you build a new one:
 | The client says their signing link stopped working | The contract was edited after it was sent. Their portal shows the revised one. |
 | A room under Room bookings says **Not an event day** | The event's date changed (here or in GHL) and that room didn't move with it, or it was booked for a setup day. Click **Move rooms** to line the rooms up with the event, or leave a setup room where it is. |
 | Changing the date says GoHighLevel didn't take it | Nothing was changed. GHL was unreachable or refused the update; try again in a minute, and tell a manager if it keeps happening. |
-| The client signed but the rooms are still held | Rooms book at the first payment, not the signature. Open the contract: "Payment pending" means PandaDoc is still waiting on the client's payment (**Refresh status** checks again). If they're paying by check, use **Paying by check**. |
+| The client signed but the rooms are still held | Rooms book at the first payment, not the signature. Rooms added or moved after the payment come back held; clicking **Paying by check** books them (a PandaDoc payment only books rooms once). Open the contract: "Payment pending" means PandaDoc is still waiting on the client's payment (**Refresh status** checks again). If they're paying by check, use **Paying by check**. |
 | Follow-up messages still going to someone who called | Use the pause switch on their Opportunities card or event page. |
 | A card says **Client waiting** but you answered them | Answers from your own mailbox, or given by phone, never reach GHL. Reply from the conversations drawer or from GHL; after a phone call, pause follow-ups. |
 | GHL is sending follow-ups but the card shows no chase badge | The chase workflow in GHL isn't tagging the contact. Tell a manager. |

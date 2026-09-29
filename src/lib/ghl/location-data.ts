@@ -71,6 +71,8 @@ export type GhlOpportunity = {
   assignedTo: string | null;
   monetaryValue: number | null;
   customFields: unknown;
+  pipelineId: string | null;
+  pipelineStageId: string | null;
 };
 
 export async function fetchOpportunity(
@@ -97,6 +99,8 @@ export async function fetchOpportunity(
         assignedTo?: string;
         monetaryValue?: number;
         customFields?: unknown;
+        pipelineId?: string;
+        pipelineStageId?: string;
       };
     };
     const opportunity = data.opportunity;
@@ -113,6 +117,8 @@ export async function fetchOpportunity(
           ? opportunity.monetaryValue
           : null,
       customFields: opportunity.customFields,
+      pipelineId: opportunity.pipelineId ?? null,
+      pipelineStageId: opportunity.pipelineStageId ?? null,
     };
   } catch (error) {
     console.error("GHL opportunity fetch failed", error);

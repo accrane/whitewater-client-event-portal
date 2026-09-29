@@ -195,10 +195,12 @@ export function signedContractStepsToRun(contract: {
   roomsBookedAt: string | null;
 }): SignedContractStep[] {
   const pending = parseSignedContractSteps(contract.signedActionsPending);
+  const roomsDue = contractPaymentReceived(contract) && !contract.roomsBookedAt;
   return SIGNED_CONTRACT_STEPS.filter((step) => {
-    if (step === "reservations") {
-      return contractPaymentReceived(contract) && !contract.roomsBookedAt;
-    }
+    if (step === "reservations") return roomsDue;
+    // Payment also puts the opportunity (back) in Booked: signing moved it
+    // there, but a room saved or a proposal sent since can have moved it on.
+    if (step === "ghl_stage" && roomsDue) return true;
     if (!contract.signedActionsAppliedAt) return true;
     return (
       pending.includes(step) ||

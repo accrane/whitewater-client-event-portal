@@ -546,9 +546,39 @@ export async function writePortalLinkToOpportunity(
 // calendar, move its GHL opportunity into the Planning stage so GHL-side
 // tasks and notifications kick off. Never throws — the reservation save is
 // the primary action.
+// Saving a room is a "we're planning this" signal, so it only ever moves the
+// opportunity forward: an opportunity already at Planning or beyond
+// (Proposal Sent, Booked, Lost) stays put. Saving a room used to pull a
+// Booked opportunity back to Planning. When the current stage can't be read,
+// it moves as before.
 export async function moveOpportunityToPlanning(
   event: EventRow,
 ): Promise<OpportunitySyncOutcome> {
+  if (event.ghl_opportunity_id && appConfig.ghl.planningStageId) {
+    const [pipeline, opportunity] = await Promise.all([
+      fetchConfiguredPipeline(),
+      fetchOpportunity(event.ghl_opportunity_id),
+    ]);
+    const planning = pipeline?.stages.find(
+      (stage) => stage.id === appConfig.ghl.planningStageId,
+    );
+    const current =
+      pipeline && opportunity?.pipelineId === pipeline.id
+        ? pipeline.stages.find((stage) => stage.id === opportunity.pipelineStageId)
+        : undefined;
+    if (planning && current && current.position >= planning.position) {
+      await logIntegrationEvent({
+        direction: "PORTAL_TO_GHL",
+        eventType: "opportunity_move_to_planning",
+        ghlLocationId: event.ghl_location_id,
+        portalEventId: event.id,
+        status: "success",
+        message: `GHL opportunity left in ${current.name}: a saved room only moves it forward to Planning.`,
+        details: { ghl_opportunity_id: event.ghl_opportunity_id, stage: current.name },
+      });
+      return { ok: true };
+    }
+  }
   return moveOpportunityToStage(event, {
     stageId: appConfig.ghl.planningStageId,
     stageLabel: "Planning",
