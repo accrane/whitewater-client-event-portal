@@ -6,6 +6,7 @@ import { parseGhlSnapshot } from "@/lib/admin/events";
 import { formatEventDates } from "@/lib/dates/event-dates";
 import { fetchGhlContact } from "@/lib/ghl/contacts";
 import { listGhlUsers } from "@/lib/ghl/location-data";
+import { syncProposalLinksFromContracts } from "@/lib/admin/contracts";
 import { syncEventFromGhl } from "@/lib/ghl/event-sync";
 import { listGhlSnippets } from "@/lib/ghl/message-templates";
 import {
@@ -20,10 +21,11 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 // for this contact and the signed-in coordinator. With `?eventId=` the
 // event's tags fill in too ({{opportunity.assigned_to}} is the event's
 // coordinator, plus the event name, date, portal link, and proposal link),
-// read from the stored snapshot — no extra GHL call, except that a missing
-// proposal link re-syncs the event once first: PandaDoc writes it in GHL,
-// often after the event page was last opened, and the proposal snippet is
-// sent right after. The list carries its own ok/error so a
+// read from the stored snapshot — no extra GHL call, except when the
+// proposal link is missing: it's then worked out from the event's own
+// contracts (which also writes it to GHL), and failing that the event is
+// re-synced from GHL once. Page-load contract syncs skip signed contracts,
+// so an event whose proposal is already signed may never have recorded it. The list carries its own ok/error so a
 // missing scope renders inside the menu. `?refresh=1` bypasses the cache
 // after someone edits snippets in GHL.
 
@@ -41,6 +43,10 @@ async function loadEventMergeContext(
   let { data } = await read();
   if (!data) return null;
 
+  if (!parseGhlSnapshot(data.ghl_snapshot).links?.proposal && data.ghl_opportunity_id) {
+    await syncProposalLinksFromContracts(eventId);
+    data = (await read()).data ?? data;
+  }
   if (!parseGhlSnapshot(data.ghl_snapshot).links?.proposal && data.ghl_opportunity_id) {
     await syncEventFromGhl(eventId);
     data = (await read()).data ?? data;
