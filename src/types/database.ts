@@ -586,6 +586,22 @@ export type Database = {
         >;
         Relationships: [];
       };
+      coordinator_colors: {
+        Row: {
+          ghl_user_id: string;
+          color: string;
+          created_at: string;
+        };
+        Insert: {
+          ghl_user_id: string;
+          color: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["coordinator_colors"]["Insert"]
+        >;
+        Relationships: [];
+      };
       ghl_conversation_activity: {
         Row: {
           ghl_contact_id: string;

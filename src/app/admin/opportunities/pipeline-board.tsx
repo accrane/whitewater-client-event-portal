@@ -26,8 +26,10 @@ import {
   applyFiltersToParams,
   hasActiveFilters,
   matchesOpportunityFilters,
+  UNASSIGNED_COORDINATOR,
   type OpportunityFilters,
 } from "@/lib/admin/event-filters";
+import { UNASSIGNED_COLOR } from "@/lib/admin/coordinator-color-rules";
 
 // The pipeline's stage tabs + card grid, client-side so a search box and a
 // filter row can narrow the cards as you type or pick. Every open
@@ -38,6 +40,10 @@ import {
 // (?q=, ?coordinator=, ?min_guests=, ?max_guests=, ?from=, ?to=, ?type=) so it survives
 // switching stages and reloads. Each card's "Move to…" menu moves it to
 // another stage in GHL; the board moves the card between tabs right away.
+// Cards are ordered by event date, soonest first, and carry their
+// coordinator's name on a tab in the coordinator's color. A row of names
+// above the grid counts the stage's cards per coordinator; clicking a name
+// filters to them, so the stage tabs then count that coordinator's cards.
 
 export type BoardOpportunity = {
   id: string;
@@ -76,7 +82,11 @@ export type BoardStage = {
   guide: { happened: string; next: string };
 };
 
-export type BoardCoordinator = { id: string; name: string };
+// color: the coordinator's stored color (src/lib/admin/coordinator-colors.ts).
+export type BoardCoordinator = { id: string; name: string; color: string };
+
+// An assignee GHL no longer lists (a removed user) still gets a stripe.
+const UNKNOWN_COORDINATOR_COLOR = "#475569";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -265,7 +275,49 @@ export function PipelineBoard({
       narrowing ? stage.items.filter(isVisible).length : stage.items.length,
     ]),
   );
-  const visible = active.items.filter(isVisible);
+  // Soonest event first (passed dates lead, so they get dealt with);
+  // undated cards go last, otherwise in GHL's order.
+  const visible = active.items
+    .filter(isVisible)
+    .sort((a, b) =>
+      a.eventDate && b.eventDate
+        ? a.eventDate.localeCompare(b.eventDate)
+        : Number(!a.eventDate) - Number(!b.eventDate),
+    );
+  const colorById = new Map(coordinators.map((coordinator) => [coordinator.id, coordinator.color]));
+  const coordinatorColorOf = (item: BoardOpportunity) =>
+    item.coordinatorId
+      ? (colorById.get(item.coordinatorId) ?? UNKNOWN_COORDINATOR_COLOR)
+      : UNASSIGNED_COLOR;
+  // The legend counts the stage's cards per coordinator under the search and
+  // every filter except the coordinator one, so picking a name leaves the
+  // other names and their counts in place to switch to.
+  const legendFilters = { ...filters, coordinator: null };
+  const legend = [
+    ...active.items
+      .filter((item) => matches(item, term) && matchesOpportunityFilters(item, legendFilters))
+      .reduce((groups, item) => {
+        const key = item.coordinatorId ?? UNASSIGNED_COORDINATOR;
+        const group = groups.get(key);
+        if (group) {
+          group.count += 1;
+        } else {
+          groups.set(key, {
+            key,
+            name: item.coordinatorId ? (item.coordinatorName ?? "Unknown user") : "Unassigned",
+            color: coordinatorColorOf(item),
+            count: 1,
+          });
+        }
+        return groups;
+      }, new Map<string, { key: string; name: string; color: string; count: number }>())
+      .values(),
+  ].sort(
+    (a, b) =>
+      Number(a.key === UNASSIGNED_COORDINATOR) - Number(b.key === UNASSIGNED_COORDINATOR) ||
+      b.count - a.count ||
+      a.name.localeCompare(b.name),
+  );
   const total = visible.reduce((sum, item) => sum + (item.monetaryValue ?? 0), 0);
   const otherStagesWithMatches = narrowing
     ? stages.filter((stage) => stage.key !== active.key && (matchCounts.get(stage.key) ?? 0) > 0)
@@ -395,6 +447,19 @@ export function PipelineBoard({
             <span className="mt-0.5 block">{active.guide.next}</span>
           </p>
         </div>
+        {legend.length > 0 ? (
+          <CoordinatorLegend
+            groups={legend}
+            onSelect={(key) =>
+              setFilters((current) => ({
+                ...current,
+                coordinator: current.coordinator === key ? null : key,
+              }))
+            }
+            selected={filters.coordinator}
+            stageName={active.name}
+          />
+        ) : null}
         {moveMessage ? (
           <div
             className={`mt-3 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${
@@ -456,6 +521,7 @@ export function PipelineBoard({
           <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-3">
             {visible.map((opportunity) => (
               <OpportunityCard
+                coordinatorColor={coordinatorColorOf(opportunity)}
                 flags={eventFlags[opportunity.id] ?? null}
                 key={opportunity.id}
                 moveTargets={moveTargets}
@@ -495,6 +561,7 @@ function cardTitle(opportunity: BoardOpportunity): string {
 }
 
 function OpportunityCard({
+  coordinatorColor,
   flags,
   moveTargets,
   newReply,
@@ -506,6 +573,7 @@ function OpportunityCard({
   showValue,
   stageKey,
 }: {
+  coordinatorColor: string;
   flags: EventFlags | null;
   moveTargets: StageMoveTarget[];
   newReply: boolean;
@@ -533,7 +601,25 @@ function OpportunityCard({
       ? [NEW_REPLY_BADGE, ...opportunity.badges]
       : opportunity.badges;
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+    // The coordinator's name sits on a tab above the card in their color,
+    // which carries on down the card's left edge, so a stage scans by owner.
+    <div className="flex flex-col">
+      <span
+        className={`max-w-[75%] self-start truncate rounded-t-md px-2 pb-0.5 pt-1 text-[11px] font-semibold leading-tight ${
+          opportunity.coordinatorId ? "text-white" : "bg-slate-200 text-slate-600"
+        }`}
+        style={opportunity.coordinatorId ? { backgroundColor: coordinatorColor } : undefined}
+      >
+        {opportunity.coordinatorId ? (
+          <Highlight query={query} text={opportunity.coordinatorName ?? "Unknown user"} />
+        ) : (
+          "Unassigned"
+        )}
+      </span>
+      <div
+        className="flex-1 rounded-xl rounded-tl-none border border-l-4 border-slate-200 bg-slate-50 px-3 py-2.5"
+        style={{ borderLeftColor: coordinatorColor }}
+      >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-slate-950">
@@ -584,11 +670,6 @@ function OpportunityCard({
             {showValue && opportunity.monetaryValue ? (
               <span className="font-semibold text-slate-700">
                 {currency.format(opportunity.monetaryValue)}
-              </span>
-            ) : null}
-            {opportunity.coordinatorName ? (
-              <span>
-                <Highlight query={query} text={opportunity.coordinatorName} />
               </span>
             ) : null}
           </div>
@@ -659,6 +740,66 @@ function OpportunityCard({
             stages={moveTargets}
           />
         </div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+// Who holds the stage's cards: one chip per coordinator (most cards first,
+// Unassigned last) with their count. A chip toggles the coordinator filter.
+function CoordinatorLegend({
+  groups,
+  onSelect,
+  selected,
+  stageName,
+}: {
+  groups: { key: string; name: string; color: string; count: number }[];
+  onSelect: (key: string) => void;
+  selected: string | null;
+  stageName: string;
+}) {
+  return (
+    <div className="mt-3">
+      <div
+        aria-label={`Coordinators in ${stageName}`}
+        className="flex flex-wrap gap-1.5"
+        role="group"
+      >
+        {groups.map((group) => {
+          const isSelected = selected === group.key;
+          return (
+            <Tooltip
+              key={group.key}
+              label={
+                isSelected
+                  ? "Show every coordinator again"
+                  : `Show only ${group.name === "Unassigned" ? "unassigned cards" : `${group.name}'s cards`}; the stage tabs then count them in each stage`
+              }
+            >
+              <button
+                aria-pressed={isSelected}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+                  isSelected
+                    ? "border-slate-400 bg-white text-slate-950 shadow-sm"
+                    : selected
+                      ? "border-slate-200 bg-white text-slate-400 hover:text-slate-700"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                }`}
+                onClick={() => onSelect(group.key)}
+                type="button"
+              >
+                <span
+                  aria-hidden
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: group.color }}
+                />
+                {group.name}
+                <span className="font-semibold text-slate-950">{group.count}</span>
+              </button>
+            </Tooltip>
+          );
+        })}
       </div>
     </div>
   );

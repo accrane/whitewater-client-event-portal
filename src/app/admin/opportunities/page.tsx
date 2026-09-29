@@ -34,6 +34,10 @@ import {
   describePipelineProblem,
 } from "@/lib/ghl/opportunities";
 import { getActiveFollowUpPauses } from "@/lib/ghl/follow-up-pauses";
+import {
+  getCoordinatorColors,
+  UNASSIGNED_COLOR,
+} from "@/lib/admin/coordinator-colors";
 import { stageMoveNotice } from "@/lib/ghl/stage-move";
 import { requireStaffUser } from "@/lib/admin/session";
 
@@ -386,9 +390,20 @@ async function PipelineView({
       .map((opportunity) => opportunity.assignedTo)
       .filter((id): id is string => Boolean(id)),
   );
+  // Every coordinator has a color of their own, kept from view to view.
+  // GHL's coordinator list goes first so first-time colors follow it, the
+  // same order the Coordinator Assignments calendar uses.
+  const coordinatorColors = await getCoordinatorColors([
+    ...ghlUsers.filter((user) => user.role === "user").map((user) => user.id),
+    ...assignedIds,
+  ]);
   const coordinators: BoardCoordinator[] = ghlUsers
     .filter((user) => assignedIds.has(user.id))
-    .map((user) => ({ id: user.id, name: user.name }))
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      color: coordinatorColors.get(user.id) ?? UNASSIGNED_COLOR,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const groupTypes = collectGroupTypes(opportunities);
 

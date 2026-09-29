@@ -8,13 +8,14 @@ import {
   listUpcomingAssignments,
   type UpcomingAssignment,
 } from "@/lib/admin/room-calendar";
-import { listGhlCoordinatorUsers } from "@/lib/ghl/location-data";
+import { pickCoordinatorColor } from "@/lib/admin/coordinator-color-rules";
+import { getCoordinatorColors } from "@/lib/admin/coordinator-colors";
+import { listGhlCoordinatorUsers, listGhlUsers } from "@/lib/ghl/location-data";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import {
   monthGridRange,
   parseMonthParam,
-  coordinatorColor,
   CoordinatorMonthCalendar,
   UNASSIGNED_COLOR,
 } from "./coordinator-calendar";
@@ -216,8 +217,10 @@ async function CalendarView({
   const month = parseMonthParam(monthParam);
   const { start, end } = monthGridRange(month);
 
-  const [ghlUsers, assignments] = await Promise.all([
-    listGhlCoordinatorUsers(),
+  // Every GHL user, not just coordinators, so an admin-role user who holds
+  // events still finds their stored color by name.
+  const [allGhlUsers, assignments] = await Promise.all([
+    listGhlUsers(),
     listUpcomingAssignments({
       from: format(start, "yyyy-MM-dd"),
       to: format(end, "yyyy-MM-dd"),
@@ -225,8 +228,10 @@ async function CalendarView({
   ]);
 
   // Coordinator order: GHL staff coordinators first, then anyone else who still
-  // has assignments this month, then Unassigned. Colors follow that order
-  // so a coordinator keeps the same color from month to month.
+  // has assignments this month, then Unassigned. Colors are each
+  // coordinator's stored color, the same one their Opportunities cards
+  // carry; a name GHL doesn't know gets a spare color for this page.
+  const ghlUsers = allGhlUsers.filter((user) => user.role === "user");
   const coordinatorNames = [...ghlUsers.map((u) => u.name)];
   for (const assignment of assignments) {
     const name = coordinatorNameOf(assignment);
@@ -234,9 +239,21 @@ async function CalendarView({
       coordinatorNames.push(name);
     }
   }
-  const colorByCoordinator = new Map<string, string>(
-    coordinatorNames.map((name, index) => [name, coordinatorColor(index)]),
+  const idByName = new Map(allGhlUsers.map((user) => [user.name, user.id]));
+  const storedColors = await getCoordinatorColors(
+    coordinatorNames
+      .map((name) => idByName.get(name))
+      .filter((id): id is string => Boolean(id)),
   );
+  const colorByCoordinator = new Map<string, string>();
+  for (const name of coordinatorNames) {
+    const id = idByName.get(name);
+    colorByCoordinator.set(
+      name,
+      (id && storedColors.get(id)) ||
+        pickCoordinatorColor([...storedColors.values(), ...colorByCoordinator.values()]),
+    );
+  }
   colorByCoordinator.set(UNASSIGNED, UNASSIGNED_COLOR);
 
   const countByCoordinator = new Map<string, number>();
