@@ -20,6 +20,8 @@ const event = {
   name: "Happy Campers Retreat",
   date: "November 20, 2026",
   portalLink: "https://groupsales.whitewater.org/e/abc",
+  proposalLink: "https://app.pandadoc.com/document/v2?token=xyz",
+  revisedProposalLink: "https://app.pandadoc.com/document/v2?token=rev",
   coordinator: { name: "Sam Rivers", email: "sam@whitewater.org" },
 };
 
@@ -31,6 +33,24 @@ test("event tags fill from the event and its assigned coordinator", () => {
   assert.equal(
     text,
     "John, Sam Rivers has your proposal for Happy Campers Retreat on November 20, 2026: https://groupsales.whitewater.org/e/abc",
+  );
+});
+
+test("the proposal link fills from the event, and stays flagged until there is one", () => {
+  const snippet = "Your proposal: {{opportunity.proposal_link}}";
+  assert.equal(
+    renderSnippetMergeTags(snippet, { contact, user: null, event }),
+    "Your proposal: https://app.pandadoc.com/document/v2?token=xyz",
+  );
+  const pending = renderSnippetMergeTags(snippet, {
+    contact,
+    user: null,
+    event: { ...event, proposalLink: null },
+  });
+  assert.deepEqual(findUnfilledMergeTags(pending), ["{{opportunity.proposal_link}}"]);
+  assert.equal(
+    renderSnippetMergeTags("Updated: {{opportunity.revised_proposal_link}}", { contact, user: null, event }),
+    "Updated: https://app.pandadoc.com/document/v2?token=rev",
   );
 });
 

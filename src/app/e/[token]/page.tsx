@@ -161,6 +161,7 @@ export default async function ClientPortalPlaceholderPage({
             <LinkList
               links={[
                 ["Proposal", event.proposalUrl],
+                ["Revised proposal", event.revisedProposalUrl],
                 ["Contract", event.contractUrl],
                 ["Invoice", event.invoiceUrl],
                 ["Payment", event.paymentUrl],

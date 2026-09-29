@@ -1,6 +1,6 @@
 # GHL custom fields the portal depends on
 
-_Last updated: 2026-09-25. Living log — add a row whenever the app starts
+_Last updated: 2026-09-29. Living log — add a row whenever the app starts
 reading or writing a GHL field, and create the field in GHL before shipping
 the feature that needs it._
 
@@ -37,7 +37,8 @@ Location: `RVMKYLK9bHGpCQQPX4TM` · Pipeline: **Event Sales**
 | Facilitator Name | `hVsBHtTyqP0ZiWlBPoRe` | `opportunity.facilitator_name` | App **writes** (by key) when a facilitator is saved on the admin event page or submitted through the client portal. App-authoritative: never read back — edit facilitator info in the app, not GHL. |
 | Facilitator Email | `9Pxt6rSb9vQCAc16iDvf` | `opportunity.facilitator_email` | Same as Facilitator Name. |
 | Facilitator Phone | `fj7SjyBJZzRCjIPq9IsE` | `opportunity.facilitator_phone` | Same as Facilitator Name. |
-| Proposal Link | `98j901wnmkPtIVFTaSYs` | `opportunity.proposal_link` | **Read** (by key) on event-page auto-sync into `ghl_snapshot.links.proposal`. PandaDoc (integrated in GHL) populates it when a proposal is sent; shown as a clickable link on the admin event page and in the client portal's Documents section. GHL is authoritative — blanking the field there blanks it in the app. |
+| Proposal Link | `98j901wnmkPtIVFTaSYs` | `opportunity.proposal_link` | **Two-way.** App **writes** it (by key) with the Customer View link of the event's first proposal (the first contract created in the portal that has been sent and isn't voided or declined), whenever a contract sync changes it; blanked when there's none. **Read** (by key) on event-page auto-sync into `ghl_snapshot.links.proposal`, shown on the admin event page and in the client portal's Documents section, and filled into snippets as `{{opportunity.proposal_link}}`. For GHL workflow emails. |
+| Revised Proposal Link | `GZzM6lXad23aeEhZfsjX` | `opportunity.revised_proposal_link` | **Two-way**, same rules as Proposal Link, for the newest proposal after the first (an order change restating the balance). Created 2026-09-29 (text; its display name in GHL is `revised_proposal_link`). The app finds it by key, so renaming it is fine but changing the key breaks the write. |
 
 The admin event detail page auto-syncs from GHL on load (`src/lib/ghl/event-sync.ts`),
 resolving Date of Interest, Group/Event Name, and Inquiry Type **by field key** —

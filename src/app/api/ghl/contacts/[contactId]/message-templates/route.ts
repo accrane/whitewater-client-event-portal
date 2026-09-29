@@ -6,6 +6,7 @@ import { parseGhlSnapshot } from "@/lib/admin/events";
 import { formatEventDates } from "@/lib/dates/event-dates";
 import { fetchGhlContact } from "@/lib/ghl/contacts";
 import { listGhlUsers } from "@/lib/ghl/location-data";
+import { syncProposalLinksFromContracts } from "@/lib/admin/contracts";
 import { listGhlSnippets } from "@/lib/ghl/message-templates";
 import {
   renderSnippetMergeTags,
@@ -18,8 +19,11 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 // tags ({{contact.first_name}}, {{user.name}}, …) come back already filled in
 // for this contact and the signed-in coordinator. With `?eventId=` the
 // event's tags fill in too ({{opportunity.assigned_to}} is the event's
-// coordinator, plus the event name, date, and portal link), read from the
-// stored snapshot — no extra GHL call. The list carries its own ok/error so a
+// coordinator, plus the event name, date, portal link, and proposal link),
+// read from the stored snapshot — no GHL call, except when the proposal
+// link is missing: it's then worked out from the event's own contracts
+// (one DB read; a GHL write only if a link is found). Every proposal comes
+// from the portal now, so there's nothing to fetch from GHL itself. The list carries its own ok/error so a
 // missing scope renders inside the menu. `?refresh=1` bypasses the cache
 // after someone edits snippets in GHL.
 
@@ -28,12 +32,19 @@ async function loadEventMergeContext(
 ): Promise<SnippetMergeContext["event"]> {
   if (!eventId) return null;
   const supabase = createServiceRoleSupabaseClient();
-  const { data } = await supabase
-    .from("events")
-    .select("client_portal_url, ghl_snapshot")
-    .eq("id", eventId)
-    .maybeSingle();
+  const read = () =>
+    supabase
+      .from("events")
+      .select("client_portal_url, ghl_opportunity_id, ghl_snapshot")
+      .eq("id", eventId)
+      .maybeSingle();
+  let { data } = await read();
   if (!data) return null;
+
+  if (!parseGhlSnapshot(data.ghl_snapshot).links?.proposal && data.ghl_opportunity_id) {
+    await syncProposalLinksFromContracts(eventId);
+    data = (await read()).data ?? data;
+  }
 
   const snapshot = parseGhlSnapshot(data.ghl_snapshot);
   // The whole span for a multi-day event ("October 16–17, 2026").
@@ -43,6 +54,8 @@ async function loadEventMergeContext(
     name: snapshot.eventName ?? null,
     date,
     portalLink: data.client_portal_url,
+    proposalLink: snapshot.links?.proposal ?? null,
+    revisedProposalLink: snapshot.links?.revisedProposal ?? null,
     coordinator: snapshot.planner?.name
       ? { name: snapshot.planner.name, email: snapshot.planner.email ?? null }
       : null,

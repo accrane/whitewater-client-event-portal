@@ -47,7 +47,10 @@ export type GhlEventSnapshot = {
     sameAsContact?: boolean;
   };
   links?: {
+    // GHL's Proposal Link / Revised Proposal Link: the Customer View links
+    // of the first proposal and of the latest order change after it.
     proposal?: string;
+    revisedProposal?: string;
     contract?: string;
     invoice?: string;
     payment?: string;

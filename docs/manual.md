@@ -120,14 +120,21 @@ that have no portal event yet — entered straight into GHL, or a website
 inquiry the portal never heard about. **Create draft event** does exactly
 what Step 1 would have done.
 
-### Step 2 — Proposal (PandaDoc, via GHL)
+### Step 2 — Proposal (PandaDoc, from the portal)
 
-**You do:** sales builds and sends the proposal from PandaDoc inside GHL.
+A proposal and a contract are the same document here: you build it on the
+event's **Contracts** tab (see Step 4b), and the client signs it.
 
-**Automatically:** the proposal link lands on the opportunity's **Proposal
-Link** field, and the portal shows it on the event page and in the client's
-"Documents and payment" section the next time the event is opened. Blank
-the field in GHL and it disappears in the portal.
+**Automatically:** once the first proposal is sent, its client link (the
+**Customer View** link) is written to the opportunity's **Proposal Link**
+field in GHL. When the order changes and you send a second proposal
+covering the remaining balance and the new items, its link goes to
+**Revised Proposal Link**, so the first one is kept. A third one replaces
+the second in Revised Proposal Link. GHL workflow emails can use
+`{{opportunity.proposal_link}}` and `{{opportunity.revised_proposal_link}}`.
+Voided or declined proposals don't count: if the first one is voided and
+re-issued, the new one becomes the proposal. Both links also show on the
+event page and in the client's "Documents and payment" section.
 
 **Send the link from the portal:** once the proposal is approved, email or
 text the link to the client from the chat bubble using a snippet with
@@ -204,6 +211,8 @@ save while any of them overlaps.
     | `{{opportunity.groupevent_name}}` | The event name |
     | `{{opportunity.event_date}}` | The event date, written out (November 20, 2026, or November 20–22, 2026 for a multi-day event) |
     | `{{opportunity.portal_link}}` | The client's portal link (only once the portal has been launched) |
+    | `{{opportunity.proposal_link}}` | The client's link to the first proposal (the same link shown as **Proposal link** on the event page; only once it has been sent) |
+    | `{{opportunity.revised_proposal_link}}` | The client's link to the latest revised proposal (an order change), once one has been sent |
 
     If a tag can't be filled in (no coordinator assigned yet, portal not
     launched, or a tag the portal doesn't know) it stays in the message as

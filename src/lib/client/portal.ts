@@ -40,6 +40,7 @@ export type ClientPortalEvent = {
   coordinatorEmail: string | null;
   coordinatorPhone: string | null;
   proposalUrl: string | null;
+  revisedProposalUrl: string | null;
   contractUrl: string | null;
   invoiceUrl: string | null;
   paymentUrl: string | null;
@@ -387,6 +388,7 @@ function mapEventToClientPortalEvent(
     coordinatorEmail: snapshot.planner?.email ?? null,
     coordinatorPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
+    revisedProposalUrl: snapshot.links?.revisedProposal ?? null,
     contractUrl: snapshot.links?.contract ?? null,
     invoiceUrl: snapshot.links?.invoice ?? null,
     paymentUrl: snapshot.links?.payment ?? null,
