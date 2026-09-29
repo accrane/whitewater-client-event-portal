@@ -55,6 +55,7 @@ async function loadEventMergeContext(
     date,
     portalLink: data.client_portal_url,
     proposalLink: snapshot.links?.proposal ?? null,
+    revisedProposalLink: snapshot.links?.revisedProposal ?? null,
     coordinator: snapshot.planner?.name
       ? { name: snapshot.planner.name, email: snapshot.planner.email ?? null }
       : null,

@@ -27,6 +27,7 @@ const FIELD_KEYS = {
   numberOfParkingPasses: "opportunity.number_of_parking_passes",
   numberOfStorageBins: "opportunity.number_of_storage_bins",
   proposalLink: "opportunity.proposal_link",
+  revisedProposalLink: "opportunity.revised_proposal_link",
 } as const;
 
 // Refreshes an event's stored GHL snapshot from the live opportunity: event
@@ -87,6 +88,9 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
     opportunity.customFields,
     fieldId(FIELD_KEYS.proposalLink),
   );
+  // Until someone creates Revised Proposal Link in GHL there's nothing to
+  // read, so the link the contract sync stored stays put.
+  const revisedProposalFieldId = fieldIndex.get(FIELD_KEYS.revisedProposalLink);
   const assignedUser = opportunity.assignedTo
     ? users.find((user) => user.id === opportunity.assignedTo)
     : undefined;
@@ -145,9 +149,22 @@ export async function syncEventFromGhl(eventId: string): Promise<void> {
     activityPassCount,
     numberOfParkingPasses,
     numberOfStorageBins,
-    // PandaDoc (via GHL) owns the proposal link, so the live field is
-    // authoritative — blanking it in GHL blanks it here.
-    links: { ...existingLinks, proposal: proposalLink },
+    // The portal writes both proposal links from its contracts
+    // (syncProposalLinksFromContracts) and GHL keeps them, so the live
+    // fields are read back as they are — blanking one in GHL blanks it here
+    // until the next contract sync writes it again.
+    links: {
+      ...existingLinks,
+      proposal: proposalLink,
+      ...(revisedProposalFieldId
+        ? {
+            revisedProposal: findFieldString(
+              opportunity.customFields,
+              revisedProposalFieldId,
+            ),
+          }
+        : {}),
+    },
     ...(assignedUser
       ? {
           planner: {

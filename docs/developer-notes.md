@@ -27,7 +27,7 @@ Three systems, three jobs:
 | --- | --- | --- |
 | **GoHighLevel** | CRM and system of record | Contacts, opportunities, the Event Sales pipeline, client email/SMS notifications, calendars of record |
 | **This portal app** | Working surface for coordinators and clients | Room calendar, event checklists, schedules, uploads, vendor submissions, the client-facing portal pages |
-| **PandaDoc** (via GHL) | Proposals and signatures | Proposal documents; pushes the proposal link into GHL |
+| **PandaDoc** (via the portal) | Proposals/contracts and signatures | The documents themselves; the portal writes their Customer View links into GHL's Proposal Link / Revised Proposal Link |
 
 Two rules keep the integration sane:
 
@@ -116,6 +116,7 @@ Every page, server action and API route checks through
 | Contracts tab "Paying by check" | app | `setContractPayingByCheckAction` → `markContractPayingByCheck` sets `pay_by_check_at/by` on a signed, unpaid contract and runs the rooms step now; "Not paying by check" clears them (`contract_pay_by_check_cleared` log) and leaves the rooms alone |
 | PandaDoc webhook | PandaDoc → app | `POST /api/pandadoc/webhook?signature=…` (HMAC-SHA256 with `PANDADOC_WEBHOOK_KEY`); each document in the delivery is re-read and synced — needs a public URL. Answers 500 when a document failed to process so PandaDoc redelivers |
 | Signed-step retries | app → GHL / storage | Signed contracts with steps left in `signed_actions_pending`, never started, with no PDF on file, or paid with rooms not yet booked are retried on their own: event page load (after the response), the Contracts page sweep and Refresh statuses, 2+ minutes apart, at most 10 automatic runs (`signed_actions_attempts`); the webhook and Refresh status always retry |
+| Contract synced (any refresh: create, page load, webhook, portal signing) | app → GHL | `syncProposalLinksFromContracts` (`src/lib/admin/contracts.ts`), called at the end of `syncContractFromPandaDoc`: `proposalLinksFor` (`src/lib/contracts/proposal-links.ts`) picks, from the event's contracts with a `pandadoc_shared_link` that aren't voided/declined, the oldest → **Proposal Link** and the newest other → **Revised Proposal Link** (null blanks the field, but only a link that belongs to one of the event's contracts: a legacy link from GHL's PandaDoc integration stays until a portal proposal replaces it). Compared with `ghl_snapshot.links.proposal` / `revisedProposal` first, so unchanged links cost one DB read and no GHL call. Otherwise `writeProposalLinksToOpportunity` (`opportunity-sync.ts`) resolves both fields by key (`opportunity.proposal_link`, `opportunity.revised_proposal_link`) and PUTs whichever exist; a missing field is skipped with a warning (`opportunity_proposal_links_write_back`). The snapshot is updated only after a successful PUT, so a failure retries on the next sync. The event-page GHL sync reads both fields back; Revised Proposal Link is left as stored while the field doesn't exist in GHL |
 | Contract signed | app → GHL | Opportunity moved to the Booked stage (`opportunity_move_to_booked`) |
 | Conversations send with a "Proposal" snippet | app → GHL | Opportunity moved to Proposal Sent, forward only (`opportunity_move_to_proposal_sent`) |
 | Tasks drawer create / check off | app → GHL | Task created on the GHL contact (due date required by GHL, assignee defaults to the signed-in coordinator's GHL user) or completion toggled |
@@ -198,8 +199,10 @@ carry the assigned coordinator's GHL signature (§5 Email signatures).
 
 ## 3. PandaDoc internals
 
-**Proposals** still come from GHL's PandaDoc integration (Proposal Link
-field, read-only in the app — see Step 2).
+**Proposals are contracts:** the team uses the words for the same document,
+and since 2026-09-29 every one is created in the portal (GHL's own PandaDoc
+integration is no longer used). The portal writes their Customer View links
+to GHL (`syncProposalLinksFromContracts`, below and §2).
 
 **Contracts** are the app's own PandaDoc integration (manual Steps 4b and 6):
 
@@ -414,6 +417,16 @@ Wired for the Event Sales pipeline on 2026-09-15. Any other form or pipeline
 that should produce portal events needs its own workflow with the same
 action.
 
+### Revised Proposal Link field
+
+The portal writes each event's proposal links to two opportunity fields
+(§2). **Proposal Link** already exists. **Revised Proposal Link** has to be
+created once in GHL (Settings → Custom Fields → Opportunity): single-line
+text, with the key `opportunity.revised_proposal_link`. **Done 2026-09-29**
+(id `GZzM6lXad23aeEhZfsjX`). If it's ever deleted, the portal writes only
+Proposal Link and logs a warning; once it's back, the next sync of each
+event's contracts fills it.
+
 ### Customer replied webhook (GHL → app)
 
 Drives the **New reply** flag on Opportunities cards and stage tabs (§2).
@@ -595,6 +608,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-09-29 | **Proposal links written to GHL.** Proposal and contract are the same document to the team, and all of them are now created in the portal, so GHL's Proposal Link stayed blank. Each contract sync now writes the first live contract's Customer View link to Proposal Link and the newest later one (an order change) to the new **Revised Proposal Link** field (§2 sync table; rules and tests: `src/lib/contracts/proposal-links.ts`, `tests/admin/proposal-links.test.mjs`). The snapshot gained `links.revisedProposal`, shown as **Revised proposal link** on the event page and **Revised proposal** in the client portal's Documents section; snippets fill `{{opportunity.revised_proposal_link}}`. The Revised Proposal Link field was created in GHL the same day (§5). Existing events pick up their links the next time one of their contracts syncs. |
 | 2026-09-29 | **`{{opportunity.proposal_link}}` in snippets.** The drawer now fills it from `ghl_snapshot.links.proposal` (`SnippetMergeContext.event.proposalLink`). A coordinator had put it in a proposal snippet and it went out unfilled: the portal didn't know the tag, and GHL blanks opportunity tags on API sends. When the snapshot has no link and the event has an opportunity, the message-templates route re-syncs the event from GHL once before rendering. Test in `tests/admin/snippet-merge-tags.test.mjs`. |
 | 2026-09-29 | **Coordinator colors on the Opportunities board.** Each card has a tab above it with the coordinator's name on their color, continuing as a 4px left border (unassigned: a grey "Unassigned" tab and `UNASSIGNED_COLOR` border; a GHL user no longer listed: slate). Cards are now sorted by Date of Interest, soonest first, undated last (client-side, so moved cards sort too); before, they were in GHL's search order. A legend above the grid (`CoordinatorLegend` in `pipeline-board.tsx`) shows one chip per coordinator with the stage's count, under the search and every filter except coordinator. Chips toggle the existing coordinator filter, so the stage tabs' match counts show where that coordinator's cards are. Colors are stored per GHL user in the new `coordinator_colors` table (migration `20260929100000`, §2) and shared with the Coordinator Assignments calendar, which no longer colors by list index (`coordinatorColor` and the palette left `coordinator-calendar.tsx`; the calendar reads `listGhlUsers` once and filters coordinators itself). `BoardCoordinator` gained `color`. Tests: `tests/admin/coordinator-color-rules.test.mjs`. |
 | 2026-09-29 | **Move opportunities between stages from the board.** Each pipeline card has a **Move to…** button (`OpportunityStageMenu`, `src/components/admin/opportunity-stage-menu.tsx`) listing every other stage; confirming posts to the new `/api/ghl/opportunities/[opportunityId]/stage` route → `moveOpportunityStage` (§2). Drag-and-drop was ruled out: the board shows one stage tab at a time. Every stage is allowed, with a notice before confirming for Proposal Sent, Booked, and Lost (`stageMoveNotice`); Lost takes an optional reason that becomes a contact note (`lostNoteBody`). `PipelineBoard` keeps client-side overrides (`moves`, keyed by opportunity, holding only while the server still has the card in the stage it left) so the card changes tab immediately, then `router.refresh()`es. `ghlUserIdForEmail` is now exported from `follow-up-pauses.ts`. Stage guides and the **Date passed** badge now point to the move button instead of GHL. Rules and tests: `src/lib/ghl/stage-move.ts`, `tests/ghl/stage-move.test.mjs`. |

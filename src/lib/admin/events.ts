@@ -70,6 +70,7 @@ export type AdminEventDetail = AdminEventListItem & {
   numberOfStorageBins: number | null;
   coordinatorPhone: string | null;
   proposalUrl: string | null;
+  revisedProposalUrl: string | null;
   contractUrl: string | null;
   invoiceUrl: string | null;
   paymentUrl: string | null;
@@ -954,6 +955,7 @@ function mapEventRowToDetail(row: EventRow): AdminEventDetail {
     numberOfStorageBins: snapshot.numberOfStorageBins ?? null,
     coordinatorPhone: snapshot.planner?.phone ?? null,
     proposalUrl: snapshot.links?.proposal ?? null,
+    revisedProposalUrl: snapshot.links?.revisedProposal ?? null,
     contractUrl: snapshot.links?.contract ?? null,
     invoiceUrl: snapshot.links?.invoice ?? null,
     paymentUrl: snapshot.links?.payment ?? null,
@@ -1116,6 +1118,7 @@ function parseLinks(value: Json | undefined): GhlEventSnapshot["links"] {
 
   return {
     proposal: getString(links.proposal),
+    revisedProposal: getString(links.revisedProposal),
     contract: getString(links.contract),
     invoice: getString(links.invoice),
     payment: getString(links.payment),

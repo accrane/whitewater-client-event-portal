@@ -770,6 +770,7 @@ export default async function AdminEventDetailPage({
           <DetailRow label="Contact ID" value={event.ghlContactId} />
           <DetailRow label="Opportunity ID" value={event.ghlOpportunityId} />
           <DetailRow label="Proposal link" link value={event.proposalUrl} />
+          <DetailRow label="Revised proposal link" link value={event.revisedProposalUrl} />
           <DetailRow label="Contract link" link value={event.contractUrl} />
           <DetailRow label="Invoice link" link value={event.invoiceUrl} />
           <DetailRow label="Payment link" link value={event.paymentUrl} />

@@ -21,6 +21,7 @@ const event = {
   date: "November 20, 2026",
   portalLink: "https://groupsales.whitewater.org/e/abc",
   proposalLink: "https://app.pandadoc.com/document/v2?token=xyz",
+  revisedProposalLink: "https://app.pandadoc.com/document/v2?token=rev",
   coordinator: { name: "Sam Rivers", email: "sam@whitewater.org" },
 };
 
@@ -47,6 +48,10 @@ test("the proposal link fills from the event, and stays flagged until there is o
     event: { ...event, proposalLink: null },
   });
   assert.deepEqual(findUnfilledMergeTags(pending), ["{{opportunity.proposal_link}}"]);
+  assert.equal(
+    renderSnippetMergeTags("Updated: {{opportunity.revised_proposal_link}}", { contact, user: null, event }),
+    "Updated: https://app.pandadoc.com/document/v2?token=rev",
+  );
 });
 
 test("user tags are the signed-in GHL user when there is one", () => {

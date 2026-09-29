@@ -409,6 +409,83 @@ export async function writeOpportunityEventDate(
   return { ok: true };
 }
 
+// The portal's proposals (PandaDoc contracts) are where GHL's two proposal
+// fields come from: the first one's Customer View link in Proposal Link, the
+// latest order change after it in Revised Proposal Link, so workflow emails
+// can send them (rules in src/lib/contracts/proposal-links.ts). A null link
+// blanks its field. Revised Proposal Link has to be created in GHL first;
+// until it is, only Proposal Link is written and a warning is logged.
+// Never throws.
+const PROPOSAL_LINK_KEY = "opportunity.proposal_link";
+const REVISED_PROPOSAL_LINK_KEY = "opportunity.revised_proposal_link";
+
+export async function writeProposalLinksToOpportunity(
+  event: EventRow,
+  links: { proposal: string | null; revisedProposal: string | null },
+): Promise<OpportunitySyncOutcome> {
+  const log = (
+    status: "success" | "warning" | "error",
+    message: string,
+    details: Record<string, Json> = {},
+  ) =>
+    logIntegrationEvent({
+      direction: "PORTAL_TO_GHL",
+      eventType: "opportunity_proposal_links_write_back",
+      ghlLocationId: event.ghl_location_id,
+      portalEventId: event.id,
+      status,
+      message,
+      details: {
+        ghl_opportunity_id: event.ghl_opportunity_id,
+        proposal_link: links.proposal,
+        revised_proposal_link: links.revisedProposal,
+        ...details,
+      },
+    });
+
+  if (!event.ghl_opportunity_id) {
+    return { ok: false, skipped: true, error: "Event has no GHL opportunity id" };
+  }
+  if (!appConfig.ghl.accessToken) {
+    const error = "GHL_ACCESS_TOKEN is not configured";
+    await log("warning", `Skipped writing the proposal links to GHL: ${error}.`);
+    return { ok: false, skipped: true, error };
+  }
+
+  const fieldIndex = await fetchOpportunityFieldIndex();
+  const proposalFieldId = fieldIndex.get(PROPOSAL_LINK_KEY);
+  const revisedFieldId = fieldIndex.get(REVISED_PROPOSAL_LINK_KEY);
+  const customFields = [
+    ...(proposalFieldId ? [{ id: proposalFieldId, field_value: links.proposal ?? "" }] : []),
+    ...(revisedFieldId ? [{ id: revisedFieldId, field_value: links.revisedProposal ?? "" }] : []),
+  ];
+  const missing = [
+    ...(proposalFieldId ? [] : ["Proposal Link"]),
+    ...(revisedFieldId ? [] : ["Revised Proposal Link"]),
+  ];
+
+  if (customFields.length === 0) {
+    const error = "Proposal Link and Revised Proposal Link fields not found in GHL";
+    await log("warning", `Skipped writing the proposal links to GHL: ${error}.`);
+    return { ok: false, skipped: true, error };
+  }
+
+  const result = await updateGhlOpportunity(event.ghl_opportunity_id, { customFields });
+  if (!result.ok) {
+    const error = result.error ?? "Unknown GHL error";
+    await log("error", "Failed writing the proposal links to the GHL opportunity.", { error });
+    return { ok: false, skipped: false, error };
+  }
+
+  await log(
+    missing.length > 0 ? "warning" : "success",
+    missing.length > 0
+      ? `Proposal links written to GHL, except ${missing.join(" and ")}: the field doesn't exist in GHL yet.`
+      : "Proposal links written to the GHL opportunity.",
+  );
+  return { ok: true };
+}
+
 // Step in the launch workflow: when a coordinator publishes the portal, write the
 // client portal link onto the GHL opportunity so GHL workflows (email/SMS
 // templates) can use it. Never throws — the portal launch is the primary

@@ -12,7 +12,9 @@ import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import {
   moveOpportunityToBooked,
   writeOpportunityValue,
+  writeProposalLinksToOpportunity,
 } from "@/lib/ghl/opportunity-sync";
+import { proposalLinksFor } from "@/lib/contracts/proposal-links";
 import { resumeFollowUpsForEvent } from "@/lib/ghl/follow-up-pauses";
 import { listPandaDocCatalogItems } from "@/lib/pandadoc/catalog";
 import { isPandaDocConfigured } from "@/lib/pandadoc/client";
@@ -927,6 +929,69 @@ export async function syncEventValueFromContracts(
   await writeOpportunityValue(event, total);
 }
 
+// GHL's Proposal Link / Revised Proposal Link follow the event's contracts
+// (proposalLinksFor). Compared with what the event snapshot last recorded
+// first, so the page-load syncs that call this write to GHL only when a
+// link actually changed; a failed write leaves the snapshot alone and the
+// next sync tries again.
+export async function syncProposalLinksFromContracts(
+  eventId: string,
+): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+  const [{ data: contracts, error }, { data: eventData }] = await Promise.all([
+    supabase
+      .from("event_contracts")
+      .select("status, created_at, pandadoc_shared_link")
+      .eq("event_id", eventId),
+    supabase.from("events").select("*").eq("id", eventId).maybeSingle(),
+  ]);
+  const event = eventData as EventRow | null;
+  if (error || !event?.ghl_opportunity_id) {
+    if (error) console.error("Unable to read contracts for proposal links", error.message);
+    return;
+  }
+
+  const computed = proposalLinksFor(
+    (contracts ?? []).map((row) => ({
+      status: row.status,
+      createdAt: row.created_at,
+      sharedLink: row.pandadoc_shared_link,
+    })),
+  );
+  const stored = parseGhlSnapshot(event.ghl_snapshot).links;
+  // Only clear a link the portal put there: a proposal link from before the
+  // portal made proposals (GHL's own PandaDoc integration) stays until a
+  // portal proposal replaces it.
+  const ours = new Set(
+    (contracts ?? [])
+      .map((row) => row.pandadoc_shared_link)
+      .filter((link): link is string => Boolean(link)),
+  );
+  const keepUnlessOurs = (next: string | null, previous: string | undefined) =>
+    next ?? (previous && !ours.has(previous) ? previous : null);
+  const links = {
+    proposal: keepUnlessOurs(computed.proposal, stored?.proposal),
+    revisedProposal: keepUnlessOurs(computed.revisedProposal, stored?.revisedProposal),
+  };
+  if (
+    (stored?.proposal ?? null) === links.proposal &&
+    (stored?.revisedProposal ?? null) === links.revisedProposal
+  ) {
+    return;
+  }
+
+  const result = await writeProposalLinksToOpportunity(event, links);
+  if (!result.ok) return;
+
+  await mergeEventSnapshot(eventId, {
+    links: {
+      ...(stored ?? {}),
+      proposal: links.proposal,
+      revisedProposal: links.revisedProposal,
+    },
+  });
+}
+
 function mapPandaDocStatus(raw: string): ContractStatus {
   switch (raw) {
     case "document.uploaded":
@@ -1052,6 +1117,9 @@ export async function syncContractFromPandaDoc(
   ) {
     await syncEventValueFromContracts(updated.event_id);
   }
+
+  // Cheap when nothing moved (one read, compared with the snapshot).
+  await syncProposalLinksFromContracts(updated.event_id);
 
   return updated;
 }

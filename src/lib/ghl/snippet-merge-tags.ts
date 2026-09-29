@@ -25,8 +25,10 @@ export type SnippetMergeContext = {
     // Already formatted for a sentence ("November 20, 2026").
     date: string | null;
     portalLink: string | null;
-    // The Proposal Link field (the client's PandaDoc link), as last synced.
+    // The Proposal Link / Revised Proposal Link fields (the client's
+    // PandaDoc Customer View links), as last synced.
     proposalLink: string | null;
+    revisedProposalLink?: string | null;
     coordinator: { name: string | null; email: string | null } | null;
   } | null;
 };
@@ -76,6 +78,7 @@ export function renderSnippetMergeTags(
     "opportunity.event_date": event?.date,
     "opportunity.portal_link": event?.portalLink,
     "opportunity.proposal_link": event?.proposalLink,
+    "opportunity.revised_proposal_link": event?.revisedProposalLink,
   };
 
   return text.replace(/\{\{\s*([a-z0-9_.]+)\s*\}\}/gi, (match, key: string) => {
