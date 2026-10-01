@@ -506,6 +506,8 @@ type AdminTopBarProps = {
   userEmail?: string | null;
   /** Short mono tag after the app name, e.g. "local" while developing. */
   environment?: string | null;
+  /** The manager-only "View as" control, when the user may use it. */
+  viewAs?: ReactNode;
 };
 
 // Slim desktop context bar: app name and environment, the section and page
@@ -514,6 +516,7 @@ export function AdminTopBar({
   title,
   userEmail,
   environment,
+  viewAs,
 }: AdminTopBarProps) {
   const pathname = usePathname();
   const section =
@@ -569,6 +572,7 @@ export function AdminTopBar({
       </nav>
 
       <div className="flex shrink-0 items-center gap-3">
+        {viewAs}
         <div className="flex items-center gap-1.5">
           <ThemeSwitch />
           <HelpLink />

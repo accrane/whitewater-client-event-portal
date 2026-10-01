@@ -24,7 +24,7 @@ import {
   parseDashboardFilters,
   type DashboardFilters as DashboardFilterState,
 } from "@/lib/admin/event-filters";
-import { resolveCurrentCoordinator } from "@/lib/admin/current-coordinator";
+import { resolveStaffCoordinator } from "@/lib/admin/current-coordinator";
 import {
   listAdminEventsByIds,
   listUpcomingLaunchedEvents,
@@ -112,7 +112,8 @@ type AdminDashboardPageProps = {
 export default async function AdminDashboardPage({
   searchParams,
 }: AdminDashboardPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
 
   const isAdmin = getUserRole(user) === "admin";
   const filters = parseDashboardFilters(await searchParams);
@@ -126,7 +127,7 @@ export default async function AdminDashboardPage({
       listVendorSubmissionsNeedingReview(),
       listRecentlySignedContracts(),
       listStaleFollowUpPauses(),
-      resolveCurrentCoordinator(user.email),
+      resolveStaffCoordinator(staff),
     ]);
   // The lists below can point at events that aren't coming up (a vendor
   // submission on an event that already happened, say); load just those.

@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { AdminDock, AdminTopBar } from "@/components/admin/admin-dock";
 import { AdminThemeScope } from "@/components/admin/admin-theme";
+import { ViewAsBanner, ViewAsMenu } from "@/components/admin/view-as";
+import { viewAsLabel } from "@/lib/admin/view-as";
 import { Icon } from "@/components/ui/icon";
 import { getStaffUser } from "@/lib/admin/session";
 
@@ -39,6 +41,10 @@ export async function AdminShell({
 }: AdminShellProps) {
   const portalUser = await getStaffUser();
   const showAdminNav = portalUser?.role === "admin";
+  // Managers can view the portal as a coordinator; while they do, role above
+  // is "coordinator" and realRole is what keeps the control on screen.
+  const canViewAs = portalUser?.realRole === "admin";
+  const viewAs = portalUser?.viewAs ?? null;
 
   return (
     <AdminThemeScope>
@@ -49,7 +55,15 @@ export async function AdminShell({
           environment={environmentTag}
           title={title}
           userEmail={userEmail}
+          viewAs={
+            canViewAs ? (
+              <ViewAsMenu
+                current={viewAs ? { email: viewAs.email, label: viewAsLabel(viewAs) } : null}
+              />
+            ) : null
+          }
         />
+        {viewAs ? <ViewAsBanner name={viewAsLabel(viewAs)} /> : null}
 
         <main className="min-w-0 flex-1 px-5 py-6 sm:px-8 xl:px-10 xl:py-8">
           <div className="space-y-6">

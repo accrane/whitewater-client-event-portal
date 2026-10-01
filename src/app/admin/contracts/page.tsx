@@ -13,7 +13,7 @@ import {
   syncOpenContracts,
   type AdminContractListItem,
 } from "@/lib/admin/contracts";
-import { resolveCurrentCoordinator } from "@/lib/admin/current-coordinator";
+import { resolveStaffCoordinator } from "@/lib/admin/current-coordinator";
 import {
   collectCoordinatorNames,
   CONTRACT_STATUS_GROUPS,
@@ -110,7 +110,8 @@ type AdminContractsPageProps = {
 export default async function AdminContractsPage({
   searchParams,
 }: AdminContractsPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
 
   const params = await searchParams;
   const isAdmin = getUserRole(user) === "admin";
@@ -131,7 +132,7 @@ export default async function AdminContractsPage({
 
   const [all, me] = await Promise.all([
     listAllContracts(),
-    resolveCurrentCoordinator(user.email),
+    resolveStaffCoordinator(staff),
   ]);
 
   // Coordinators are scoped to their own events before any filter applies;

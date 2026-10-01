@@ -558,6 +558,29 @@ first. Hover one to see why it's there. A card with nothing to flag has none.
 | **Integration Logs** | Every exchange between the portal, GHL, and PandaDoc, success or failure. The first stop when "something didn't sync." |
 | **SF Migration** | Review Salesforce contacts staged for the move to GHL: pull, search, spot duplicates, approve or exclude. |
 
+### Viewing the portal as a coordinator (managers only)
+
+Managers have a **View as** button at the top of every page, beside the
+theme switch. It lists every portal login with the Coordinator role (the
+same list as Admin → Users), so a test coordinator you create there shows
+up straight away; a login with no matching GHL user is listed by email.
+Pick one and the portal shows what that coordinator sees: the Admin section and dollar values disappear, the PandaDoc approval
+links go away, and lists that are limited to a coordinator's own events
+(such as Contracts and the dashboard's **My events**) show that
+coordinator's. It's there for checking a coordinator's screens without
+signing in as them.
+
+- A yellow bar across the top says whose view you're in for as long as it's
+  on. Click **Back to manager view** on the bar (or in the View as menu) to
+  return. You can also switch straight to another coordinator from the menu.
+- While it's on you can only do what a coordinator can do.
+- Anything you save is still **recorded as you**, not as the coordinator:
+  notes, tasks, messages, and "changed by" all carry your own name.
+- It turns itself off after eight hours and when you sign out. It only
+  affects your own browser; the coordinator notices nothing.
+- The View as button is on the desktop layout; on a phone you only see the
+  yellow bar once it's on.
+
 ### Client side (no login)
 
 | Screen | What it's for |

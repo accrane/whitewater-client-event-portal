@@ -1,6 +1,7 @@
 import { listGhlUsers } from "@/lib/ghl/location-data";
 
 import type { CurrentCoordinator } from "./event-filters";
+import type { StaffUser } from "./session";
 
 // The signed-in user as a coordinator: their login email plus the GHL user
 // with that email, if any. Events store the coordinator in a snapshot
@@ -16,4 +17,19 @@ export async function resolveCurrentCoordinator(
     (ghlUser) => ghlUser.email?.trim().toLowerCase() === email.trim().toLowerCase(),
   );
   return { email, ghlUserId: match?.id ?? null, name: match?.name ?? null };
+}
+
+// Whose events count as "mine" for this request: the coordinator a manager
+// is viewing as (view-as.ts), else the signed-in user.
+export async function resolveStaffCoordinator(
+  staff: StaffUser,
+): Promise<CurrentCoordinator | null> {
+  if (staff.viewAs) {
+    return {
+      email: staff.viewAs.email,
+      ghlUserId: staff.viewAs.ghlUserId,
+      name: staff.viewAs.name,
+    };
+  }
+  return resolveCurrentCoordinator(staff.user.email);
 }
