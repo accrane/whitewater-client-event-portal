@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BULLET, htmlToText, textToEmailHtml } from "../../src/lib/ghl/html-text.ts";
+import {
+  BULLET,
+  EMAIL_BODY_STYLE,
+  htmlToText,
+  textToEmailHtml,
+  wrapEmailBody,
+} from "../../src/lib/ghl/html-text.ts";
 
 test("list items become bullet lines, one per item, even when GHL wraps them in <p>", () => {
   const html =
@@ -75,4 +81,14 @@ test("a snippet survives the round trip with its list intact", () => {
     textToEmailHtml(htmlToText(html)),
     "<p>Send me:</p><ul><li>Grade Level:</li><li>Lunch Plans:</li></ul><p>Thanks</p>",
   );
+});
+
+test("wrapEmailBody puts the email font on one wrapper and leaves an empty body alone", () => {
+  assert.equal(
+    wrapEmailBody("<p>Hi Dana,</p>"),
+    `<div style="${EMAIL_BODY_STYLE}"><p>Hi Dana,</p></div>`,
+  );
+  assert.equal(wrapEmailBody(""), "");
+  // The style sits inside a double-quoted attribute.
+  assert.ok(!EMAIL_BODY_STYLE.includes('"'));
 });

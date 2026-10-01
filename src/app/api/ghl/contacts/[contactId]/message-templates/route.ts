@@ -3,7 +3,9 @@ import {
   requireStaffApiUser,
 } from "@/lib/admin/calendar-api";
 import { parseGhlSnapshot } from "@/lib/admin/events";
+import { buildPortalUrlForOrigin } from "@/lib/admin/portal-urls";
 import { formatEventDates } from "@/lib/dates/event-dates";
+import { appConfig } from "@/lib/env";
 import { fetchGhlContact } from "@/lib/ghl/contacts";
 import { listGhlUsers } from "@/lib/ghl/location-data";
 import { syncProposalLinksFromContracts } from "@/lib/admin/contracts";
@@ -53,7 +55,12 @@ async function loadEventMergeContext(
   return {
     name: snapshot.eventName ?? null,
     date,
-    portalLink: data.client_portal_url,
+    // Stored as a path ("/e/<token>"); the email needs the full address,
+    // the same one launch writes to GHL's Portal Link field.
+    portalLink: buildPortalUrlForOrigin({
+      origin: appConfig.portalBaseUrl,
+      portalUrl: data.client_portal_url,
+    }),
     proposalLink: snapshot.links?.proposal ?? null,
     revisedProposalLink: snapshot.links?.revisedProposal ?? null,
     coordinator: snapshot.planner?.name

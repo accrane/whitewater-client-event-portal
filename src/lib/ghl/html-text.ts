@@ -132,6 +132,16 @@ export function textToEmailHtml(text: string): string {
   return blocks.join("");
 }
 
+// Font styling for emails sent from the drawer, so they read like the ones
+// GHL's workflows send rather than falling back to the mail client's default
+// font. Inline on one wrapper: mail clients drop <style> blocks.
+export const EMAIL_BODY_STYLE =
+  "font-family: Lato, Calibri, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000000;";
+
+export function wrapEmailBody(html: string): string {
+  return html ? `<div style="${EMAIL_BODY_STYLE}">${html}</div>` : html;
+}
+
 // Drops the quoted history a mail client appends to a reply ("On … wrote:",
 // Outlook's original-message block, ">" lines), leaving only what the sender
 // typed. Takes plain text (run htmlToText first). Returns "" when the reply

@@ -5,7 +5,12 @@ import {
   COORDINATOR_INTRO_TAG,
   hasCoordinatorIntroSnippet,
 } from "@/lib/ghl/coordinator-intro";
-import { htmlToText, stripQuotedReply, textToEmailHtml } from "@/lib/ghl/html-text";
+import {
+  htmlToText,
+  stripQuotedReply,
+  textToEmailHtml,
+  wrapEmailBody,
+} from "@/lib/ghl/html-text";
 import { logIntegrationEvent } from "@/lib/ghl/integration-log";
 import { moveOpportunityToProposalSent } from "@/lib/ghl/opportunity-sync";
 import { hasProposalSnippet } from "@/lib/ghl/proposal-sent";
@@ -285,7 +290,9 @@ export async function sendConversationMessage(
   }
 
   const signed = input.channel === "Email" && Boolean(input.includeSignature);
-  const html = textToEmailHtml(input.body);
+  // The signature tag stays outside the wrapper: GHL's signature brings its
+  // own formatting.
+  const html = wrapEmailBody(textToEmailHtml(input.body));
 
   const send = async (withThreading: boolean) =>
     ghlFetch(`${apiBaseUrl}/conversations/messages`, {
