@@ -547,7 +547,10 @@ function CatalogPicker({
     [items],
   );
 
-  const term = query.trim().toLowerCase();
+  // Every word typed must appear somewhere in the item (name, description,
+  // category or SKU), in any order: "bin rental" finds "Storage Bin - Large"
+  // as well as "Bin Rental - Small".
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const matches = items.filter((item) => {
     if (category === ALL_FOOD && !isFoodCatalogCategory(item.category)) {
       return false;
@@ -555,12 +558,9 @@ function CatalogPicker({
     if (category !== ALL && category !== ALL_FOOD && item.category !== category) {
       return false;
     }
-    return (
-      !term ||
-      item.name.toLowerCase().includes(term) ||
-      item.category.toLowerCase().includes(term) ||
-      (item.sku ?? "").toLowerCase().includes(term)
-    );
+    const haystack =
+      `${item.name} ${item.description} ${item.category} ${item.sku ?? ""}`.toLowerCase();
+    return words.every((word) => haystack.includes(word));
   });
 
   return (

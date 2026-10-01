@@ -351,7 +351,12 @@ tax; the form warns you if a catering item ends up in another table.
 
 - **Add from catalog** opens the PandaDoc catalog (passes, venues, parking,
   catering, and the rest). Search or pick a category, click **Add**, then
-  set the quantity on the row. The name and price come from PandaDoc and
+  set the quantity on the row. The search matches every word you type, in
+  any order, against the item's name, description and category, so "bin"
+  finds both bin rentals. In the Food & Beverage table the picker opens on
+  **All catering**; switch the category to **All categories** (or
+  **Miscellaneous**, for bins and craft kits) to see everything else.
+  Items with no category in PandaDoc are listed under **Other**. The name and price come from PandaDoc and
   can't be changed here — managers set prices in PandaDoc's catalog, and a
   price changed there shows up here within a few minutes.
   The description is shown as plain text and can be edited on the row (for
