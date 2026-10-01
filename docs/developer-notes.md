@@ -1,6 +1,6 @@
 # Developer Notes — Whitewater Event Ecosystem
 
-_Last updated: 2026-09-29. This is the engineering record for the portal app,
+_Last updated: 2026-10-01. This is the engineering record for the portal app,
 GoHighLevel (GHL), and PandaDoc: how the pieces fit, where data lives, when
 syncs fire, what configuration exists, and a changelog. The user-facing
 guide is [manual.md](manual.md) — it is rendered inside the app at
@@ -608,6 +608,7 @@ When you ship a feature, ask:
 
 | Date | Change |
 | --- | --- |
+| 2026-10-01 | **Conversations drawer is wide and two-column.** `SlideOver` gained `size` (`"default"` = `max-w-lg`, `"wide"` = `max-w-6xl`); only the conversations drawer uses `wide`, notes and tasks are unchanged. From the `lg` breakpoint the drawer body is a row: the thread scrolls on the left, and the compose area (notices, channel + subject, Insert snippet, textarea, signature + Send) is the right half, with the textarea filling the spare height (`lg:flex-1`, no manual resize). Below `lg` it stacks as before, reply box under the thread. The snippet menu opens downward at `lg` (it sits at the top of its column there) and upward when stacked. Layout only: no change to what is loaded or sent. |
 | 2026-10-01 | **Drawer emails carry a font.** Snippets pass through the plain-text compose box, so `textToEmailHtml` rebuilds bare `<p>`/`<ul>` and the email fell back to the mail client's default font, unlike GHL's workflow emails. `sendConversationMessage` now wraps the body in one `<div>` with `EMAIL_BODY_STYLE` (`wrapEmailBody`, `src/lib/ghl/html-text.ts`); the `{{user.email_signature}}` tag stays outside it. The font stack is a **best match from a screenshot**, not GHL's real HTML: adjust `EMAIL_BODY_STYLE` once a workflow email's source is in hand. Bold and link text from a snippet are still lost in the compose box. `textToEmailHtml` itself is unchanged (the contract line-item editor uses it too). Test in `tests/ghl/html-text.test.mjs`. |
 | 2026-10-01 | **Snippet portal link is a full address.** `{{opportunity.portal_link}}` went out from the drawer as `/e/<token>`: `events.client_portal_url` stores only the path, and the message-templates route passed it through as-is (so `textToEmailHtml` didn't link it either). The route now prefixes `PORTAL_BASE_URL` via `buildPortalUrlForOrigin`, matching what launch writes to GHL's Portal Link field. |
 | 2026-09-29 | **Contract catalog picker readable.** PandaDoc catalog descriptions are HTML (`<div>`, `<p>`, `<br>`); the picker printed them raw on one unwrapped line, which stretched the panel (and the section heading field above it) far past the form. The picker now lists each item with the price over **Add** on the left and the name, category and a plain-text, wrapping description on the right (`textFromMaybeHtml`). A row's description box (`DescriptionField` in `contract-items-editor.tsx`) also shows plain text: catalog HTML is sent to PandaDoc unchanged unless edited, and an edit is sent as `textToEmailHtml` (paragraphs, `<br/>`, lists). Custom rows stay plain text. |

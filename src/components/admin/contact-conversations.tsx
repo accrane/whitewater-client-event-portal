@@ -19,6 +19,9 @@ import { findUnfilledMergeTags } from "@/lib/ghl/snippet-merge-tags";
 // GHL (so replies land in the same Conversations thread staff see there).
 // The reply box can pull in GHL snippets (inserted as editable text), and
 // emails end with a GHL email signature unless the coordinator unticks it.
+// On wide screens the drawer is two columns, thread left and reply box right
+// (so a whole email fits in the box); narrower, the reply box sits under the
+// thread.
 
 type DrawerMessage = {
   id: string;
@@ -412,7 +415,7 @@ function ConversationsDrawer({
       : null;
 
   return (
-    <SlideOver onClose={onClose}>
+    <SlideOver onClose={onClose} size="wide">
       {(requestClose) => (
         <>
         <header className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
@@ -438,7 +441,8 @@ function ConversationsDrawer({
           <SlideOverCloseButton onClick={requestClose} />
         </header>
 
-        <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-5">
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto bg-slate-50 p-5">
           {loading ? (
             <p className="text-sm text-slate-500">Loading conversations…</p>
           ) : loadError ? (
@@ -494,7 +498,7 @@ function ConversationsDrawer({
           <div ref={threadEndRef} />
         </div>
 
-        <footer className="space-y-2 border-t border-slate-200 p-4">
+        <footer className="flex min-w-0 flex-col gap-2 border-t border-slate-200 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-5">
           {sendError ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
               {sendError}
@@ -566,7 +570,7 @@ function ConversationsDrawer({
           </div>
 
           <textarea
-            className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+            className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm leading-6 text-slate-800 lg:min-h-48 lg:flex-1 lg:resize-none"
             onChange={(e) => changeBody(e.target.value)}
             placeholder={`Reply to ${contactName || "the contact"} by ${channel.toLowerCase()}…`}
             ref={bodyRef}
@@ -599,6 +603,7 @@ function ConversationsDrawer({
             </button>
           </div>
         </footer>
+        </div>
         </>
       )}
     </SlideOver>
@@ -653,7 +658,8 @@ function SignatureOption({
   );
 }
 
-// Small upward-opening picker for the snippet menu:
+// Small picker for the snippet menu, opening upward when the reply box sits
+// under the thread and downward when it has its own column:
 // a filter box over a scrollable list, with the loading / scope-error /
 // empty states rendered inside the panel so the trigger is always clickable
 // and the coordinator sees exactly why a list is empty.
@@ -716,7 +722,7 @@ function InsertMenu<T extends { id: string }>({
       </button>
       {open ? (
         <div
-          className="absolute bottom-full left-0 z-10 mb-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white shadow-xl"
+          className="absolute bottom-full left-0 z-10 mb-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white shadow-xl lg:bottom-auto lg:top-full lg:mb-0 lg:mt-1 lg:w-96"
           // Escape closes just this menu, not the whole drawer.
           onKeyDown={(event) => {
             if (event.key === "Escape") {
@@ -736,7 +742,7 @@ function InsertMenu<T extends { id: string }>({
               value={query}
             />
           </div>
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-64 overflow-y-auto py-1 lg:max-h-96">
             {list === null ? (
               <p className="px-3 py-2 text-xs text-slate-500">Loading…</p>
             ) : !list.ok ? (

@@ -1,6 +1,6 @@
 # Portal Manual
 
-_Last updated: 2026-09-29._
+_Last updated: 2026-10-01._
 
 This is the working guide for the Whitewater event portal: what each screen
 is for, how an event moves from inquiry to event day, and what happens
@@ -181,10 +181,12 @@ save while any of them overlaps.
   event's Value. The **Coordinator** can be reassigned here at any time.
 - **Primary contact and conversations** — the top of the Event facilitator
   card shows the person who inquired (name, email, phone, refreshed from GHL
-  each time the page opens). The speech-bubble button opens a drawer with
-  their full GHL email and text history and a reply box. Replies go out
-  **through GHL**, so they land in the same conversation thread the sales
-  team sees. Notes:
+  each time the page opens). The speech-bubble button opens a wide drawer
+  in two halves: their full GHL email and text history on the left, and the
+  reply box (with the snippet menu above it) on the right, tall enough to
+  read a whole email before you send it. On a small screen the reply box
+  sits under the history instead. Replies go out **through GHL**, so they
+  land in the same conversation thread the sales team sees. Notes:
   - When the client replies to one of your emails, their reply shows up here
     as its own message (reopen the drawer to refresh). Only what they typed
     is shown — the quoted copy of your email underneath is left out.

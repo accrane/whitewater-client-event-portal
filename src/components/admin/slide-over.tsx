@@ -5,12 +5,15 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 // Right-side slide-over panel shared by the event page drawers
 // (conversations, notes): animated enter/exit, backdrop, Escape-to-close.
 // Children receive requestClose so inner close buttons play the exit
-// animation before the parent unmounts the drawer.
+// animation before the parent unmounts the drawer. "wide" is for drawers
+// that lay their content out in two columns (conversations).
 export function SlideOver({
   onClose,
+  size = "default",
   children,
 }: {
   onClose: () => void;
+  size?: "default" | "wide";
   children: (requestClose: () => void) => ReactNode;
 }) {
   // Mounts off-screen, flips visible on the next frame so the entrance
@@ -46,7 +49,9 @@ export function SlideOver({
         type="button"
       />
       <aside
-        className={`absolute inset-y-0 right-0 flex w-full max-w-lg flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 flex w-full ${
+          size === "wide" ? "max-w-6xl" : "max-w-lg"
+        } flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out ${
           visible ? "translate-x-0" : "translate-x-full"
         }`}
       >
