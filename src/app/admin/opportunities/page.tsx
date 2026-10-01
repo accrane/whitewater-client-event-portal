@@ -10,8 +10,10 @@ import { appConfig } from "@/lib/env";
 import { getEventFlagsByOpportunityIds } from "@/lib/admin/events";
 import {
   collectGroupTypes,
-  parseOpportunityFilters,
+  type CurrentCoordinator,
+  opportunitiesVisibleTo,
   type OpportunityFilters,
+  parseOpportunityFilters,
 } from "@/lib/admin/event-filters";
 import {
   buildOpportunityBadges,
@@ -39,6 +41,7 @@ import {
   UNASSIGNED_COLOR,
 } from "@/lib/admin/coordinator-colors";
 import { stageMoveNotice } from "@/lib/ghl/stage-move";
+import { resolveStaffCoordinator } from "@/lib/admin/current-coordinator";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import {
@@ -144,11 +147,19 @@ type AdminOpportunitiesPageProps = {
 export default async function AdminOpportunitiesPage({
   searchParams,
 }: AdminOpportunitiesPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
 
   const params = await searchParams;
   const tab = params.tab === "won" ? "won" : "pipeline";
   const isAdmin = getUserRole(user) === "admin";
+  // Managers see the whole pipeline; coordinators only opportunities
+  // assigned to their GHL user (opportunitiesVisibleTo).
+  const viewer = {
+    isManager: isAdmin,
+    me: isAdmin ? null : await resolveStaffCoordinator(staff),
+  };
+  const coordinatorWithoutMatch = !isAdmin && !viewer.me?.ghlUserId;
 
   return (
     <AdminShell
@@ -157,7 +168,11 @@ export default async function AdminOpportunitiesPage({
           New inquiry
         </ButtonLink>
       }
-      description="The GoHighLevel opportunity pipeline and its history, viewed from the portal. GHL remains the system of record — manage stages and contacts there."
+      description={
+        isAdmin
+          ? "The GoHighLevel opportunity pipeline and its history, viewed from the portal. GHL remains the system of record — manage stages and contacts there."
+          : "Your opportunities from the GoHighLevel pipeline, and their history. GHL remains the system of record — manage stages and contacts there."
+      }
       title="Opportunities"
       userEmail={user.email}
     >
@@ -184,12 +199,18 @@ export default async function AdminOpportunitiesPage({
         ))}
       </nav>
 
-      {tab === "pipeline" ? (
+      {coordinatorWithoutMatch ? (
+        <EmptyState
+          description="Your login doesn't match a GoHighLevel user, so no opportunities can be shown. Ask a manager to check that your GHL staff user has the same email address as your portal login."
+          title="No coordinator match"
+        />
+      ) : tab === "pipeline" ? (
         <PipelineView
           filters={parseOpportunityFilters(params)}
           query={params.q ?? ""}
           showValues={isAdmin}
           stageParam={params.stage}
+          viewer={viewer}
         />
       ) : (
         <WonView
@@ -197,11 +218,14 @@ export default async function AdminOpportunitiesPage({
           rangeKey={params.range}
           showValues={isAdmin}
           to={parseDateParam(params.to)}
+          viewer={viewer}
         />
       )}
     </AdminShell>
   );
 }
+
+type OpportunityViewer = { isManager: boolean; me: CurrentCoordinator | null };
 
 function coordinatorNameById(users: GhlUser[], userId: string | null) {
   return userId
@@ -232,21 +256,26 @@ async function PipelineView({
   query,
   showValues,
   stageParam,
+  viewer,
 }: {
   filters: OpportunityFilters;
   query: string;
   showValues: boolean;
   stageParam: string | undefined;
+  viewer: OpportunityViewer;
 }) {
   // The conversation sync rides along: it records who wrote last in every
   // conversation that changed since the last view (one GHL request, most
   // views) and never throws.
-  const [pipeline, opportunities, ghlUsers] = await Promise.all([
+  const [pipeline, allOpportunities, ghlUsers] = await Promise.all([
     fetchConfiguredPipeline(),
     searchPipelineOpportunities("open"),
     listGhlUsers(),
     syncConversationActivity(),
   ]);
+  // Scoped before anything is counted, so stage counts, new-reply dots and
+  // the legend only ever reflect what this user may see.
+  const opportunities = opportunitiesVisibleTo(allOpportunities, viewer);
 
   if (!pipeline) {
     const problem = await describePipelineProblem();
@@ -442,11 +471,13 @@ async function WonView({
   rangeKey,
   showValues,
   to,
+  viewer,
 }: {
   from: string | null;
   rangeKey: string | undefined;
   showValues: boolean;
   to: string | null;
+  viewer: OpportunityViewer;
 }) {
   const hasCustomRange = Boolean(from || to);
   const quickRange = hasCustomRange
@@ -461,7 +492,7 @@ async function WonView({
   const effectiveTo = to;
   const filtering = Boolean(effectiveFrom || effectiveTo);
 
-  const won = await searchPipelineOpportunities("won");
+  const won = opportunitiesVisibleTo(await searchPipelineOpportunities("won"), viewer);
 
   const filtered = won.filter((opportunity) => {
     if (!filtering) return true;

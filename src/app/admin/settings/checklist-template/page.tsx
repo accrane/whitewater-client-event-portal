@@ -2,12 +2,13 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SettingsNav } from "@/components/admin/settings-nav";
 import { getChecklistTemplateSections } from "@/lib/admin/checklist-sections";
-import { requireStaffUser } from "@/lib/admin/session";
+import { requireAdminUser } from "@/lib/admin/users";
 
 import { TemplateEditor } from "./template-editor";
 
 export default async function ChecklistTemplatePage() {
-  const { user } = await requireStaffUser();
+  // Managers only: templates shape every new event.
+  const { user } = await requireAdminUser();
 
   const sections = await getChecklistTemplateSections();
 

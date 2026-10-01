@@ -12,7 +12,7 @@ import {
   type CompanySort,
   type CompanySortDir,
 } from "@/lib/admin/companies";
-import { requireStaffUser } from "@/lib/admin/session";
+import { requireAdminUser } from "@/lib/admin/users";
 
 // Companies directory: the app's permanent archive of booking history,
 // seeded from Salesforce (docs/developer-notes.md §2). Stats are computed
@@ -82,7 +82,8 @@ type CompaniesPageProps = {
 export default async function CompaniesPage({
   searchParams,
 }: CompaniesPageProps) {
-  const { user } = await requireStaffUser();
+  // Managers only: the archive carries every coordinator's history.
+  const { user } = await requireAdminUser();
 
   const params = await searchParams;
   const search = params.q?.trim() || undefined;

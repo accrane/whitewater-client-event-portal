@@ -77,7 +77,7 @@ const workNavItems: NavItem[] = [
   },
   {
     href: "/admin/assignments",
-    label: "Coordinator Assignments",
+    label: "Events Calendar",
     icon: (
       <Icon>
         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -101,7 +101,11 @@ const salesNavItems: NavItem[] = [
       </Icon>
     ),
   },
-  {
+];
+
+// The company archive is managers-only (its pages redirect coordinators),
+// so it is shown under the same flag as the Admin entry.
+const companiesNavItem: NavItem = {
     href: "/admin/companies",
     label: "Companies",
     icon: (
@@ -115,8 +119,7 @@ const salesNavItems: NavItem[] = [
         <path d="M10 18h4" />
       </Icon>
     ),
-  },
-];
+};
 
 // Configuration lives at the bottom of the nav, away from daily work.
 const settingsNavItem: NavItem = {
@@ -391,9 +394,13 @@ function DockNav({
     >
       <div className="space-y-0.5">{workNavItems.map(navLink)}</div>
       <div aria-hidden className="my-2 border-t border-slate-200" />
-      <div className="space-y-0.5">{salesNavItems.map(navLink)}</div>
+      <div className="space-y-0.5">
+        {salesNavItems.map(navLink)}
+        {showAdminNav ? navLink(companiesNavItem) : null}
+      </div>
       <div className="mt-auto space-y-0.5 pt-4">
-        {navLink(settingsNavItem)}
+        {/* Templates shape every event, so Settings is managers-only too. */}
+        {showAdminNav ? navLink(settingsNavItem) : null}
         {showAdminNav ? navLink(adminOnlyNavItem) : null}
       </div>
     </nav>
@@ -496,6 +503,7 @@ function DrawerFooter({ userEmail }: { userEmail?: string | null }) {
 const allNavItems = [
   ...workNavItems,
   ...salesNavItems,
+  companiesNavItem,
   settingsNavItem,
   adminOnlyNavItem,
 ];
@@ -504,18 +512,15 @@ type AdminTopBarProps = {
   /** Page title shown as the last breadcrumb segment. */
   title: string;
   userEmail?: string | null;
-  /** Short mono tag after the app name, e.g. "local" while developing. */
-  environment?: string | null;
   /** The manager-only "View as" control, when the user may use it. */
   viewAs?: ReactNode;
 };
 
-// Slim desktop context bar: app name and environment, the section and page
-// breadcrumb, then theme, account, and sign out on the right.
+// Slim desktop context bar: app name, the section and page breadcrumb,
+// then theme, account, and sign out on the right.
 export function AdminTopBar({
   title,
   userEmail,
-  environment,
   viewAs,
 }: AdminTopBarProps) {
   const pathname = usePathname();
@@ -541,11 +546,6 @@ export function AdminTopBar({
         >
           Coordinator Admin
         </Link>
-        {environment ? (
-          <span className="type-label rounded-sm border border-amber-300 bg-amber-50 px-1.5 py-px text-amber-800">
-            {environment}
-          </span>
-        ) : null}
         {section ? (
           <>
             <span aria-hidden className="text-slate-300">

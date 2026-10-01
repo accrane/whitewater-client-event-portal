@@ -19,10 +19,11 @@ import {
 import {
   collectCoordinatorNames,
   collectGroupTypes,
+  type DashboardFilters as DashboardFilterState,
   hasActiveFilters,
+  isCurrentCoordinatorsEvent,
   matchesDashboardEvent,
   parseDashboardFilters,
-  type DashboardFilters as DashboardFilterState,
 } from "@/lib/admin/event-filters";
 import { resolveStaffCoordinator } from "@/lib/admin/current-coordinator";
 import {
@@ -116,31 +117,49 @@ export default async function AdminDashboardPage({
   const { user } = staff;
 
   const isAdmin = getUserRole(user) === "admin";
-  const filters = parseDashboardFilters(await searchParams);
+  // Managers see the whole portal; a coordinator's dashboard is their own
+  // events only (tiles and lists alike), so the coordinator filter is
+  // left out for them and ignored if it is in the address.
+  const me = await resolveStaffCoordinator(staff);
+  const scoped = !isAdmin;
+  const coordinatorWithoutMatch = scoped && !me;
+  const parsedFilters = parseDashboardFilters(await searchParams);
+  const filters = scoped ? { ...parsedFilters, coordinator: null } : parsedFilters;
+  const isMine = (event: AdminEventListItem) =>
+    !scoped || (me !== null && isCurrentCoordinatorsEvent(event, me));
   // Pauses whose deal booked or died inside GHL get lifted before the list
   // is read, so nobody is nagged about a contact who no longer needs it.
   await reconcileFollowUpPauses();
-  const [metrics, upcomingEvents, vendorSubmissions, allRecentlySigned, allStalePauses, me] =
+  const [metrics, allUpcomingEvents, allVendorSubmissions, allRecentlySigned, allStalePauses] =
     await Promise.all([
-      getAdminDashboardMetrics(),
+      getAdminDashboardMetrics(scoped ? me : null),
       listUpcomingLaunchedEvents(),
       listVendorSubmissionsNeedingReview(),
       listRecentlySignedContracts(),
       listStaleFollowUpPauses(),
-      resolveStaffCoordinator(staff),
     ]);
+  const upcomingEvents = allUpcomingEvents.filter(isMine);
   // The lists below can point at events that aren't coming up (a vendor
   // submission on an event that already happened, say); load just those.
   const upcomingIds = new Set(upcomingEvents.map((event) => event.id));
-  const otherEvents = await listAdminEventsByIds(
-    [
-      ...vendorSubmissions.map((submission) => submission.eventId),
-      ...allRecentlySigned.map((contract) => contract.eventId),
-      ...allStalePauses.map((pause) => pause.portalEventId ?? ""),
-    ].filter((id) => id && !upcomingIds.has(id)),
-  );
+  const otherEvents = (
+    await listAdminEventsByIds(
+      [
+        ...allVendorSubmissions.map((submission) => submission.eventId),
+        ...allRecentlySigned.map((contract) => contract.eventId),
+        ...allStalePauses.map((pause) => pause.portalEventId ?? ""),
+      ].filter((id) => id && !upcomingIds.has(id)),
+    )
+  ).filter(isMine);
   const allEvents = [...upcomingEvents, ...otherEvents];
   const eventsById = new Map(allEvents.map((event) => [event.id, event]));
+  // A coordinator sees only rows on their own events; a paused contact
+  // with no portal event yet belongs to nobody, so managers only.
+  const mineOnly = <T,>(rows: T[], eventIdOf: (row: T) => string | null) =>
+    scoped ? rows.filter((row) => eventsById.has(eventIdOf(row) ?? "")) : rows;
+  const vendorSubmissions = mineOnly(allVendorSubmissions, (submission) => submission.eventId);
+  const scopedRecentlySigned = mineOnly(allRecentlySigned, (contract) => contract.eventId);
+  const scopedStalePauses = mineOnly(allStalePauses, (pause) => pause.portalEventId);
 
   // Every list below is scoped to the events that pass the filter row. The
   // metric tiles stay portal-wide. Rows that belong to no portal event
@@ -155,13 +174,13 @@ export default async function AdminDashboardPage({
     ? vendorSubmissions.filter((submission) => visibleEventIds.has(submission.eventId))
     : vendorSubmissions;
   const recentlySigned = filtering
-    ? allRecentlySigned.filter((contract) => visibleEventIds.has(contract.eventId))
-    : allRecentlySigned;
+    ? scopedRecentlySigned.filter((contract) => visibleEventIds.has(contract.eventId))
+    : scopedRecentlySigned;
   const stalePauses = filtering
-    ? allStalePauses.filter(
+    ? scopedStalePauses.filter(
         (pause) => pause.portalEventId !== null && visibleEventIds.has(pause.portalEventId),
       )
-    : allStalePauses;
+    : scopedStalePauses;
 
   const upcoming = upcomingLaunchedEvents(events);
   const todayEvents = upcoming.filter((item) => item.daysOut === 0);
@@ -196,11 +215,22 @@ export default async function AdminDashboardPage({
 
   return (
     <AdminShell
-      description="Vendor submissions to review, what's happening this week, and contracts that need a signature before the deadline."
+      description={
+        isAdmin
+          ? "Vendor submissions to review, what's happening this week, and contracts that need a signature before the deadline."
+          : "Your events: vendor submissions to review, what's happening this week, and contracts that need a signature before the deadline."
+      }
       title="Dashboard"
       userEmail={user.email}
     >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {coordinatorWithoutMatch ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Your login has no email address to match against the coordinator on
+          each event, so nothing can be shown here. Ask a manager to check your
+          account.
+        </p>
+      ) : null}
+      <div className={`grid gap-4 md:grid-cols-2 ${isAdmin ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
         <AdminStatCard
           href="/admin/events?status=draft"
           icon={
@@ -239,9 +269,11 @@ export default async function AdminDashboardPage({
           label="Upcoming events"
           value={String(metrics.upcomingLaunchedCount)}
         />
+        {/* Portal-wide and only actionable from the logs, so managers only. */}
+        {isAdmin ? (
         <AdminStatCard
           hint="GHL sync warnings and errors"
-          href={isAdmin ? "/admin/system/integration-logs" : undefined}
+          href="/admin/system/integration-logs"
           icon={
             <Icon>
               <path d="M21 12a9 9 0 1 1-6.2-8.6" />
@@ -252,6 +284,7 @@ export default async function AdminDashboardPage({
           label="Integration review"
           value={String(metrics.integrationReviewCount)}
         />
+        ) : null}
       </div>
 
       <DashboardFilters
@@ -262,6 +295,7 @@ export default async function AdminDashboardPage({
           allEvents.map((event) => ({ inquiryType: event.eventType })),
         )}
         initialFilters={filters}
+        showCoordinatorFilter={isAdmin}
       />
 
       <div className="grid gap-6 xl:grid-cols-2">

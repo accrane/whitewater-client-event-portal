@@ -1,6 +1,8 @@
 import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
 
+import { coordinatorScopeFilter, type CurrentCoordinator } from "./event-filters";
+
 type EventStatus = Database["public"]["Enums"]["portal_event_status"];
 
 export type AdminDashboardMetrics = {
@@ -11,8 +13,16 @@ export type AdminDashboardMetrics = {
   checklistReviewCount: number;
 };
 
-export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetrics> {
+// The event tiles (draft, launched, upcoming) are portal-wide for managers
+// and scoped to the coordinator's own events when one is given; the
+// integration and checklist counts are always portal-wide.
+export async function getAdminDashboardMetrics(
+  coordinator: CurrentCoordinator | null = null,
+): Promise<AdminDashboardMetrics> {
   const supabase = createServiceRoleSupabaseClient();
+  const scope = coordinator ? coordinatorScopeFilter(coordinator) : null;
+  let launchedEvents = supabase.from("events").select("ghl_snapshot").eq("status", "launched");
+  if (scope) launchedEvents = launchedEvents.or(scope);
 
   const [
     draftResult,
@@ -21,13 +31,13 @@ export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetrics>
     launchedEventsResult,
     checklistReviewResult,
   ] = await Promise.all([
-    countEventsByStatus("draft"),
-    countEventsByStatus("launched"),
+    countEventsByStatus("draft", scope),
+    countEventsByStatus("launched", scope),
     supabase
       .from("integration_logs")
       .select("id", { count: "exact", head: true })
       .in("status", ["warning", "error"]),
-    supabase.from("events").select("ghl_snapshot").eq("status", "launched"),
+    launchedEvents,
     supabase
       .from("event_checklist_items")
       .select("id", { count: "exact", head: true })
@@ -75,13 +85,14 @@ export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetrics>
   };
 }
 
-function countEventsByStatus(status: EventStatus) {
+function countEventsByStatus(status: EventStatus, scope: string | null) {
   const supabase = createServiceRoleSupabaseClient();
 
-  return supabase
+  const query = supabase
     .from("events")
     .select("id", { count: "exact", head: true })
     .eq("status", status);
+  return scope ? query.or(scope) : query;
 }
 
 function countUpcomingLaunchedEvents(rows: { ghl_snapshot: Json }[]): number {

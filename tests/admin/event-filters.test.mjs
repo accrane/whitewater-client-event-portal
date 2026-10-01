@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   applyFiltersToParams,
+  assignmentsVisibleTo,
   collectGroupTypes,
   coordinatorScopeFilter,
+  opportunitiesVisibleTo,
   countActiveFilters,
   EMPTY_FILTERS,
   hasActiveFilters,
@@ -141,5 +143,37 @@ test("coordinatorScopeFilter strips or() syntax and never matches everything", (
     coordinatorScopeFilter({ email: " ", ghlUserId: null, name: null }),
     "id.eq.00000000-0000-0000-0000-000000000000",
   );
+});
+
+test("managers see every opportunity; coordinators only those assigned to their GHL user", () => {
+  const mine = { id: "o1", assignedTo: "ghl-sam" };
+  const theirs = { id: "o2", assignedTo: "ghl-dana" };
+  const unassigned = { id: "o3", assignedTo: null };
+  const all = [mine, theirs, unassigned];
+  const sam = { email: "sam@whitewater.org", ghlUserId: "ghl-sam", name: "Sam Rivers" };
+
+  assert.deepEqual(opportunitiesVisibleTo(all, { isManager: true, me: null }), all);
+  assert.deepEqual(opportunitiesVisibleTo(all, { isManager: true, me: sam }), all);
+  assert.deepEqual(opportunitiesVisibleTo(all, { isManager: false, me: sam }), [mine]);
+  // No GHL user behind the login: nothing, never everything.
+  assert.deepEqual(opportunitiesVisibleTo(all, { isManager: false, me: null }), []);
+  assert.deepEqual(
+    opportunitiesVisibleTo(all, { isManager: false, me: { ...sam, ghlUserId: null } }),
+    [],
+  );
+});
+
+test("managers see every reservation on the calendar; coordinators only those in their name", () => {
+  const mine = { id: "r1", coordinator_name: "Sam Rivers" };
+  const mineSpaced = { id: "r2", coordinator_name: " sam rivers " };
+  const theirs = { id: "r3", coordinator_name: "Dana Lee" };
+  const unassigned = { id: "r4", coordinator_name: null };
+  const all = [mine, mineSpaced, theirs, unassigned];
+  const sam = { email: "sam@whitewater.org", ghlUserId: "ghl-sam", name: "Sam Rivers" };
+
+  assert.deepEqual(assignmentsVisibleTo(all, { isManager: true, me: null }), all);
+  assert.deepEqual(assignmentsVisibleTo(all, { isManager: false, me: sam }), [mine, mineSpaced]);
+  assert.deepEqual(assignmentsVisibleTo(all, { isManager: false, me: null }), []);
+  assert.deepEqual(assignmentsVisibleTo(all, { isManager: false, me: { ...sam, name: null } }), []);
 });
 

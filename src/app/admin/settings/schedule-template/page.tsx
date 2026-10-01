@@ -2,12 +2,13 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SettingsNav } from "@/components/admin/settings-nav";
 import { getScheduleTemplateItems } from "@/lib/admin/event-schedule";
-import { requireStaffUser } from "@/lib/admin/session";
+import { requireAdminUser } from "@/lib/admin/users";
 
 import { TemplateEditor } from "./template-editor";
 
 export default async function ScheduleTemplatePage() {
-  const { user } = await requireStaffUser();
+  // Managers only: templates shape every new event.
+  const { user } = await requireAdminUser();
 
   const items = await getScheduleTemplateItems();
 

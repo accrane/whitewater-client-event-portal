@@ -2,10 +2,11 @@ import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { SettingsNav } from "@/components/admin/settings-nav";
-import { requireStaffUser } from "@/lib/admin/session";
+import { requireAdminUser } from "@/lib/admin/users";
 
 export default async function AdminSettingsPage() {
-  const { user } = await requireStaffUser();
+  // Managers only: templates shape every new event.
+  const { user } = await requireAdminUser();
 
   return (
     <AdminShell

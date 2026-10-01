@@ -11,6 +11,7 @@ import { getAdminEventById } from "@/lib/admin/events";
 import { getUserRole } from "@/lib/admin/users";
 import { formatEventDayHeading } from "@/lib/dates";
 import { eventDayList } from "@/lib/dates/event-dates";
+import { requireEventAccess } from "@/lib/admin/event-access";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import { defaultContractName } from "@/lib/contracts/shared";
@@ -28,7 +29,8 @@ type AdminContractsPageProps = {
 export default async function AdminContractsPage({
   params,
 }: AdminContractsPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
   const isAdmin = getUserRole(user) === "admin";
 
   const { eventId } = await params;
@@ -37,6 +39,7 @@ export default async function AdminContractsPage({
   if (!event) {
     notFound();
   }
+  await requireEventAccess(staff, event);
 
   await syncEventContracts(eventId);
 

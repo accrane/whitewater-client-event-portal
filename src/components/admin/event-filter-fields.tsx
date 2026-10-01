@@ -41,8 +41,9 @@ export function EventFilterFields({
 }: {
   filters: OpportunityFilters;
   onChange: (next: OpportunityFilters) => void;
-  // Coordinators to list after "Unassigned".
-  coordinatorOptions: CoordinatorOption[];
+  // Coordinators to list after "Unassigned"; null leaves the Coordinator
+  // field out altogether (a coordinator's dashboard, already theirs only).
+  coordinatorOptions: CoordinatorOption[] | null;
   // Options slotted between "Any coordinator" and "Unassigned" (the
   // dashboard's "Me").
   leadingCoordinatorOptions?: CoordinatorOption[];
@@ -65,26 +66,28 @@ export function EventFilterFields({
       className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
       role="group"
     >
-      <Field label="Coordinator">
-        <select
-          className={controlClass}
-          onChange={(event) => set("coordinator", event.target.value || null)}
-          value={filters.coordinator ?? ""}
-        >
-          <option value="">Any coordinator</option>
-          {leadingCoordinatorOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-          <option value={UNASSIGNED_COORDINATOR}>Unassigned</option>
-          {coordinatorOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </Field>
+      {coordinatorOptions ? (
+        <Field label="Coordinator">
+          <select
+            className={controlClass}
+            onChange={(event) => set("coordinator", event.target.value || null)}
+            value={filters.coordinator ?? ""}
+          >
+            <option value="">Any coordinator</option>
+            {leadingCoordinatorOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value={UNASSIGNED_COORDINATOR}>Unassigned</option>
+            {coordinatorOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
       <Field label="Guests from">
         <input
           className={`${controlClass} w-24`}

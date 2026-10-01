@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { getAdminEventById } from "@/lib/admin/events";
 import { getEventChecklistSections } from "@/lib/admin/checklist-sections";
 import { buildMergeTagContext } from "@/lib/merge-tags";
+import { requireEventAccess } from "@/lib/admin/event-access";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import { ChecklistBuilder } from "./checklist-builder";
@@ -16,7 +17,8 @@ type AdminChecklistPageProps = {
 export default async function AdminChecklistPage({
   params,
 }: AdminChecklistPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
 
   const { eventId } = await params;
   const event = await getAdminEventById(eventId);
@@ -24,6 +26,7 @@ export default async function AdminChecklistPage({
   if (!event) {
     notFound();
   }
+  await requireEventAccess(staff, event);
 
   const sections = await getEventChecklistSections(eventId);
 
@@ -42,6 +45,7 @@ export default async function AdminChecklistPage({
       </Link>
 
       <ChecklistBuilder
+        canEditTemplate={staff.role === "admin"}
         eventId={eventId}
         mergeContext={buildMergeTagContext(event)}
         sections={sections}

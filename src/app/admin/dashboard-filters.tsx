@@ -30,6 +30,7 @@ export function DashboardFilters({
   coordinatorNames,
   groupTypes,
   canFilterToMe,
+  showCoordinatorFilter = true,
 }: {
   initialFilters: OpportunityFilters;
   contractsMode: "window" | "all";
@@ -37,6 +38,8 @@ export function DashboardFilters({
   groupTypes: string[];
   // False when the signed-in user has no coordinator identity to match on.
   canFilterToMe: boolean;
+  // False on a coordinator's dashboard: everything on it is already theirs.
+  showCoordinatorFilter?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -60,7 +63,7 @@ export function DashboardFilters({
 
   return (
     <EventFilterFields
-      coordinatorOptions={coordinatorOptions}
+      coordinatorOptions={showCoordinatorFilter ? coordinatorOptions : null}
       filters={filters}
       groupTypes={groupTypes}
       leadingCoordinatorOptions={

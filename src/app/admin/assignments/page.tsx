@@ -10,8 +10,18 @@ import {
 } from "@/lib/admin/room-calendar";
 import { pickCoordinatorColor } from "@/lib/admin/coordinator-color-rules";
 import { getCoordinatorColors } from "@/lib/admin/coordinator-colors";
+import { resolveStaffCoordinator } from "@/lib/admin/current-coordinator";
+import {
+  assignmentsVisibleTo,
+  type CurrentCoordinator,
+} from "@/lib/admin/event-filters";
 import { listGhlCoordinatorUsers, listGhlUsers } from "@/lib/ghl/location-data";
 import { requireStaffUser } from "@/lib/admin/session";
+
+// Events Calendar (the route keeps its original /admin/assignments address):
+// managers see every coordinator's reservations; a coordinator sees only
+// the ones in their own name (assignmentsVisibleTo).
+type AssignmentViewer = { isManager: boolean; me: CurrentCoordinator | null };
 
 import {
   monthGridRange,
@@ -147,7 +157,14 @@ type AdminAssignmentsPageProps = {
 export default async function AdminAssignmentsPage({
   searchParams,
 }: AdminAssignmentsPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
+  const isManager = staff.role === "admin";
+  const viewer: AssignmentViewer = {
+    isManager,
+    me: isManager ? null : await resolveStaffCoordinator(staff),
+  };
+  const coordinatorWithoutMatch = !isManager && !viewer.me?.name;
 
   const params = await searchParams;
   const view = params.view === "columns" ? "columns" : "calendar";
@@ -155,19 +172,33 @@ export default async function AdminAssignmentsPage({
   return (
     <AdminShell
       description={
-        view === "calendar"
-          ? "Every coordinator's assigned events on one month calendar, colored by coordinator. Faded chips are held rooms; solid chips are confirmed bookings."
-          : "Every coordinator with their upcoming assigned events, side by side, so it's easy to spot anyone carrying too many at once. Faded cards are held rooms; solid cards are confirmed bookings."
+        isManager
+          ? view === "calendar"
+            ? "Every coordinator's assigned events on one month calendar, colored by coordinator. Faded chips are held rooms; solid chips are confirmed bookings."
+            : "Every coordinator with their upcoming assigned events, side by side, so it's easy to spot anyone carrying too many at once. Faded cards are held rooms; solid cards are confirmed bookings."
+          : view === "calendar"
+            ? "Your assigned events on a month calendar. Faded chips are held rooms; solid chips are confirmed bookings."
+            : "Your upcoming assigned events in one column. Faded cards are held rooms; solid cards are confirmed bookings."
       }
-      title="Coordinator Assignments"
+      title="Events Calendar"
       userEmail={user.email}
     >
-      {view === "calendar" ? (
-        <CalendarView monthParam={params.month} coordinatorsParam={params.coordinators} />
+      {coordinatorWithoutMatch ? (
+        <EmptyState
+          description="Your login doesn't match a GoHighLevel user, so your events can't be picked out. Ask a manager to check that your GHL staff user has the same email address as your portal login."
+          title="No coordinator match"
+        />
+      ) : view === "calendar" ? (
+        <CalendarView
+          coordinatorsParam={params.coordinators}
+          monthParam={params.month}
+          viewer={viewer}
+        />
       ) : (
         <ColumnsView
           from={parseDateParam(params.from)}
           to={parseDateParam(params.to)}
+          viewer={viewer}
         />
       )}
     </AdminShell>
@@ -210,29 +241,35 @@ function ViewToggle({ view }: { view: "calendar" | "columns" }) {
 async function CalendarView({
   monthParam,
   coordinatorsParam,
+  viewer,
 }: {
   monthParam: string | undefined;
   coordinatorsParam: string | undefined;
+  viewer: AssignmentViewer;
 }) {
   const month = parseMonthParam(monthParam);
   const { start, end } = monthGridRange(month);
 
   // Every GHL user, not just coordinators, so an admin-role user who holds
   // events still finds their stored color by name.
-  const [allGhlUsers, assignments] = await Promise.all([
+  const [allGhlUsers, allAssignments] = await Promise.all([
     listGhlUsers(),
     listUpcomingAssignments({
       from: format(start, "yyyy-MM-dd"),
       to: format(end, "yyyy-MM-dd"),
     }),
   ]);
+  const assignments = assignmentsVisibleTo(allAssignments, viewer);
 
   // Coordinator order: GHL staff coordinators first, then anyone else who still
   // has assignments this month, then Unassigned. Colors are each
   // coordinator's stored color, the same one their Opportunities cards
-  // carry; a name GHL doesn't know gets a spare color for this page.
+  // carry; a name GHL doesn't know gets a spare color for this page. A
+  // coordinator's own calendar lists just them.
   const ghlUsers = allGhlUsers.filter((user) => user.role === "user");
-  const coordinatorNames = [...ghlUsers.map((u) => u.name)];
+  const coordinatorNames = viewer.isManager
+    ? [...ghlUsers.map((u) => u.name)]
+    : [viewer.me?.name ?? UNASSIGNED];
   for (const assignment of assignments) {
     const name = coordinatorNameOf(assignment);
     if (name !== UNASSIGNED && !coordinatorNames.includes(name)) {
@@ -335,6 +372,13 @@ async function CalendarView({
           description="Coordinators come from your GoHighLevel users. Once GHL is configured and reservations are assigned a coordinator, their events appear here."
           title="No coordinators yet"
         />
+      ) : !viewer.isManager ? (
+        // One coordinator: no legend to filter by, just the month's count.
+        <p className="text-xs text-slate-500">
+          {assignments.length === 0
+            ? `No assigned events in ${format(month, "MMMM")}.`
+            : `${assignments.length} event${assignments.length === 1 ? "" : "s"} in ${format(month, "MMMM")}.`}
+        </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <Link
@@ -433,23 +477,28 @@ function ChevronIcon({ direction }: { direction: "left" | "right" }) {
 async function ColumnsView({
   from,
   to,
+  viewer,
 }: {
   from: string | null;
   to: string | null;
+  viewer: AssignmentViewer;
 }) {
   const hasRange = Boolean(from || to);
 
   // Coordinator columns are the GHL staff coordinators — the same list the
   // reservation modal's Event Coordinator dropdown offers. Events assigned
   // to someone outside that list still get their own column via
-  // groupByCoordinator.
-  const [ghlUsers, assignments] = await Promise.all([
-    listGhlCoordinatorUsers(),
+  // groupByCoordinator. A coordinator gets their one column.
+  const [ghlUsers, allAssignments] = await Promise.all([
+    viewer.isManager ? listGhlCoordinatorUsers() : Promise.resolve([]),
     listUpcomingAssignments({ from, to }),
   ]);
+  const assignments = assignmentsVisibleTo(allAssignments, viewer);
 
   const groups = groupByCoordinator(
-    [...ghlUsers.map((u) => u.name), UNASSIGNED],
+    viewer.isManager
+      ? [...ghlUsers.map((u) => u.name), UNASSIGNED]
+      : [viewer.me?.name ?? UNASSIGNED],
     assignments,
   );
 

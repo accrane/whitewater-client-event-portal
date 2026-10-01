@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { getAdminEventById } from "@/lib/admin/events";
 import { getScheduleItems } from "@/lib/admin/event-schedule";
 import { buildMergeTagContext } from "@/lib/merge-tags";
+import { requireEventAccess } from "@/lib/admin/event-access";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import { ScheduleBuilder } from "./schedule-builder";
@@ -16,7 +17,8 @@ type AdminSchedulePageProps = {
 export default async function AdminSchedulePage({
   params,
 }: AdminSchedulePageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
 
   const { eventId } = await params;
   const event = await getAdminEventById(eventId);
@@ -24,6 +26,7 @@ export default async function AdminSchedulePage({
   if (!event) {
     notFound();
   }
+  await requireEventAccess(staff, event);
 
   const items = await getScheduleItems(eventId);
 
@@ -42,6 +45,7 @@ export default async function AdminSchedulePage({
       </Link>
 
       <ScheduleBuilder
+        canEditTemplate={staff.role === "admin"}
         eventId={eventId}
         items={items}
         mergeContext={buildMergeTagContext(event)}

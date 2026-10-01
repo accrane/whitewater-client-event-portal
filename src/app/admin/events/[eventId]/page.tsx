@@ -70,6 +70,7 @@ import {
   toIsoDate,
   venueDay,
 } from "@/lib/dates/event-dates";
+import { requireEventAccess } from "@/lib/admin/event-access";
 import { requireStaffUser } from "@/lib/admin/session";
 
 import {
@@ -213,7 +214,8 @@ export default async function AdminEventDetailPage({
   params,
   searchParams,
 }: AdminEventDetailPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
 
   const isAdmin = getUserRole(user) === "admin";
   const { eventId } = await params;
@@ -268,6 +270,7 @@ export default async function AdminEventDetailPage({
   if (!event) {
     notFound();
   }
+  await requireEventAccess(staff, event);
 
   const requestOrigin = getRequestOrigin(await headers());
   const portalUrl = buildPortalUrlForOrigin({

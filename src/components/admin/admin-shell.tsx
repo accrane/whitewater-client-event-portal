@@ -24,10 +24,6 @@ type AdminShellProps = {
   backLabel?: string;
 };
 
-// Shown in the top bar so a coordinator can tell a local build from the live app.
-const environmentTag =
-  process.env.NODE_ENV === "production" ? null : process.env.NODE_ENV;
-
 export async function AdminShell({
   children,
   eyebrow,
@@ -52,7 +48,6 @@ export async function AdminShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <AdminTopBar
-          environment={environmentTag}
           title={title}
           userEmail={userEmail}
           viewAs={

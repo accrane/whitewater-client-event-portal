@@ -19,9 +19,8 @@ import {
   type SfOpportunityRow,
   type SfPandaDocDocumentRow,
 } from "@/lib/admin/companies";
-import { getUserRole } from "@/lib/admin/users";
+import { getUserRole, requireAdminUser } from "@/lib/admin/users";
 import { pandaDocDocumentUrl } from "@/lib/pandadoc/documents";
-import { requireStaffUser } from "@/lib/admin/session";
 
 // Company detail: the Salesforce-account view their sales team is used to,
 // rebuilt on the app's own archive — header stats computed live from the
@@ -86,7 +85,9 @@ export default async function CompanyDetailPage({
   params,
   searchParams,
 }: CompanyDetailPageProps) {
-  const { user } = await requireStaffUser();
+  // Managers only (coordinators are sent to the dashboard); isAdmin stays
+  // for the value and PandaDoc branches below.
+  const { user } = await requireAdminUser();
   const isAdmin = getUserRole(user) === "admin";
 
   const { sfId } = await params;

@@ -8,7 +8,7 @@ import {
   saveScheduleTemplateItem,
   type ScheduleItemInput,
 } from "@/lib/admin/event-schedule";
-import { requireStaffUser } from "@/lib/admin/session";
+import { requireAdminUser } from "@/lib/admin/users";
 
 function revalidateTemplate() {
   revalidatePath("/admin/settings/schedule-template");
@@ -17,13 +17,13 @@ function revalidateTemplate() {
 export async function saveScheduleTemplateItemAction(
   input: ScheduleItemInput,
 ) {
-  await requireStaffUser();
+  await requireAdminUser();
   await saveScheduleTemplateItem(input);
   revalidateTemplate();
 }
 
 export async function deleteScheduleTemplateItemAction(itemId: string) {
-  await requireStaffUser();
+  await requireAdminUser();
   await deleteScheduleTemplateItem(itemId);
   revalidateTemplate();
 }
@@ -32,7 +32,7 @@ export async function moveScheduleTemplateItemAction(
   itemId: string,
   direction: "up" | "down",
 ) {
-  await requireStaffUser();
+  await requireAdminUser();
   await moveScheduleTemplateItem(itemId, direction);
   revalidateTemplate();
 }

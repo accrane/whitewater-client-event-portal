@@ -444,6 +444,39 @@ export function contractsVisibleTo<T extends { event: FilterableEvent }>(
   return contracts.filter((contract) => isCurrentCoordinatorsEvent(contract.event, me));
 }
 
+// Which GHL opportunities a signed-in user may see (Opportunities page):
+// managers all of them, coordinators only those assigned to their GHL user.
+// The portal keeps the opportunity's assignee and the contact's owner in
+// step (assignOpportunityCoordinator), so "my contacts' opportunities" is
+// the assignee. A coordinator with no GHL user sees none — the search
+// result carries no email or name to fall back on.
+export function opportunitiesVisibleTo<T extends { assignedTo: string | null }>(
+  opportunities: T[],
+  viewer: { isManager: boolean; me: CurrentCoordinator | null },
+): T[] {
+  if (viewer.isManager) return opportunities;
+  const ghlUserId = viewer.me?.ghlUserId;
+  if (!ghlUserId) return [];
+  return opportunities.filter((opportunity) => opportunity.assignedTo === ghlUserId);
+}
+
+// Which room reservations a signed-in user may see on the Events Calendar:
+// managers all of them, coordinators only reservations carrying their own
+// name (reservations store the coordinator as text, the name picked when
+// the rooms were reserved — the same name the calendar groups and colors
+// by). A coordinator with no GHL match has no name to match and sees none.
+export function assignmentsVisibleTo<T extends { coordinator_name: string | null }>(
+  assignments: T[],
+  viewer: { isManager: boolean; me: CurrentCoordinator | null },
+): T[] {
+  if (viewer.isManager) return assignments;
+  const name = viewer.me?.name?.trim().toLowerCase();
+  if (!name) return [];
+  return assignments.filter(
+    (assignment) => assignment.coordinator_name?.trim().toLowerCase() === name,
+  );
+}
+
 // Column sorting for the contracts table, chosen by clicking a header and
 // kept in the page address (?sort=&dir=). No sort means the page's own
 // order (approvals first on Open, newest first on History).

@@ -18,12 +18,16 @@ type ScheduleBuilderProps = {
   eventId: string;
   items: ScheduleItem[];
   mergeContext: MergeTagContext;
+  // Managers may edit the template behind these tiles; coordinators can't
+  // open Settings, so they aren't pointed there.
+  canEditTemplate: boolean;
 };
 
 export function ScheduleBuilder({
   eventId,
   items,
   mergeContext,
+  canEditTemplate,
 }: ScheduleBuilderProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -69,13 +73,19 @@ export function ScheduleBuilder({
             <p className="mt-1 text-sm text-slate-600">
               Repeatable tiles with a title and description. Add notes to a
               tile and they show beside it on the client schedule. Tiles here
-              belong to this event only &mdash; edit the skeleton on the{" "}
-              <Link
-                className="font-medium text-blue-700 underline hover:text-blue-900"
-                href="/admin/settings/schedule-template"
-              >
-                template settings page
-              </Link>
+              belong to this event only
+              {canEditTemplate ? (
+                <>
+                  {" "}
+                  &mdash; edit the skeleton on the{" "}
+                  <Link
+                    className="font-medium text-blue-700 underline hover:text-blue-900"
+                    href="/admin/settings/schedule-template"
+                  >
+                    template settings page
+                  </Link>
+                </>
+              ) : null}
               .
             </p>
           </div>

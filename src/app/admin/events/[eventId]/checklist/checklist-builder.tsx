@@ -20,12 +20,16 @@ type ChecklistBuilderProps = {
   eventId: string;
   mergeContext: MergeTagContext;
   sections: EventChecklistSection[];
+  // Managers may edit the template behind these sections; coordinators
+  // can't open Settings, so they aren't pointed there.
+  canEditTemplate: boolean;
 };
 
 export function ChecklistBuilder({
   eventId,
   mergeContext,
   sections,
+  canEditTemplate,
 }: ChecklistBuilderProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -70,14 +74,19 @@ export function ChecklistBuilder({
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               FAQ-style sections clients expand on their portal&apos;s Action
-              checklist. Sections here belong to this event only &mdash; edit
-              the default set on the{" "}
-              <Link
-                className="font-medium text-blue-700 underline hover:text-blue-900"
-                href="/admin/settings/checklist-template"
-              >
-                template settings page
-              </Link>
+              checklist. Sections here belong to this event only
+              {canEditTemplate ? (
+                <>
+                  {" "}
+                  &mdash; edit the default set on the{" "}
+                  <Link
+                    className="font-medium text-blue-700 underline hover:text-blue-900"
+                    href="/admin/settings/checklist-template"
+                  >
+                    template settings page
+                  </Link>
+                </>
+              ) : null}
               .
             </p>
           </div>

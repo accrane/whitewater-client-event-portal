@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CreateEventButton } from "@/components/admin/create-event-button";
+import { FlashBanner } from "@/components/admin/flash-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
@@ -39,7 +40,7 @@ const filters = [
 type FilterKey = (typeof filters)[number]["key"];
 
 type AdminEventsPageProps = {
-  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string; denied?: string }>;
 };
 
 export default async function AdminEventsPage({
@@ -54,7 +55,7 @@ export default async function AdminEventsPage({
   const me = isAdmin ? null : await resolveStaffCoordinator(staff);
   const coordinatorWithoutMatch = !isAdmin && !me;
 
-  const { status, q, page: pageParam } = await searchParams;
+  const { status, q, page: pageParam, denied } = await searchParams;
   const activeFilter: FilterKey = filters.some((f) => f.key === status)
     ? (status as FilterKey)
     : "all";
@@ -125,6 +126,12 @@ export default async function AdminEventsPage({
       title="Events"
       userEmail={user.email}
     >
+      {denied === "1" ? (
+        <FlashBanner tone="error">
+          That event belongs to another coordinator, so it can&apos;t be opened
+          from this login.
+        </FlashBanner>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav
           aria-label="Filter events by status"
