@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   applyFiltersToParams,
   collectGroupTypes,
+  coordinatorScopeFilter,
   countActiveFilters,
   EMPTY_FILTERS,
   hasActiveFilters,
@@ -118,3 +119,27 @@ test("collectGroupTypes dedupes case-insensitively and sorts", () => {
     ["Adventure Lodging Inquiry", "General Inquiry", "Wedding Inquiry"],
   );
 });
+
+test("coordinatorScopeFilter matches on email, GHL id and name, like isCurrentCoordinatorsEvent", () => {
+  assert.equal(
+    coordinatorScopeFilter({ email: "sam@whitewater.org", ghlUserId: "ghl-sam", name: "Sam Rivers" }),
+    "ghl_snapshot->planner->>email.ilike.sam@whitewater.org,ghl_snapshot->planner->>id.eq.ghl-sam,ghl_snapshot->planner->>name.ilike.Sam Rivers",
+  );
+  // A login with no GHL match (a test coordinator) matches by email only.
+  assert.equal(
+    coordinatorScopeFilter({ email: "test@whitewater.org", ghlUserId: null, name: null }),
+    "ghl_snapshot->planner->>email.ilike.test@whitewater.org",
+  );
+});
+
+test("coordinatorScopeFilter strips or() syntax and never matches everything", () => {
+  assert.equal(
+    coordinatorScopeFilter({ email: 'a,b(c)*%"\\@x.org', ghlUserId: null, name: "O'Neil, Pat" }),
+    "ghl_snapshot->planner->>email.ilike.a b c @x.org,ghl_snapshot->planner->>name.ilike.O'Neil Pat",
+  );
+  assert.equal(
+    coordinatorScopeFilter({ email: " ", ghlUserId: null, name: null }),
+    "id.eq.00000000-0000-0000-0000-000000000000",
+  );
+});
+

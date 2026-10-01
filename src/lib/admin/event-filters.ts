@@ -215,6 +215,28 @@ export function isCurrentCoordinatorsEvent(
   );
 }
 
+// The same rule as isCurrentCoordinatorsEvent, as a PostgREST or() filter
+// over the events table's ghl_snapshot, for lists that page in the
+// database (the Events page). Values go inside or() syntax, where commas,
+// parentheses, quotes and the wildcards are special, so those characters
+// are dropped; ilike without wildcards is a case-insensitive equality.
+// Never returns a filter that matches everything: a coordinator with no
+// usable identity gets one that matches nothing.
+export function coordinatorScopeFilter(me: CurrentCoordinator): string {
+  const clean = (value: string | null | undefined) =>
+    value?.replace(/[,()*%\\"]/g, " ").replace(/\s+/g, " ").trim() || null;
+  const clauses: string[] = [];
+  const email = clean(me.email);
+  if (email) clauses.push(`ghl_snapshot->planner->>email.ilike.${email}`);
+  const ghlUserId = clean(me.ghlUserId);
+  if (ghlUserId) clauses.push(`ghl_snapshot->planner->>id.eq.${ghlUserId}`);
+  const name = clean(me.name);
+  if (name) clauses.push(`ghl_snapshot->planner->>name.ilike.${name}`);
+  return clauses.length > 0
+    ? clauses.join(",")
+    : "id.eq.00000000-0000-0000-0000-000000000000";
+}
+
 // Coordinator values on the dashboard are names (what events store
 // reliably), "unassigned", or "me". Everything else defers to the shared
 // opportunity matcher.

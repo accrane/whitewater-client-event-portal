@@ -11,6 +11,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/supabase/server";
 import type { GhlEventSnapshot } from "@/types/portal";
 
 import { buildChecklistReviewCountsByEvent } from "./checklist-review-presenters";
+import { coordinatorScopeFilter, type CurrentCoordinator } from "./event-filters";
 import { buildReviewedUploadMetadata } from "./upload-review-presenters";
 import {
   buildReviewedVendorMetadata,
@@ -229,13 +230,20 @@ export async function listAdminEventsPage({
   filter,
   search,
   page,
+  coordinator = null,
 }: {
   filter: AdminEventStatusFilter;
   search: string;
   page: number;
+  // When set, only this coordinator's events (list, total and tab counts
+  // alike); managers pass null and see everything.
+  coordinator?: CurrentCoordinator | null;
 }): Promise<AdminEventListPage> {
   const supabase = createServiceRoleSupabaseClient();
   const searchFilter = eventSearchFilter(search);
+  // Each .or() is its own filter and they AND together, so the scope and
+  // the search can both apply.
+  const scopeFilter = coordinator ? coordinatorScopeFilter(coordinator) : null;
   const from = (Math.max(page, 1) - 1) * EVENTS_PAGE_SIZE;
 
   const byStatus = <
@@ -260,6 +268,7 @@ export async function listAdminEventsPage({
       supabase.from("events").select("id", { count: "exact", head: true }),
       key,
     );
+    if (scopeFilter) query = query.or(scopeFilter);
     if (withSearch && searchFilter) query = query.or(searchFilter);
     return query;
   };
@@ -272,6 +281,7 @@ export async function listAdminEventsPage({
       .range(from, from + EVENTS_PAGE_SIZE - 1),
     filter,
   );
+  if (scopeFilter) list = list.or(scopeFilter);
   if (searchFilter) list = list.or(searchFilter);
 
   const tabs: AdminEventStatusFilter[] = ["all", "draft", "launched", "past"];

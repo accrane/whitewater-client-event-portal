@@ -9,6 +9,7 @@ import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { formatDisplayDate } from "@/lib/dates";
 import { formatEventDates } from "@/lib/dates/event-dates";
+import { resolveStaffCoordinator } from "@/lib/admin/current-coordinator";
 import { EVENTS_PAGE_SIZE, listAdminEventsPage } from "@/lib/admin/events";
 import { requireStaffUser } from "@/lib/admin/session";
 
@@ -44,7 +45,14 @@ type AdminEventsPageProps = {
 export default async function AdminEventsPage({
   searchParams,
 }: AdminEventsPageProps) {
-  const { user } = await requireStaffUser();
+  const staff = await requireStaffUser();
+  const { user } = staff;
+  // Managers see every event; coordinators only their own (matched to the
+  // event's coordinator the same way as on the Contracts page). A
+  // coordinator whose login matches nobody sees nothing, with a note why.
+  const isAdmin = staff.role === "admin";
+  const me = isAdmin ? null : await resolveStaffCoordinator(staff);
+  const coordinatorWithoutMatch = !isAdmin && !me;
 
   const { status, q, page: pageParam } = await searchParams;
   const activeFilter: FilterKey = filters.some((f) => f.key === status)
@@ -59,7 +67,18 @@ export default async function AdminEventsPage({
     events: filtered,
     total,
     counts,
-  } = await listAdminEventsPage({ filter: activeFilter, search: query, page });
+  } = coordinatorWithoutMatch
+    ? {
+        events: [],
+        total: 0,
+        counts: { all: 0, draft: 0, launched: 0, past: 0 },
+      }
+    : await listAdminEventsPage({
+        filter: activeFilter,
+        search: query,
+        page,
+        coordinator: me,
+      });
   const lastPage = Math.max(1, Math.ceil(total / EVENTS_PAGE_SIZE));
 
   function listHref(key: FilterKey, pageNumber = 1): string {
@@ -98,7 +117,11 @@ export default async function AdminEventsPage({
           <CreateEventButton />
         </>
       }
-      description="Every portal event, from new GHL inquiries through launched client portals."
+      description={
+        isAdmin
+          ? "Every portal event, from new GHL inquiries through launched client portals."
+          : "Your events, from new GHL inquiries through launched client portals."
+      }
       title="Events"
       userEmail={user.email}
     >
@@ -149,7 +172,12 @@ export default async function AdminEventsPage({
         </form>
       </div>
 
-      {filtered.length > 0 ? (
+      {coordinatorWithoutMatch ? (
+        <EmptyState
+          description="Your login has no email address to match against the coordinator on each event, so no events can be shown. Ask a manager to check your account."
+          title="No coordinator match"
+        />
+      ) : filtered.length > 0 ? (
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="overflow-x-auto">
             <div className="min-w-[860px]">
@@ -295,7 +323,9 @@ export default async function AdminEventsPage({
               ? `No events match “${query}”.`
               : activeFilter !== "all"
                 ? "No events in this status right now."
-                : "New GHL inquiries appear here automatically, or use Create Event to book one onto the room calendar."
+                : isAdmin
+                  ? "New GHL inquiries appear here automatically, or use Create Event to book one onto the room calendar."
+                  : "Events show up here once you are their coordinator. Use Create Event to book one onto the room calendar."
           }
           title={
             query || activeFilter !== "all" ? "No matching events" : "No events yet"
