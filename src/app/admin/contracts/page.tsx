@@ -18,8 +18,8 @@ import {
   collectCoordinatorNames,
   CONTRACT_STATUS_GROUPS,
   contractStatusGroup,
+  contractsVisibleTo,
   contractTab,
-  isCurrentCoordinatorsEvent,
   matchesContractFilters,
   ME_COORDINATOR,
   nextContractSort,
@@ -136,11 +136,7 @@ export default async function AdminContractsPage({
 
   // Coordinators are scoped to their own events before any filter applies;
   // the coordinator dropdown is a manager-only control.
-  const scoped = isAdmin
-    ? all
-    : me
-      ? all.filter((contract) => isCurrentCoordinatorsEvent(contract.event, me))
-      : [];
+  const scoped = contractsVisibleTo(all, { isManager: isAdmin, me });
   const effectiveFilters: ContractListFilters = isAdmin
     ? filters
     : { ...filters, coordinator: null };

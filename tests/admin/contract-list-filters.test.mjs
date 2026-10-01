@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   contractStatusGroup,
+  contractsVisibleTo,
   contractTab,
   matchesContractFilters,
   nextContractSort,
@@ -160,3 +161,18 @@ test("empty cells sort last in both directions; amounts and names compare proper
   assert.deepEqual(ids("coordinator", "asc"), ["none", "big", "small"]);
 });
 
+test("managers see every coordinator's contracts; coordinators only their own", () => {
+  const unassigned = { ...awaitingApproval, event: { ...samEvent, coordinatorName: null, coordinatorEmail: null, coordinatorGhlUserId: null } };
+  const all = [awaitingApproval, viewed, signedUnpaid, signedPaid, unassigned];
+  const sam = { email: "sam@whitewater.org", ghlUserId: "ghl-sam", name: "Sam Rivers" };
+
+  assert.deepEqual(contractsVisibleTo(all, { isManager: true, me: null }), all);
+  assert.deepEqual(contractsVisibleTo(all, { isManager: true, me: sam }), all);
+  assert.deepEqual(contractsVisibleTo(all, { isManager: false, me: sam }), [awaitingApproval, signedUnpaid]);
+  // A coordinator whose login matches nobody sees nothing, not everything.
+  assert.deepEqual(contractsVisibleTo(all, { isManager: false, me: null }), []);
+  assert.deepEqual(
+    contractsVisibleTo(all, { isManager: false, me: { email: "new@whitewater.org", ghlUserId: null, name: null } }),
+    [],
+  );
+});

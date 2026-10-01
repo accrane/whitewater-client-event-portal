@@ -1129,6 +1129,8 @@ export async function syncContractFromPandaDoc(
 // rows are left alone.
 // ---- All-contracts page ----------------------------------------------------
 
+const EVENT_ID_BATCH = 100;
+
 export type AdminContractListItem = {
   id: string;
   eventId: string;
@@ -1161,17 +1163,12 @@ export type AdminContractListItem = {
 // Every contract across every event, newest first, with the bits of the
 // event the Contracts page filters and displays. Two queries rather than a
 // join so the event snapshot goes through the same parser as everywhere.
+// Not capped: contracts are read in pages until the exact count is reached
+// (the API returns at most max-rows, 1,000 by default, per request), and
+// their events in batches, so a manager's list is never silently cut short.
 export async function listAllContracts(): Promise<AdminContractListItem[]> {
   const supabase = createServiceRoleSupabaseClient();
-  const { data, error } = await supabase
-    .from("event_contracts")
-    .select(
-      "id, event_id, name, status, pandadoc_status, pandadoc_document_id, recipient_name, subtotal, grand_total, created_at, sent_at, viewed_at, completed_at, updated_at, last_error, pay_by_check_at",
-    )
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`Unable to load contracts: ${error.message}`);
-
-  const rows = (data ?? []) as Pick<
+  type ContractListRow = Pick<
     ContractRow,
     | "id"
     | "event_id"
@@ -1189,14 +1186,35 @@ export async function listAllContracts(): Promise<AdminContractListItem[]> {
     | "updated_at"
     | "last_error"
     | "pay_by_check_at"
-  >[];
+  >;
+  const rows: ContractListRow[] = [];
+  let total = Number.POSITIVE_INFINITY;
+  while (rows.length < total) {
+    const { data, error, count } = await supabase
+      .from("event_contracts")
+      .select(
+        "id, event_id, name, status, pandadoc_status, pandadoc_document_id, recipient_name, subtotal, grand_total, created_at, sent_at, viewed_at, completed_at, updated_at, last_error, pay_by_check_at",
+        { count: "exact" },
+      )
+      // id breaks created_at ties so pages don't overlap or skip.
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(rows.length, rows.length + 999);
+    if (error) throw new Error(`Unable to load contracts: ${error.message}`);
+    const page = (data ?? []) as ContractListRow[];
+    if (count !== null) total = count;
+    if (page.length === 0) break;
+    rows.push(...page);
+  }
+
   const eventIds = [...new Set(rows.map((row) => row.event_id))];
   const events = new Map<string, AdminContractListItem["event"]>();
-  if (eventIds.length > 0) {
+  // Batched so the id list stays well inside the request address limit.
+  for (let from = 0; from < eventIds.length; from += EVENT_ID_BATCH) {
     const { data: eventRows, error: eventError } = await supabase
       .from("events")
       .select("id, ghl_snapshot")
-      .in("id", eventIds);
+      .in("id", eventIds.slice(from, from + EVENT_ID_BATCH));
     if (eventError) throw new Error(`Unable to load contract events: ${eventError.message}`);
     for (const row of (eventRows ?? []) as Pick<EventRow, "id" | "ghl_snapshot">[]) {
       const snapshot = parseGhlSnapshot(row.ghl_snapshot);

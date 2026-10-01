@@ -409,6 +409,19 @@ export function matchesContractFilters(
   );
 }
 
+// Whose contracts a signed-in user may see at all, before any filter:
+// managers every event's, coordinators only their own events' (and nothing
+// when their login can't be matched to a coordinator).
+export function contractsVisibleTo<T extends { event: FilterableEvent }>(
+  contracts: T[],
+  viewer: { isManager: boolean; me: CurrentCoordinator | null },
+): T[] {
+  if (viewer.isManager) return contracts;
+  const me = viewer.me;
+  if (!me) return [];
+  return contracts.filter((contract) => isCurrentCoordinatorsEvent(contract.event, me));
+}
+
 // Column sorting for the contracts table, chosen by clicking a header and
 // kept in the page address (?sort=&dir=). No sort means the page's own
 // order (approvals first on Open, newest first on History).
