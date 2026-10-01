@@ -408,3 +408,114 @@ export function matchesContractFilters(
     me,
   );
 }
+
+// Column sorting for the contracts table, chosen by clicking a header and
+// kept in the page address (?sort=&dir=). No sort means the page's own
+// order (approvals first on Open, newest first on History).
+
+export type ContractSortKey =
+  | "contract"
+  | "date"
+  | "coordinator"
+  | "customer"
+  | "status"
+  | "amount";
+
+export type ContractSort = { key: ContractSortKey; dir: "asc" | "desc" };
+
+const CONTRACT_SORT_KEYS: ContractSortKey[] = [
+  "contract",
+  "date",
+  "coordinator",
+  "customer",
+  "status",
+  "amount",
+];
+
+export function parseContractSort(params: {
+  sort?: string;
+  dir?: string;
+}): ContractSort | null {
+  const key = CONTRACT_SORT_KEYS.find((candidate) => candidate === params.sort);
+  if (!key) return null;
+  return { key, dir: params.dir === "desc" ? "desc" : "asc" };
+}
+
+// What a header click leads to: its first direction (largest amount first,
+// everything else A→Z / soonest first), then the reverse, then back to the
+// page's own order. Null means "drop the sort".
+export function nextContractSort(
+  current: ContractSort | null,
+  key: ContractSortKey,
+): ContractSort | null {
+  const first = key === "amount" ? "desc" : "asc";
+  if (current?.key !== key) return { key, dir: first };
+  if (current.dir === first) return { key, dir: first === "asc" ? "desc" : "asc" };
+  return null;
+}
+
+// Sorting by status keeps each status group together, in the order a
+// contract moves through them.
+const STATUS_GROUP_ORDER: ContractStatusGroup[] = [
+  "needs_approval",
+  "failed",
+  "awaiting_signature",
+  "viewed",
+  "signed",
+  "unpaid",
+  "declined",
+  "voided",
+];
+
+export type SortableContract = {
+  name: string;
+  status: string;
+  pandadocStatus: string | null;
+  recipientName: string | null;
+  amount: number | null;
+  event: { eventDate: string | null; coordinatorName: string | null };
+};
+
+function contractSortValue(
+  contract: SortableContract,
+  key: ContractSortKey,
+): string | number | null {
+  switch (key) {
+    case "contract":
+      return contract.name.trim().toLowerCase() || null;
+    case "date":
+      return contract.event.eventDate;
+    case "coordinator":
+      return contract.event.coordinatorName?.trim().toLowerCase() || null;
+    case "customer":
+      return contract.recipientName?.trim().toLowerCase() || null;
+    case "status": {
+      const group = contractStatusGroup(contract.status, contract.pandadocStatus);
+      const rank = group ? STATUS_GROUP_ORDER.indexOf(group) : -1;
+      return rank === -1 ? null : rank;
+    }
+    case "amount":
+      return contract.amount;
+  }
+}
+
+// Returns a new array. Rows that tie keep the order they came in, and rows
+// with nothing in the sorted column go last in either direction.
+export function sortContracts<T extends SortableContract>(
+  rows: T[],
+  sort: ContractSort | null,
+): T[] {
+  if (!sort) return rows;
+  const flip = sort.dir === "desc" ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const left = contractSortValue(a, sort.key);
+    const right = contractSortValue(b, sort.key);
+    if (left === null || right === null) {
+      return left === right ? 0 : left === null ? 1 : -1;
+    }
+    if (typeof left === "number" && typeof right === "number") {
+      return (left - right) * flip;
+    }
+    return String(left).localeCompare(String(right)) * flip;
+  });
+}

@@ -22,9 +22,14 @@ import {
   isCurrentCoordinatorsEvent,
   matchesContractFilters,
   ME_COORDINATOR,
+  nextContractSort,
   parseContractListFilters,
+  parseContractSort,
+  sortContracts,
   type ContractListFilters,
   type ContractListTab,
+  type ContractSort,
+  type ContractSortKey,
 } from "@/lib/admin/event-filters";
 import { getUserRole } from "@/lib/admin/users";
 import { formatEventDates } from "@/lib/dates/event-dates";
@@ -34,7 +39,9 @@ import { requireStaffUser } from "@/lib/admin/session";
 // Every PandaDoc contract across every event, for the manager's approval
 // pass and for coordinators keeping an eye on their own. Open contracts
 // (nothing signed yet) and History (signed, declined, voided) are separate
-// tabs; managers see all events, coordinators only their own.
+// tabs; managers see all events, coordinators only their own. Column
+// headers sort the tab on screen (?sort=&dir=), e.g. Status to keep each
+// status together.
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -94,6 +101,8 @@ type AdminContractsPageProps = {
     status?: string;
     from?: string;
     to?: string;
+    sort?: string;
+    dir?: string;
     refresh?: string;
   }>;
 };
@@ -106,6 +115,7 @@ export default async function AdminContractsPage({
   const params = await searchParams;
   const isAdmin = getUserRole(user) === "admin";
   const filters = parseContractListFilters(params);
+  const sort = parseContractSort(params);
   const refreshing = params.refresh === "1";
 
   // Statuses come from PandaDoc. "Refresh statuses" re-reads every open
@@ -135,7 +145,7 @@ export default async function AdminContractsPage({
     ? filters
     : { ...filters, coordinator: null };
 
-  const rows = scoped
+  const defaultOrder = scoped
     .filter((contract) => matchesContractFilters(contract, effectiveFilters, me))
     .sort((a, b) => {
       if (filters.tab === "open") {
@@ -147,6 +157,8 @@ export default async function AdminContractsPage({
       }
       return (b.completedAt ?? b.updatedAt).localeCompare(a.completedAt ?? a.updatedAt);
     });
+  // A clicked column header sorts on top of that, so ties keep it.
+  const rows = sortContracts(defaultOrder, sort);
 
   const tabCount = (tab: ContractListTab) =>
     scoped.filter((contract) => contractTab(contract.status) === tab).length;
@@ -165,6 +177,8 @@ export default async function AdminContractsPage({
       status: filters.status,
       from: filters.from,
       to: filters.to,
+      sort: sort?.key ?? null,
+      dir: sort?.dir === "desc" ? "desc" : null,
       ...overrides,
     };
     for (const [key, value] of Object.entries(values)) {
@@ -237,6 +251,8 @@ export default async function AdminContractsPage({
         method="get"
       >
         {filters.tab === "history" ? <input name="tab" type="hidden" value="history" /> : null}
+        {sort ? <input name="sort" type="hidden" value={sort.key} /> : null}
+        {sort?.dir === "desc" ? <input name="dir" type="hidden" value="desc" /> : null}
         <label className="grid gap-1 text-xs font-semibold text-slate-500">
           Search
           <input
@@ -318,6 +334,14 @@ export default async function AdminContractsPage({
           rows={rows}
           showPandaDocLinks={isAdmin}
           showValues={isAdmin}
+          sort={sort}
+          sortHref={(key) => {
+            const next = nextContractSort(sort, key);
+            return hrefFor({
+              sort: next?.key ?? null,
+              dir: next?.dir === "desc" ? "desc" : null,
+            });
+          }}
           tab={filters.tab}
         />
       )}
@@ -332,6 +356,8 @@ function ContractTable({
   rows,
   showPandaDocLinks,
   showValues,
+  sort,
+  sortHref,
   tab,
 }: {
   rows: AdminContractListItem[];
@@ -339,20 +365,43 @@ function ContractTable({
   // approve their own, so the column is managers-only.
   showPandaDocLinks: boolean;
   showValues: boolean;
+  sort: ContractSort | null;
+  // Where a click on that column's header goes.
+  sortHref: (key: ContractSortKey) => string;
   tab: ContractListTab;
 }) {
+  const header = (key: ContractSortKey, label: string) => (
+    <SortHeader active={sort?.key === key ? sort.dir : null} href={sortHref(key)} label={label} />
+  );
+  const ariaSort = (key: ContractSortKey) =>
+    sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined;
+
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 type-label text-slate-500">
-              <th className="px-5 py-2">Contract</th>
-              <th className="px-4 py-2">Event date</th>
-              <th className="px-4 py-2">Coordinator</th>
-              <th className="px-4 py-2">Customer</th>
-              <th className="px-4 py-2">Status</th>
-              {showValues ? <th className="px-4 py-2 text-right">Amount</th> : null}
+              <th aria-sort={ariaSort("contract")} className="px-5 py-2">
+                {header("contract", "Contract")}
+              </th>
+              <th aria-sort={ariaSort("date")} className="px-4 py-2">
+                {header("date", "Event date")}
+              </th>
+              <th aria-sort={ariaSort("coordinator")} className="px-4 py-2">
+                {header("coordinator", "Coordinator")}
+              </th>
+              <th aria-sort={ariaSort("customer")} className="px-4 py-2">
+                {header("customer", "Customer")}
+              </th>
+              <th aria-sort={ariaSort("status")} className="px-4 py-2">
+                {header("status", "Status")}
+              </th>
+              {showValues ? (
+                <th aria-sort={ariaSort("amount")} className="px-4 py-2 text-right">
+                  {header("amount", "Amount")}
+                </th>
+              ) : null}
               {showPandaDocLinks ? (
                 <th className="px-5 py-2 text-right">PandaDoc</th>
               ) : null}
@@ -434,5 +483,48 @@ function ContractTable({
         </table>
       </div>
     </section>
+  );
+}
+
+// A column header that sorts the table: the arrow shows the direction in
+// use, and a faint pair of arrows marks the columns that aren't sorted.
+function SortHeader({
+  active,
+  href,
+  label,
+}: {
+  active: "asc" | "desc" | null;
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      className={`group inline-flex items-center gap-1 transition hover:text-slate-950 ${
+        active ? "text-slate-950" : ""
+      }`}
+      href={href}
+      scroll={false}
+      title={
+        active === null
+          ? `Sort by ${label.toLowerCase()}`
+          : `Sorted by ${label.toLowerCase()}. Click to change`
+      }
+    >
+      {label}
+      <Icon
+        className={`h-3 w-3 ${active ? "" : "opacity-40 group-hover:opacity-100"}`}
+      >
+        {active === "asc" ? (
+          <path d="m6 15 6-6 6 6" />
+        ) : active === "desc" ? (
+          <path d="m6 9 6 6 6-6" />
+        ) : (
+          <>
+            <path d="m8 9 4-4 4 4" />
+            <path d="m8 15 4 4 4-4" />
+          </>
+        )}
+      </Icon>
+    </Link>
   );
 }
