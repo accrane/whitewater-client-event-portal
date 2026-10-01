@@ -472,8 +472,12 @@ function PricedTable({
 
             {pickerFor === section.key && catalog.status === "ready" ? (
               <CatalogPicker
-                foodFirst={isFoodTable}
                 items={catalog.items}
+                // Food and everything else are kept apart: the Food &
+                // Beverage table's picker offers only catering, every other
+                // table's only the rest. A template with no food table gets
+                // the whole catalog, since food has nowhere else to go.
+                scope={isFoodTable ? "food" : hasFoodTable ? "other" : "all"}
                 onAdd={(item) =>
                   updateSection(section.key, {
                     rows: [...section.rows, draftRowFromCatalog(item)],
@@ -528,20 +532,32 @@ function DescriptionField({
 const ALL = "__all__";
 const ALL_FOOD = "__food__";
 
+type CatalogScope = "food" | "other" | "all";
+
 function CatalogPicker({
-  items,
+  items: allItems,
   onAdd,
-  foodFirst,
+  scope,
 }: {
   items: ContractCatalogItem[];
   onAdd: (item: ContractCatalogItem) => void;
-  // The Food & Beverage table opens on the catering categories.
-  foodFirst: boolean;
+  // "food": catering categories only; "other": everything but catering;
+  // "all": the whole catalog, opening on all categories.
+  scope: CatalogScope;
 }) {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState(foodFirst ? ALL_FOOD : ALL);
+  const [category, setCategory] = useState(scope === "food" ? ALL_FOOD : ALL);
   const [added, setAdded] = useState<string | null>(null);
 
+  const items = useMemo(
+    () =>
+      scope === "all"
+        ? allItems
+        : allItems.filter(
+            (item) => isFoodCatalogCategory(item.category) === (scope === "food"),
+          ),
+    [allItems, scope],
+  );
   const categories = useMemo(
     () => [...new Set(items.map((item) => item.category))],
     [items],
@@ -580,8 +596,12 @@ function CatalogPicker({
           onChange={(event) => setCategory(event.target.value)}
           value={category}
         >
-          <option value={ALL}>All categories</option>
-          <option value={ALL_FOOD}>All catering</option>
+          {scope === "food" ? (
+            <option value={ALL_FOOD}>All catering</option>
+          ) : (
+            <option value={ALL}>All categories</option>
+          )}
+          {scope === "all" ? <option value={ALL_FOOD}>All catering</option> : null}
           {categories.map((name) => (
             <option key={name} value={name}>
               {name}

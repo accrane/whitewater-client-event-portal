@@ -347,16 +347,22 @@ tables the template has in PandaDoc, under the same headings — for example
 table it belongs in, exactly as you would in PandaDoc: the table decides
 the taxes and fees. Food and drink go under **Food & Beverage Items**, which
 is where PandaDoc adds the catering service fee and the food and beverage
-tax; the form warns you if a catering item ends up in another table.
+tax. The catalog keeps the two apart: **Add from catalog** in the Food &
+Beverage table offers only the catering categories, and in every other
+table it offers everything except catering, so a bin rental or a venue
+can't land in the food table by accident (and food can't land outside
+it). On a template with no Food & Beverage table the picker offers the
+whole catalog. The form still warns you if a catering item is already
+sitting in another table.
 
 - **Add from catalog** opens the PandaDoc catalog (passes, venues, parking,
   catering, and the rest). Search or pick a category, click **Add**, then
   set the quantity on the row. The search matches every word you type, in
   any order, against the item's name, description and category, so "bin"
-  finds both bin rentals. In the Food & Beverage table the picker opens on
-  **All catering**; switch the category to **All categories** (or
-  **Miscellaneous**, for bins and craft kits) to see everything else.
-  Items with no category in PandaDoc are listed under **Other**. The name and price come from PandaDoc and
+  finds both bin rentals. The Food & Beverage table's picker holds only
+  catering; the other tables' pickers hold everything else (bins and
+  craft kits are under **Miscellaneous**). Items with no category in
+  PandaDoc are listed under **Other**, outside the food table. The name and price come from PandaDoc and
   can't be changed here — managers set prices in PandaDoc's catalog, and a
   price changed there shows up here within a few minutes.
   The description is shown as plain text and can be edited on the row (for
